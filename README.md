@@ -1,0 +1,1 @@
+`cd dist && gcloud storage cp --recursive ./ gs://gatherin.org`
