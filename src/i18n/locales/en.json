@@ -1,0 +1,459 @@
+{
+  "appName": "Sacred Voice",
+  "appTagline": "Podcast Platform for Religious Communities",
+  "appDescription": "Create and share faith-based podcasts",
+  "nav": {
+    "home": "Home",
+    "projects": "Projects",
+    "voice": "Voice",
+    "settings": "Settings",
+    "switchTheme": "Switch Theme"
+  },
+  "religionSelector": {
+    "title": "Sacred Voice",
+    "subtitle": "Podcast platform for religious communities",
+    "selectPrompt": "Select your faith to begin your journey",
+    "startUsing": "Get Started",
+    "footer": "Local Storage · Privacy Protected · Completely Free"
+  },
+  "religions": {
+    "default": {
+      "name": "Default",
+      "description": "Create podcasts and audio content for all communities"
+    },
+    "christianity": {
+      "name": "Christianity",
+      "description": "Generate Christian-themed podcasts, sermons, and testimonies"
+    },
+    "catholicism": {
+      "name": "Catholicism",
+      "description": "Create Catholic podcasts, homilies, and faith-based content"
+    },
+    "buddhism": {
+      "name": "Buddhism",
+      "description": "Produce Buddhist teachings, meditation guides, and dharma talks"
+    },
+    "islam": {
+      "name": "Islam",
+      "description": "Generate Islamic podcasts, Quran recitations, and spiritual content"
+    },
+    "judaism": {
+      "name": "Judaism",
+      "description": "Create Jewish podcasts, Torah studies, and faith discussions"
+    },
+    "hinduism": {
+      "name": "Hinduism",
+      "description": "Produce Hindu podcasts, Vedic teachings, and spiritual guides"
+    },
+    "taoism": {
+      "name": "Taoism",
+      "description": "Generate Taoist podcasts, philosophy talks, and cultivation guides"
+    }
+  },
+  "dashboard": {
+    "welcome": "Welcome Back",
+    "createNew": "Create New Project",
+    "viewAll": "View All Projects",
+    "podcastProjects": "Podcast Projects",
+    "totalEpisodes": "Total Episodes",
+    "inProgress": "In Progress",
+    "recentProjects": "Recent Projects",
+    "noProjects": "No projects yet. Create your first podcast!",
+    "episodes": "episodes",
+    "updatedAt": "Updated on"
+  },
+  "stages": {
+    "planning": {
+      "name": "Planning",
+      "description": "Define topics, audience, and format"
+    },
+    "scripting": {
+      "name": "Script",
+      "description": "Write scripts and outlines"
+    },
+    "recording": {
+      "name": "Recording",
+      "description": "Record audio content"
+    },
+    "editing": {
+      "name": "Editing",
+      "description": "Edit and optimize audio"
+    },
+    "review": {
+      "name": "Review",
+      "description": "Final check and quality review"
+    },
+    "published": {
+      "name": "Published",
+      "description": "Episode published"
+    }
+  },
+  "projectList": {
+    "title": "My Projects",
+    "subtitle": "Manage all your podcast projects",
+    "newProject": "New Project",
+    "searchPlaceholder": "Search projects...",
+    "allStages": "All Stages",
+    "viewDetails": "View Details",
+    "editProject": "Edit Project",
+    "deleteProject": "Delete Project",
+    "deleteConfirm": "Are you sure you want to delete this project? This action cannot be undone.",
+    "noProjectsFound": "No matching projects found",
+    "noProjectsYet": "No projects yet",
+    "adjustSearch": "Try adjusting your search criteria",
+    "createFirst": "Create Your First Project",
+    "createFirstDesc": "Start spreading the voice of faith by creating your first podcast project"
+  },
+  "projectCreator": {
+    "title": "Create New Project",
+    "step": "Step",
+    "of": "of",
+    "confirmInfo": "Please confirm the information above before creating your project",
+    "steps": {
+      "specConfirmation": {
+        "title": "Spec Confirmation",
+        "description": "Input or upload your content description"
+      },
+      "scriptGeneration": {
+        "title": "Script Generation",
+        "description": "Generate timeline scripts"
+      },
+      "characterVoices": {
+        "title": "Characters & Voices",
+        "description": "Extract and assign character voices"
+      },
+      "generation": {
+        "title": "Generation",
+        "description": "Generate audio content"
+      },
+      "postProcessing": {
+        "title": "Post-processing",
+        "description": "Save project"
+      }
+    },
+    "spec": {
+      "geminiApiKey": "Gemini API Key",
+      "geminiApiKeyPlaceholder": "Enter your Gemini API Key",
+      "geminiApiKeyHint": "Key will be saved in local browser",
+      "textInput": "Text Input",
+      "fileUpload": "File Upload",
+      "contentDescription": "Content Description",
+      "contentPlaceholder": "Enter description of the podcast content you want to create...\n\nExample: I want to create a 5-minute guided meditation audio for beginners, with a calm and soothing style...",
+      "uploadFile": "Upload File",
+      "uploadHint": "Click to upload TXT, PDF or Word file",
+      "analyzeWithAi": "Analyze with AI",
+      "analyzing": "Analyzing...",
+      "generatedSpec": "Generated Spec",
+      "editable": "Editable",
+      "storyTitle": "Story Title",
+      "targetAudience": "Who is this for?",
+      "formatDuration": "Format and Duration",
+      "toneExpression": "Tone and Expression",
+      "bgm": "BGM",
+      "soundEffects": "Sound Effects",
+      "visual": "Visual",
+      "useExistingCharacters": "Use Existing Characters"
+    },
+    "script": {
+      "generateScript": "Generate Timeline Script",
+      "generating": "Generating script...",
+      "regenerate": "Regenerate",
+      "preview": "Script Preview",
+      "coverImageDesc": "Cover Image Description",
+      "timeline": "Timeline",
+      "scriptContent": "Script",
+      "soundMusic": "Sound/Music",
+      "addTimelineItem": "Add Timeline Item"
+    },
+    "characters": {
+      "noCharactersDetected": "No characters detected",
+      "noCharactersHint": "Use \"CharacterName:\" format in scripts.",
+      "extractedCharacters": "The following characters were extracted from the script. Assign a voice to each.",
+      "selectVoice": "Select Voice",
+      "noVoicesAvailable": "No voices available. Create characters in Voice Studio first.",
+      "uploadVoiceSample": "Upload Voice Sample"
+    },
+    "generation": {
+      "generationComplete": "Generation Complete!",
+      "audioReady": "Audio is ready. Click next to save your project.",
+      "audioPreview": "Audio Preview",
+      "visualPreview": "Visual Preview",
+      "preparingAudio": "Preparing audio resources...",
+      "synthesizingVoice": "Synthesizing voice...",
+      "addingBgm": "Adding background music...",
+      "processingSoundEffects": "Processing sound effects...",
+      "finalProcessing": "Final processing...",
+      "complete": "Complete!"
+    },
+    "postProcessing": {
+      "style": "Style",
+      "scriptSections": "Script Sections",
+      "characterCount": "Characters",
+      "confirmSave": "Confirm the information above and click below to save the project",
+      "saveProject": "Save Project"
+    },
+    "errors": {
+      "uploadFileType": "Please upload TXT, PDF or Word file",
+      "inputOrUpload": "Please input description or upload files",
+      "unknownError": "An unknown error occurred, please try again"
+    },
+    "buttons": {
+      "cancel": "Cancel",
+      "back": "Back",
+      "next": "Next",
+      "create": "Create Project"
+    },
+    "files": "files",
+    "clickToExpand": "Click to expand",
+    "quickAnalyze": "⌘+Enter to analyze",
+    "dropToUpload": "Drop files to upload",
+    "analyzing": "Analyzing",
+    "analyze": "Analyze",
+    "projectSpec": "Project Spec",
+    "fieldTitle": "Title",
+    "subtitle": "Subtitle",
+    "addSubtitle": "Add subtitle",
+    "addSubtitleOrTagline": "Add a subtitle or tagline",
+    "audience": "Audience",
+    "duration": "Duration",
+    "style": "Style",
+    "sfx": "SFX",
+    "visual": "Visual",
+    "existingCharacters": "Characters",
+    "generating": "Generating...",
+    "generateScript": "Generate Script",
+    "regen": "Regen",
+    "scriptLabel": "Script",
+    "cover": "Cover",
+    "describeCover": "Describe cover",
+    "lines": "Lines",
+    "speaker": "Speaker",
+    "lineContent": "Line content...",
+    "addLine": "Add line",
+    "soundMusic": "Sound/Music",
+    "bgmSoundEffects": "BGM, sound effects...",
+    "addSegment": "Add segment",
+    "noCharactersFound": "No characters found",
+    "useNameFormat": "Use \"Name:\" in scripts",
+    "voice": "Voice",
+    "noVoicesYet": "No voices yet",
+    "goToVoiceStudio": "Go to Voice Studio",
+    "complete": "Complete!",
+    "clickNextToSave": "Click next to save",
+    "audio": "Audio",
+    "sections": "sections",
+    "chars": "chars",
+    "current": "Current",
+    "inProgress": "In Progress",
+    "completed": "Completed",
+    "overall": "Overall",
+    "estimated": "Est.",
+    "minutes": "min",
+    "processing": "Processing",
+    "save": "Save",
+    "episode1": "Episode 1"
+  },
+  "projectDetail": {
+    "episodeList": "Episode List",
+    "addEpisode": "Add Episode",
+    "addFirstEpisode": "Add First Episode",
+    "noEpisodes": "No episodes yet. Add your first episode to get started",
+    "projectInfo": "Project Info",
+    "projectSpec": "Project Spec",
+    "audience": "Audience",
+    "format": "Format",
+    "tone": "Tone",
+    "addShort": "Add",
+    "createdAt": "Created",
+    "lastUpdated": "Last Updated",
+    "episodeCount": "Episode Count",
+    "editContent": "Edit Content",
+    "changeStatus": "Change Status",
+    "deleteEpisode": "Delete Episode"
+  },
+  "episodeEditor": {
+    "createTitle": "Create New Episode",
+    "editTitle": "Edit Episode",
+    "subtitle": "Fill in episode details",
+    "tabs": {
+      "info": "Basic Info",
+      "script": "Script",
+      "characters": "Characters",
+      "notes": "Notes"
+    },
+    "script": {
+      "noScriptContent": "No script content",
+      "addSection": "Add Section",
+      "sectionName": "Section name",
+      "sectionDescription": "Section description...",
+      "coverDescription": "Cover Description",
+      "describeCoverImage": "Describe cover image",
+      "lines": "Lines",
+      "speaker": "Speaker",
+      "lineContent": "Line content...",
+      "addLine": "Add line",
+      "soundMusic": "Sound/Music",
+      "bgmSoundEffects": "BGM, sound effects...",
+      "addSegment": "Add segment",
+      "defaultSectionName": "Section"
+    },
+    "characters": {
+      "noCharacters": "No characters",
+      "charactersExtracted": "Characters are extracted from script",
+      "assignVoices": "Assign voices to characters",
+      "selectVoice": "Select voice",
+      "noVoicesAvailable": "No voices available, please create in Voice Studio first"
+    },
+    "form": {
+      "title": "Episode Title",
+      "titlePlaceholder": "Enter episode title...",
+      "description": "Episode Description",
+      "descriptionPlaceholder": "Briefly describe this episode...",
+      "stage": "Current Stage",
+      "scriptTips": "Script Writing Tips",
+      "scriptTipsList": [
+        "Start with an attention-grabbing hook",
+        "Keep content structured and organized",
+        "Add pause markers where appropriate",
+        "End with a thought or call to action"
+      ],
+      "scriptPlaceholder": "Write your episode script here...\n\n[Opening]\nWelcome to...\n\n[Main Content]\nToday we'll be sharing...\n\n[Closing]\nThank you for listening...",
+      "wordCount": "Word count",
+      "estimatedDuration": "Estimated duration",
+      "minutes": "min",
+      "notesPlaceholder": "Add notes...\n\nExamples:\n- Watch speaking pace during recording\n- Scripture reference: xxx\n- Music suggestion: xxx",
+      "notesDesc": "Record key points, references, or other notes"
+    },
+    "buttons": {
+      "cancel": "Cancel",
+      "save": "Save Changes",
+      "create": "Create Episode"
+    },
+    "validation": {
+      "titleRequired": "Please enter an episode title"
+    }
+  },
+  "voiceStudio": {
+    "title": "Voice Studio",
+    "subtitle": "Record your voice and manage characters",
+    "tabs": {
+      "record": "Record",
+      "characters": "My Characters"
+    },
+    "selectProject": "Select Project",
+    "podcastProject": "Podcast Project",
+    "selectProjectPlaceholder": "Select a project...",
+    "episode": "Episode",
+    "selectEpisodePlaceholder": "Select an episode...",
+    "status": {
+      "ready": "Ready",
+      "recording": "Recording...",
+      "paused": "Paused",
+      "completed": "Recording Complete"
+    },
+    "tips": {
+      "title": "Recording Tips",
+      "list": [
+        "Choose a quiet environment to minimize background noise",
+        "Keep proper distance from microphone (15-20cm)",
+        "Take a deep breath before speaking, maintain steady pace",
+        "Do a test recording first to check audio quality",
+        "Prepare your script to avoid filler words"
+      ]
+    },
+    "characters": {
+      "title": "My Voice Characters",
+      "subtitle": "Manage your uploaded voice characters",
+      "addNew": "Add Character",
+      "noCharacters": "No voice characters yet",
+      "createFirst": "Create your first voice character",
+      "uploadVoiceFirst": "Upload Voice Sample",
+      "uploadVoiceHint": "Upload a voice sample to create a character",
+      "dragDropHint": "Click or drag audio file here (MP3, WAV, M4A)",
+      "analyzing": "Analyzing voice...",
+      "analyzingHint": "Detecting voice characteristics",
+      "analysisComplete": "Analysis complete",
+      "reupload": "Upload different audio",
+      "name": "Character Name",
+      "namePlaceholder": "e.g., Narrator, Host, Guest...",
+      "description": "Description",
+      "descriptionPlaceholder": "Describe this voice character...",
+      "tags": "Tags",
+      "tagsPlaceholder": "Separate with commas",
+      "avatar": "Avatar",
+      "uploadAvatar": "Upload Avatar",
+      "audioSample": "Voice Sample",
+      "changeAudio": "Change Audio",
+      "playSample": "Play",
+      "voiceProvider": "Voice Provider",
+      "selectProvider": "Select provider...",
+      "voiceId": "Voice ID",
+      "voiceIdPlaceholder": "Enter voice ID from provider",
+      "save": "Save",
+      "cancel": "Cancel",
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleteConfirm": "Are you sure you want to delete this character?",
+      "createdAt": "Created"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your app settings and data",
+    "currentTheme": "Current Theme",
+    "changeTheme": "Change Theme",
+    "allThemes": "All Theme Previews",
+    "currentlyUsing": "Current",
+    "dataStats": "Data Statistics",
+    "totalProjects": "Total Projects",
+    "totalEpisodes": "Total Episodes",
+    "apiConfiguration": "API Configuration",
+    "optional": "Optional",
+    "enterGeminiApiKey": "Enter your Gemini API Key",
+    "saved": "Saved",
+    "save": "Save",
+    "apiKeyDescription": "Used for AI content analysis and script generation. If not provided, system default will be used.",
+    "dataManagement": "Data Management",
+    "exportData": "Export Data",
+    "exportDataDesc": "Download a backup of all your project data",
+    "importData": "Import Data",
+    "importDataDesc": "Restore data from a backup file",
+    "comingSoon": "Coming Soon",
+    "clearData": "Clear All Data",
+    "clearDataDesc": "Delete all locally stored data",
+    "clearConfirm1": "Are you sure you want to clear all data? This action cannot be undone!",
+    "clearConfirm2": "Final confirmation: This will delete ALL projects and episode data!",
+    "about": "About",
+    "aboutText": "A podcast creation platform for religious communities. All data is stored locally to protect your privacy.",
+    "version": "v1.0.0"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "view": "View",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "yes": "Yes",
+    "no": "No",
+    "expand": "Expand",
+    "collapse": "Collapse"
+  },
+  "geminiApiKey": {
+    "title": "Gemini API Key Required",
+    "description": "AI analysis and script generation require a Gemini API Key. Please enter your API Key, which will be securely saved in your browser's local storage.",
+    "inputLabel": "Gemini API Key",
+    "inputPlaceholder": "Paste your API Key here",
+    "getKeyButton": "Get Free API Key",
+    "saveButton": "Save & Continue",
+    "skipButton": "Skip",
+    "hint1": "💡 You can get a free API Key from Google AI Studio",
+    "hint2": "🔒 Your API Key is only saved locally and never uploaded to any server"
+  }
+}

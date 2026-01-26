@@ -1,7 +1,7 @@
 import { ReactNode, useState, useEffect, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
-import { Language } from '../i18n/translations';
+import { Language, LANGUAGE_OPTIONS } from '../i18n/types';
 import { Home, FolderOpen, Settings, AudioWaveform, Globe, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Menu, X, Palette } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
 
@@ -10,12 +10,6 @@ interface LayoutProps {
   onNavigate: (page: string) => void;
   currentPage: string;
 }
-
-const LANGUAGE_OPTIONS: { value: Language; label: string }[] = [
-  { value: 'en', label: 'English' },
-  { value: 'zh', label: '中文' },
-  { value: 'es', label: 'Español' },
-];
 
 export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
   const { religion, theme } = useTheme();
@@ -361,10 +355,7 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
               className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-white/5 transition-all duration-300 text-white/40 hover:text-white/60"
-              title={sidebarCollapsed 
-                ? (language === 'en' ? 'Expand' : language === 'zh' ? '展开' : 'Expandir')
-                : (language === 'en' ? 'Collapse' : language === 'zh' ? '收起' : 'Colapsar')
-              }
+              title={sidebarCollapsed ? t.common.expand || 'Expand' : t.common.collapse || 'Collapse'}
             >
               {sidebarCollapsed ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
             </button>

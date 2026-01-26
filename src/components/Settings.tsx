@@ -14,7 +14,7 @@ interface SettingsProps {
 export function Settings({ onChangeReligion }: SettingsProps) {
   const { theme, religion, setReligion } = useTheme();
   const { projects } = useProjects();
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   
   // API Key state
   const [geminiApiKey, setGeminiApiKey] = useState('');
@@ -153,14 +153,14 @@ export function Settings({ onChangeReligion }: SettingsProps) {
       {/* API Configuration */}
       <div className="rounded-xl md:rounded-2xl p-4 md:p-6 border border-white/10" style={{ background: theme.bgCard }}>
         <h2 className="text-base md:text-lg font-serif text-white mb-3 md:mb-4">
-          {language === 'zh' ? 'API 配置' : 'API Configuration'}
+          {t.settings.apiConfiguration}
         </h2>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-white/70 mb-2">
               Gemini API Key
               <span className="text-white/40 font-normal ml-2">
-                ({language === 'zh' ? '可选' : 'Optional'})
+                ({t.settings.optional})
               </span>
             </label>
             <div className="flex gap-2">
@@ -169,7 +169,7 @@ export function Settings({ onChangeReligion }: SettingsProps) {
                   type={showApiKey ? 'text' : 'password'}
                   value={geminiApiKey}
                   onChange={(e) => setGeminiApiKey(e.target.value)}
-                  placeholder={language === 'zh' ? '输入您的 Gemini API Key' : 'Enter your Gemini API Key'}
+                  placeholder={t.settings.enterGeminiApiKey}
                   className="w-full px-4 py-3 pr-10 rounded-xl border border-white/10 bg-white/5 text-white placeholder-white/30 focus:outline-none focus:border-white/20 text-sm"
                 />
                 <button
@@ -186,16 +186,12 @@ export function Settings({ onChangeReligion }: SettingsProps) {
               >
                 {apiKeySaved ? <Check size={18} /> : <Key size={18} />}
                 <span className="hidden sm:inline">
-                  {apiKeySaved 
-                    ? (language === 'zh' ? '已保存' : 'Saved') 
-                    : (language === 'zh' ? '保存' : 'Save')}
+                  {apiKeySaved ? t.settings.saved : t.settings.save}
                 </span>
               </button>
             </div>
             <p className="text-xs text-white/40 mt-2">
-              {language === 'zh' 
-                ? '用于 AI 内容分析和脚本生成。如果不填写，将使用系统默认配置。' 
-                : 'Used for AI content analysis and script generation. If not provided, system default will be used.'}
+              {t.settings.apiKeyDescription}
             </p>
           </div>
         </div>

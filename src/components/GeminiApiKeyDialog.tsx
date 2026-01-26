@@ -11,7 +11,7 @@ interface GeminiApiKeyDialogProps {
 
 export function GeminiApiKeyDialog({ isOpen, onClose, onSave }: GeminiApiKeyDialogProps) {
   const { theme } = useTheme();
-  const { language } = useLanguage();
+  const { t } = useLanguage();
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
 
@@ -27,20 +27,6 @@ export function GeminiApiKeyDialog({ isOpen, onClose, onSave }: GeminiApiKeyDial
   };
 
   if (!isOpen) return null;
-
-  const text = {
-    title: language === 'zh' ? '需要 Gemini API Key' : 'Gemini API Key Required',
-    description: language === 'zh' 
-      ? '使用 AI 分析和脚本生成功能需要 Gemini API Key。请输入您的 API Key，它将安全地保存在您的浏览器本地存储中。' 
-      : 'AI analysis and script generation require a Gemini API Key. Please enter your API Key, which will be securely saved in your browser\'s local storage.',
-    inputLabel: 'Gemini API Key',
-    inputPlaceholder: language === 'zh' ? '粘贴您的 API Key' : 'Paste your API Key here',
-    getKeyButton: language === 'zh' ? '获取免费 API Key' : 'Get Free API Key',
-    saveButton: language === 'zh' ? '保存并继续' : 'Save & Continue',
-    skipButton: language === 'zh' ? '跳过' : 'Skip',
-    hint1: language === 'zh' ? '💡 您可以从 Google AI Studio 免费获取 API Key' : '💡 You can get a free API Key from Google AI Studio',
-    hint2: language === 'zh' ? '🔒 API Key 仅保存在您的浏览器中，不会被上传到任何服务器' : '🔒 Your API Key is only saved locally and never uploaded to any server',
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
@@ -58,7 +44,7 @@ export function GeminiApiKeyDialog({ isOpen, onClose, onSave }: GeminiApiKeyDial
               <Key size={20} style={{ color: theme.primaryLight }} />
             </div>
             <h2 className="text-xl font-serif text-white">
-              {text.title}
+              {t.geminiApiKey.title}
             </h2>
           </div>
           <button
@@ -71,20 +57,20 @@ export function GeminiApiKeyDialog({ isOpen, onClose, onSave }: GeminiApiKeyDial
 
         {/* Description */}
         <p className="text-white/60 text-sm mb-6 leading-relaxed">
-          {text.description}
+          {t.geminiApiKey.description}
         </p>
 
         {/* API Key Input */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-white/70 mb-2">
-            {text.inputLabel}
+            {t.geminiApiKey.inputLabel}
           </label>
           <div className="relative">
             <input
               type={showApiKey ? 'text' : 'password'}
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder={text.inputPlaceholder}
+              placeholder={t.geminiApiKey.inputPlaceholder}
               className="w-full px-4 py-3 pr-10 rounded-xl border border-white/10 bg-white/5 text-white placeholder-white/30 focus:outline-none focus:border-white/20"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -110,7 +96,7 @@ export function GeminiApiKeyDialog({ isOpen, onClose, onSave }: GeminiApiKeyDial
           className="flex items-center justify-center gap-2 w-full px-4 py-3 mb-4 rounded-xl border border-white/10 text-white/70 hover:text-white hover:border-white/20 transition-all text-sm"
         >
           <ExternalLink size={16} />
-          {text.getKeyButton}
+          {t.geminiApiKey.getKeyButton}
         </a>
 
         {/* Actions */}
@@ -119,7 +105,7 @@ export function GeminiApiKeyDialog({ isOpen, onClose, onSave }: GeminiApiKeyDial
             onClick={handleSkip}
             className="flex-1 px-4 py-3 rounded-xl border border-white/10 text-white/70 hover:text-white hover:border-white/20 transition-all"
           >
-            {text.skipButton}
+            {t.geminiApiKey.skipButton}
           </button>
           <button
             onClick={handleSave}
@@ -127,14 +113,14 @@ export function GeminiApiKeyDialog({ isOpen, onClose, onSave }: GeminiApiKeyDial
             className="flex-1 px-4 py-3 rounded-xl text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
             style={{ background: theme.primary }}
           >
-            {text.saveButton}
+            {t.geminiApiKey.saveButton}
           </button>
         </div>
 
         {/* Hints */}
         <div className="space-y-2 text-xs text-white/40">
-          <p>{text.hint1}</p>
-          <p>{text.hint2}</p>
+          <p>{t.geminiApiKey.hint1}</p>
+          <p>{t.geminiApiKey.hint2}</p>
         </div>
       </div>
     </div>

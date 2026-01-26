@@ -16,7 +16,7 @@ interface ProjectDetailProps {
 export function ProjectDetail({ project, onBack, onEditEpisode, onCreateEpisode }: ProjectDetailProps) {
   const { theme } = useTheme();
   const { deleteEpisode, updateEpisode } = useProjects();
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
   const handleDeleteEpisode = (episodeId: string) => {
@@ -58,16 +58,16 @@ export function ProjectDetail({ project, onBack, onEditEpisode, onCreateEpisode 
       {/* Project Spec Info */}
       {project.spec && (
         <div className="rounded-xl md:rounded-2xl p-4 md:p-6 border border-white/10" style={{ background: theme.bgCard }}>
-          <h2 className="text-base md:text-lg font-serif text-white mb-3 md:mb-4">{language === 'zh' ? '项目规格' : 'Project Spec'}</h2>
+          <h2 className="text-base md:text-lg font-serif text-white mb-3 md:mb-4">{t.projectDetail.projectSpec}</h2>
           <div className="grid grid-cols-2 gap-3 md:gap-4 text-xs md:text-sm">
             {project.spec.targetAudience && (
-              <div><span className="text-white/40">{language === 'zh' ? '目标受众' : 'Audience'}</span><p className="text-white font-medium">{project.spec.targetAudience}</p></div>
+              <div><span className="text-white/40">{t.projectDetail.audience}</span><p className="text-white font-medium">{project.spec.targetAudience}</p></div>
             )}
             {project.spec.formatAndDuration && (
-              <div><span className="text-white/40">{language === 'zh' ? '时长格式' : 'Format'}</span><p className="text-white font-medium">{project.spec.formatAndDuration}</p></div>
+              <div><span className="text-white/40">{t.projectDetail.format}</span><p className="text-white font-medium">{project.spec.formatAndDuration}</p></div>
             )}
             {project.spec.toneAndExpression && (
-              <div className="col-span-2"><span className="text-white/40">{language === 'zh' ? '风格基调' : 'Tone'}</span><p className="text-white font-medium">{project.spec.toneAndExpression}</p></div>
+              <div className="col-span-2"><span className="text-white/40">{t.projectDetail.tone}</span><p className="text-white font-medium">{project.spec.toneAndExpression}</p></div>
             )}
           </div>
         </div>
@@ -84,7 +84,7 @@ export function ProjectDetail({ project, onBack, onEditEpisode, onCreateEpisode 
           >
             <Plus size={16} />
             <span className="hidden sm:inline">{t.projectDetail.addEpisode}</span>
-            <span className="sm:hidden">{language === 'en' ? 'Add' : '添加'}</span>
+            <span className="sm:hidden">{t.projectDetail.addShort}</span>
           </button>
         </div>
 

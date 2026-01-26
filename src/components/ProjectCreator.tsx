@@ -75,28 +75,28 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
   const STEPS = [
     { 
       id: 1, 
-      title: language === 'zh' ? '需求确认' : 'Spec',
-      description: language === 'zh' ? '描述您的内容' : 'Describe your content'
+      title: t.projectCreator.steps.specConfirmation.title,
+      description: t.projectCreator.steps.specConfirmation.description
     },
     { 
       id: 2, 
-      title: language === 'zh' ? '脚本生成' : 'Script',
-      description: language === 'zh' ? '生成时间轴脚本' : 'Generate timeline'
+      title: t.projectCreator.steps.scriptGeneration.title,
+      description: t.projectCreator.steps.scriptGeneration.description
     },
     { 
       id: 3, 
-      title: language === 'zh' ? '角色音色' : 'Voices',
-      description: language === 'zh' ? '分配角色音色' : 'Assign voices'
+      title: t.projectCreator.steps.characterVoices.title,
+      description: t.projectCreator.steps.characterVoices.description
     },
     { 
       id: 4, 
-      title: language === 'zh' ? '开始生成' : 'Generate',
-      description: language === 'zh' ? '生成音频内容' : 'Create audio'
+      title: t.projectCreator.steps.generation.title,
+      description: t.projectCreator.steps.generation.description
     },
     { 
       id: 5, 
-      title: language === 'zh' ? '完成' : 'Done',
-      description: language === 'zh' ? '保存项目' : 'Save project'
+      title: t.projectCreator.steps.postProcessing.title,
+      description: t.projectCreator.steps.postProcessing.description
     },
   ];
 
@@ -108,7 +108,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
       if (validFiles.length > 0) {
         setUploadedFiles(prev => [...prev, ...validFiles]);
       } else {
-        alert(language === 'zh' ? '请上传 TXT、PDF 或 Word 文件' : 'Please upload TXT, PDF or Word file');
+        alert(t.projectCreator.errors.uploadFileType);
       }
     }
   };
@@ -147,7 +147,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
       if (validFiles.length > 0) {
         setUploadedFiles(prev => [...prev, ...validFiles]);
       } else {
-        alert(language === 'zh' ? '请上传 TXT、PDF 或 Word 文件' : 'Please upload TXT, PDF or Word file');
+        alert(t.projectCreator.errors.uploadFileType);
       }
     }
   };
@@ -168,11 +168,11 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
   const handleLLMError = useCallback((error: unknown) => {
     console.error('LLM error:', error);
     if (error instanceof LLMError) {
-      alert(error.getUserMessage(language === 'zh' ? 'zh' : 'en'));
+      alert(error.getUserMessage(language));
     } else {
-      alert(language === 'zh' ? '发生未知错误，请稍后重试' : 'An unknown error occurred, please try again');
+      alert(t.projectCreator.errors.unknownError);
     }
-  }, [language]);
+  }, [language, t]);
 
   // Analyze with LLM
   const analyzeWithGemini = async () => {
@@ -189,7 +189,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
       const content = await collectAnalysisContent(textInput, uploadedFiles);
 
       if (!content.trim()) {
-        alert(language === 'zh' ? '请输入描述或上传文件' : 'Please input description or upload files');
+        alert(t.projectCreator.errors.inputOrUpload);
         setIsAnalyzing(false);
         return;
       }
@@ -338,12 +338,12 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
   // Simulate generation process
   const simulateGeneration = async () => {
     const steps = [
-      { progress: 10, status: language === 'zh' ? '正在准备音频资源...' : 'Preparing audio resources...' },
-      { progress: 25, status: language === 'zh' ? '正在合成语音...' : 'Synthesizing voice...' },
-      { progress: 50, status: language === 'zh' ? '正在添加背景音乐...' : 'Adding background music...' },
-      { progress: 75, status: language === 'zh' ? '正在处理音效...' : 'Processing sound effects...' },
-      { progress: 90, status: language === 'zh' ? '正在最终处理...' : 'Final processing...' },
-      { progress: 100, status: language === 'zh' ? '生成完成！' : 'Generation complete!' },
+      { progress: 10, status: t.projectCreator.generation.preparingAudio },
+      { progress: 25, status: t.projectCreator.generation.synthesizingVoice },
+      { progress: 50, status: t.projectCreator.generation.addingBgm },
+      { progress: 75, status: t.projectCreator.generation.processingSoundEffects },
+      { progress: 90, status: t.projectCreator.generation.finalProcessing },
+      { progress: 100, status: t.projectCreator.generation.complete },
     ];
 
     for (const step of steps) {
@@ -381,7 +381,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
       },
       // First episode with generated script
       firstEpisode: {
-        title: `${language === 'zh' ? '第1集' : 'Episode 1'}: ${specData.storyTitle}`,
+        title: `${t.projectCreator.episode1}: ${specData.storyTitle}`,
         subtitle: specData.subtitle,
         description: specData.toneAndExpression,
         scriptSections,
@@ -493,8 +493,8 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                   {textInput.slice(0, 50)}{textInput.length > 50 ? '...' : ''}
                 </p>
                 <p className="text-xs text-white/50">
-                  {uploadedFiles.length > 0 && `${uploadedFiles.length} ${language === 'zh' ? '个文件' : 'files'} · `}
-                  {language === 'zh' ? '点击展开编辑' : 'Click to expand'}
+                  {uploadedFiles.length > 0 && `${uploadedFiles.length} ${t.projectCreator.files} · `}
+                  {t.projectCreator.clickToExpand}
                 </p>
               </div>
             </div>
@@ -509,7 +509,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
           <div>
             <label className="block text-sm font-medium text-white/70 mb-2 flex items-center justify-end gap-2">
               <span className="text-white/40 font-normal text-xs">
-                {language === 'zh' ? '⌘+Enter 快速分析' : '⌘+Enter to analyze'}
+                {t.projectCreator.quickAnalyze}
               </span>
             </label>
             <div 
@@ -527,13 +527,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                 value={textInput}
                 onChange={(e) => setTextInput(e.target.value)}
                 onKeyDown={handleTextareaKeyDown}
-                placeholder={
-                  language === 'zh' 
-                    ? '描述您想创建的内容...\n\n例如：5分钟冥想引导音频'
-                    : language === 'es'
-                    ? 'Describe tu contenido...\n\nEj: Audio de meditación de 5 min'
-                    : 'Describe your content...\n\nE.g: 5-min meditation audio'
-                }
+                placeholder={t.projectCreator.spec.contentPlaceholder}
                 rows={5}
                 className="w-full px-4 pt-3 pb-2 bg-transparent text-white placeholder-white/30 focus:outline-none resize-none"
               />
@@ -579,11 +573,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                 >
                   <Upload size={14} />
                   <span>
-                    {language === 'zh' 
-                      ? isDragging ? '松开以上传文件' : '添加附件 (TXT, PDF, Word)'
-                      : language === 'es'
-                      ? isDragging ? 'Suelta para subir archivos' : 'Agregar archivos adjuntos (TXT, PDF, Word)'
-                      : isDragging ? 'Drop to upload files' : 'Add attachments (TXT, PDF, Word)'}
+                    {isDragging ? t.projectCreator.dropToUpload : t.projectCreator.spec.uploadHint}
                   </span>
                 </button>
               </div>
@@ -594,7 +584,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                   <div className="flex flex-col items-center gap-2 text-white/70">
                     <Upload size={32} />
                     <span className="text-sm font-medium">
-                      {language === 'zh' ? '松开以上传文件' : language === 'es' ? 'Suelta los archivos para subir' : 'Drop files to upload'}
+                      {t.projectCreator.dropToUpload}
                     </span>
                   </div>
                 </div>
@@ -614,12 +604,12 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
             {isAnalyzing ? (
               <>
                 <Loader2 size={20} className="animate-spin" />
-                {language === 'zh' ? '分析中' : 'Analyzing'}
+                {t.projectCreator.analyzing}
               </>
             ) : (
               <>
                 <Sparkles size={20} />
-                {language === 'zh' ? '智能分析' : 'Analyze'}
+                {t.projectCreator.analyze}
               </>
             )}
           </button>
@@ -630,13 +620,13 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
       {specData.storyTitle && (
         <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: theme.bgCard }}>
           <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-            <h4 className="font-medium text-white">{language === 'zh' ? '项目规格' : 'Project Spec'}</h4>
+            <h4 className="font-medium text-white">{t.projectCreator.projectSpec}</h4>
             <span className="text-xs text-white/40">✏️</span>
           </div>
           <div className="p-4 space-y-4">
             {/* Story Title */}
             <div>
-              <label className="block text-xs text-white/50 mb-1">{language === 'zh' ? '标题' : 'Title'}</label>
+              <label className="block text-xs text-white/50 mb-1">{t.projectCreator.title}</label>
               <input
                 type="text"
                 value={specData.storyTitle}
@@ -648,7 +638,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
             {showSubtitle ? (
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs text-white/50">{language === 'zh' ? '副标题' : 'Subtitle'}</label>
+                  <label className="block text-xs text-white/50">{t.projectCreator.subtitle}</label>
                   <button
                     onClick={() => {
                       setShowSubtitle(false);
@@ -663,7 +653,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                   type="text"
                   value={specData.subtitle}
                   onChange={(e) => updateSpecField('subtitle', e.target.value)}
-                  placeholder={language === 'zh' ? '添加副标题或标语' : 'Add a subtitle or tagline'}
+                  placeholder={t.projectCreator.addSubtitleOrTagline}
                   className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20 text-sm"
                 />
               </div>
@@ -673,12 +663,12 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                 className="flex items-center gap-2 text-xs text-white/50 hover:text-white/70 transition-all"
               >
                 <Plus size={12} />
-                {language === 'zh' ? '添加副标题' : 'Add subtitle'}
+                {t.projectCreator.addSubtitle}
               </button>
             )}
             {/* Target Audience */}
             <div>
-              <label className="block text-xs text-white/50 mb-1">{language === 'zh' ? '受众' : 'Audience'}</label>
+              <label className="block text-xs text-white/50 mb-1">{t.projectCreator.audience}</label>
               <input
                 type="text"
                 value={specData.targetAudience}
@@ -688,7 +678,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
             </div>
             {/* Format and Duration */}
             <div>
-              <label className="block text-xs text-white/50 mb-1">{language === 'zh' ? '时长' : 'Duration'}</label>
+              <label className="block text-xs text-white/50 mb-1">{t.projectCreator.duration}</label>
               <input
                 type="text"
                 value={specData.formatAndDuration}
@@ -698,7 +688,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
             </div>
             {/* Tone and Expression */}
             <div>
-              <label className="block text-xs text-white/50 mb-1">{language === 'zh' ? '风格' : 'Style'}</label>
+              <label className="block text-xs text-white/50 mb-1">{t.projectCreator.style}</label>
               <input
                 type="text"
                 value={specData.toneAndExpression}
@@ -726,7 +716,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                   className="w-4 h-4 rounded border-white/20"
                 />
                 <Volume2 size={14} className="text-white/50" />
-                <span className="text-sm text-white/70">{language === 'zh' ? '音效' : 'SFX'}</span>
+                <span className="text-sm text-white/70">{t.projectCreator.sfx}</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -736,13 +726,13 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                   className="w-4 h-4 rounded border-white/20"
                 />
                 <Image size={14} className="text-white/50" />
-                <span className="text-sm text-white/70">{language === 'zh' ? '视觉' : 'Visual'}</span>
+                <span className="text-sm text-white/70">{t.projectCreator.visual}</span>
               </label>
             </div>
             {/* Existing Characters Selection */}
             {availableVoices.length > 0 && (
               <div>
-                <label className="block text-xs text-white/50 mb-2">{language === 'zh' ? '已有角色' : 'Characters'}</label>
+                <label className="block text-xs text-white/50 mb-2">{t.projectCreator.existingCharacters}</label>
                 <div className="flex flex-wrap gap-2">
                   {availableVoices.map((voice) => (
                     <button
@@ -781,12 +771,12 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
           {isGeneratingScript ? (
             <>
               <Loader2 size={20} className="animate-spin" />
-              {language === 'zh' ? '生成中...' : 'Generating...'}
+              {t.projectCreator.generating}
             </>
           ) : (
             <>
               <Sparkles size={20} />
-              {language === 'zh' ? '生成脚本' : 'Generate Script'}
+              {t.projectCreator.generateScript}
             </>
           )}
         </button>
@@ -795,7 +785,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
       {/* Regenerate Button */}
       {scriptSections.length > 0 && (
         <div className="flex items-center justify-between">
-          <h4 className="text-white font-medium">{language === 'zh' ? '脚本' : 'Script'}</h4>
+          <h4 className="text-white font-medium">{t.projectCreator.scriptLabel}</h4>
           <button
             onClick={generateScript}
             disabled={isGeneratingScript}
@@ -803,7 +793,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
             style={{ background: `${theme.primary}30` }}
           >
             <RefreshCw size={14} className={isGeneratingScript ? 'animate-spin' : ''} />
-            {language === 'zh' ? '重新生成' : 'Regen'}
+            {t.projectCreator.regen}
           </button>
         </div>
       )}
@@ -834,12 +824,12 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
               {/* Cover Image Description */}
               {specData.hasVisualContent && (
                 <div>
-                  <label className="block text-xs text-white/50 mb-1">{language === 'zh' ? '封面' : 'Cover'}</label>
+                  <label className="block text-xs text-white/50 mb-1">{t.projectCreator.cover}</label>
                   <input
                     type="text"
                     value={section.coverImageDescription || ''}
                     onChange={(e) => updateSectionCover(section.id, e.target.value)}
-                    placeholder={language === 'zh' ? '描述封面图' : 'Describe cover'}
+                    placeholder={t.projectCreator.describeCover}
                     className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20 text-sm"
                   />
                 </div>
@@ -883,20 +873,20 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                     
                     {/* Lines (Speaker + Line pairs) */}
                     <div className="space-y-2">
-                      <label className="block text-[10px] text-white/40">{language === 'zh' ? '台词' : 'Lines'}</label>
+                      <label className="block text-[10px] text-white/40">{t.projectCreator.lines}</label>
                       {(item.lines || []).map((scriptLine, lineIndex) => (
                         <div key={lineIndex} className="flex items-start gap-2">
                           <input 
                             type="text" 
                             value={scriptLine.speaker} 
                             onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
-                            placeholder={language === 'zh' ? '角色' : 'Speaker'}
+                            placeholder={t.projectCreator.speaker}
                             className="w-24 px-2 py-1.5 rounded border border-white/10 bg-white/5 text-white text-xs focus:outline-none flex-shrink-0" 
                           />
                           <textarea 
                             value={scriptLine.line} 
                             onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
-                            placeholder={language === 'zh' ? '台词内容...' : 'Line content...'}
+                            placeholder={t.projectCreator.lineContent}
                             rows={2}
                             className="flex-1 px-2 py-1.5 rounded border border-white/10 bg-white/5 text-white text-xs focus:outline-none resize-none" 
                           />
@@ -912,19 +902,19 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                         onClick={() => addScriptLine(section.id, item.id)} 
                         className="flex items-center gap-1 text-[10px] text-white/40 hover:text-white/60"
                       >
-                        <Plus size={10} />{language === 'zh' ? '添加台词' : 'Add line'}
+                        <Plus size={10} />{t.projectCreator.addLine}
                       </button>
                     </div>
                     
                     {/* Sound/Music - only show if BGM or SFX is enabled */}
                     {(specData.addBgm || specData.addSoundEffects) && (
                       <div>
-                        <label className="block text-[10px] text-white/40 mb-1">{language === 'zh' ? '音效/音乐' : 'Sound/Music'}</label>
+                        <label className="block text-[10px] text-white/40 mb-1">{t.projectCreator.soundMusic}</label>
                         <input
                           type="text"
                           value={item.soundMusic}
                           onChange={(e) => updateTimelineItem(section.id, item.id, 'soundMusic', e.target.value)}
-                          placeholder={language === 'zh' ? '背景音乐、音效说明' : 'BGM, sound effects...'}
+                          placeholder={t.projectCreator.bgmSoundEffects}
                           className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white text-sm focus:outline-none focus:border-white/20"
                         />
                       </div>
@@ -939,7 +929,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                 className="flex items-center gap-2 text-xs text-white/50 hover:text-white transition-all"
               >
                 <Plus size={14} />
-                {language === 'zh' ? '添加时间段' : 'Add segment'}
+                {t.projectCreator.addSegment}
               </button>
             </div>
           )}
@@ -954,15 +944,13 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
       {extractedCharacters.length === 0 ? (
         <div className="text-center py-8">
           <User size={48} className="mx-auto mb-4 text-white/30" />
-          <p className="text-white/50">{language === 'zh' ? '未检测到角色' : 'No characters found'}</p>
-          <p className="text-xs text-white/40 mt-2">{language === 'zh' ? '在脚本中使用 "角色名:" 格式' : 'Use "Name:" in scripts'}</p>
+          <p className="text-white/50">{t.projectCreator.noCharactersFound}</p>
+          <p className="text-xs text-white/40 mt-2">{t.projectCreator.useNameFormat}</p>
         </div>
       ) : (
         <>
           <p className="text-sm text-white/50">
-            {language === 'zh' 
-              ? '为每个角色分配音色'
-              : 'Assign voices to characters'}
+            {t.projectCreator.characters.extractedCharacters}
           </p>
 
           {extractedCharacters.map((char, index) => (
@@ -980,7 +968,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                 </div>
                 <div className="flex-1">
                   <h4 className="text-white font-medium">{char.name}</h4>
-                  <p className="text-xs text-white/50">{language === 'zh' ? '选择音色' : 'Voice'}</p>
+                  <p className="text-xs text-white/50">{t.projectCreator.voice}</p>
                 </div>
               </div>
 
@@ -1004,13 +992,13 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                 ) : (
                   <div className="w-full text-center py-4">
                     <p className="text-sm text-white/40 mb-3">
-                      {language === 'zh' ? '暂无音色' : 'No voices yet'}
+                      {t.projectCreator.noVoicesYet}
                     </p>
                     <button
                       className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-white/70 border border-white/10 hover:border-white/20 transition-all mx-auto"
                     >
                       <Upload size={14} />
-                      {language === 'zh' ? '去音色工作室' : 'Go to Voice Studio'}
+                      {t.projectCreator.goToVoiceStudio}
                     </button>
                   </div>
                 )}
@@ -1057,10 +1045,10 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
               <Check size={48} style={{ color: theme.primaryLight }} />
             </div>
             <h3 className="text-xl font-serif text-white mb-2">
-              {language === 'zh' ? '生成完成！' : 'Complete!'}
+              {t.projectCreator.complete}
             </h3>
             <p className="text-white/50 text-sm">
-              {language === 'zh' ? '点击下一步保存项目' : 'Click next to save'}
+              {t.projectCreator.clickNextToSave}
             </p>
           </>
         )}
@@ -1075,7 +1063,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
           >
             <div className="flex items-center gap-2 mb-2">
               <Music size={16} style={{ color: theme.primaryLight }} />
-              <span className="text-white text-sm font-medium">{language === 'zh' ? '音频' : 'Audio'}</span>
+              <span className="text-white text-sm font-medium">{t.projectCreator.audio}</span>
             </div>
             <div className="h-12 rounded-lg flex items-center justify-center" style={{ background: `${theme.primary}10` }}>
               <Play size={20} className="text-white/40" />
@@ -1088,7 +1076,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
             >
               <div className="flex items-center gap-2 mb-2">
                 <Image size={16} style={{ color: theme.primaryLight }} />
-                <span className="text-white text-sm font-medium">{language === 'zh' ? '视觉' : 'Visual'}</span>
+                <span className="text-white text-sm font-medium">{t.projectCreator.visual}</span>
               </div>
               <div className="h-12 rounded-lg flex items-center justify-center" style={{ background: `${theme.primary}10` }}>
                 <Image size={20} className="text-white/40" />
@@ -1125,12 +1113,12 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
           </div>
         </div>
 
-        <div className="space-y-3 text-sm">
+          <div className="space-y-3 text-sm">
           <p className="text-white/70 line-clamp-1">{specData.toneAndExpression}</p>
           <div className="flex items-center gap-4 text-xs text-white/60">
-            <span>{scriptSections.length} {language === 'zh' ? '段' : 'sections'}</span>
+            <span>{scriptSections.length} {t.projectCreator.sections}</span>
             <span>·</span>
-            <span>{extractedCharacters.length} {language === 'zh' ? '角色' : 'chars'}</span>
+            <span>{extractedCharacters.length} {t.projectCreator.chars}</span>
             {specData.addBgm && (
               <>
                 <span>·</span>
@@ -1151,7 +1139,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
               <>
                 <span>·</span>
                 <span className="flex items-center gap-1" style={{ color: theme.primaryLight }}>
-                  <Image size={12} /> {language === 'zh' ? '视觉' : 'Visual'}
+                  <Image size={12} /> {t.projectCreator.visual}
                 </span>
               </>
             )}
@@ -1160,9 +1148,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
       </div>
 
       <p className="text-center text-white/40 text-xs">
-        {language === 'zh' 
-          ? '确认信息后点击保存'
-          : 'Confirm and save'}
+        {t.projectCreator.postProcessing.confirmSave}
       </p>
     </div>
   );
@@ -1349,7 +1335,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                   </div>
                   {currentStep === hoveredStep && (
                     <div className="text-[10px] font-medium px-2 py-0.5 rounded" style={{ background: `${theme.primary}30`, color: theme.primaryLight }}>
-                      {language === 'zh' ? '当前' : 'Current'}
+                      {t.projectCreator.current}
                     </div>
                   )}
                 </div>
@@ -1364,14 +1350,14 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                       <>
                         <Loader2 size={12} className="animate-spin" style={{ color: theme.primaryLight }} />
                         <span className="text-white/70">
-                          {language === 'zh' ? '进行中' : 'In Progress'}
+                          {t.projectCreator.inProgress}
                         </span>
                       </>
                     ) : (
                       <>
                         <Check size={12} style={{ color: theme.primaryLight }} />
                         <span className="text-white/70">
-                          {language === 'zh' ? '已完成' : 'Completed'}
+                          {t.projectCreator.completed}
                         </span>
                       </>
                     )}
@@ -1382,15 +1368,15 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                 {currentStep === hoveredStep && (
                   <div className="mt-2 pt-2 border-t border-white/10">
                     <div className="flex items-center justify-between text-[10px] text-white/60 mb-1">
-                      <span>{language === 'zh' ? '总体进度' : 'Overall'}</span>
+                      <span>{t.projectCreator.overall}</span>
                       <span className="font-medium text-white">{Math.round(getProgressPercentage())}%</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-[10px] text-white/60">
                       <span>⏱</span>
                       <span>
-                        {language === 'zh' ? '预计 ' : 'Est. '}
+                        {t.projectCreator.estimated}
                         {getEstimatedTime()}
-                        {language === 'zh' ? ' 分钟' : ' min'}
+                        {t.projectCreator.minutes}
                       </span>
                     </div>
                   </div>
@@ -1436,7 +1422,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
                 {isProcessingNext ? (
                   <>
                     <Loader2 size={20} className="animate-spin" />
-                    {language === 'zh' ? '处理中' : 'Processing'}
+                    {t.projectCreator.processing}
                   </>
                 ) : (
                   <>
@@ -1453,7 +1439,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
               style={{ background: theme.accent, color: theme.primaryDark }}
             >
               <Save size={20} />
-              {language === 'zh' ? '保存' : 'Save'}
+              {t.projectCreator.save}
             </button>
           )}
         </div>

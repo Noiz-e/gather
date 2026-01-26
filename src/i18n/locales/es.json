@@ -1,0 +1,459 @@
+{
+  "appName": "Voz Sagrada",
+  "appTagline": "Plataforma de Podcast para Comunidades Religiosas",
+  "appDescription": "Crea y comparte podcasts de fe",
+  "nav": {
+    "home": "Inicio",
+    "projects": "Proyectos",
+    "voice": "Voz",
+    "settings": "Configuración",
+    "switchTheme": "Cambiar Tema"
+  },
+  "religionSelector": {
+    "title": "Voz Sagrada",
+    "subtitle": "Plataforma de podcast para comunidades religiosas",
+    "selectPrompt": "Selecciona tu fe para comenzar tu viaje",
+    "startUsing": "Comenzar",
+    "footer": "Almacenamiento Local · Privacidad Protegida · Completamente Gratis"
+  },
+  "religions": {
+    "default": {
+      "name": "Predeterminado",
+      "description": "Genera podcasts y contenido de audio para todas las comunidades"
+    },
+    "christianity": {
+      "name": "Cristianismo",
+      "description": "Genera podcasts cristianos, sermones y testimonios de audio"
+    },
+    "catholicism": {
+      "name": "Catolicismo",
+      "description": "Crea podcasts católicos, homilías y contenido de fe"
+    },
+    "buddhism": {
+      "name": "Budismo",
+      "description": "Produce enseñanzas budistas, guías de meditación y charlas del dharma"
+    },
+    "islam": {
+      "name": "Islam",
+      "description": "Genera podcasts islámicos, recitaciones del Corán y contenido espiritual"
+    },
+    "judaism": {
+      "name": "Judaísmo",
+      "description": "Crea podcasts judíos, estudios de la Torá y discusiones de fe"
+    },
+    "hinduism": {
+      "name": "Hinduismo",
+      "description": "Produce podcasts hindúes, enseñanzas védicas y guías espirituales"
+    },
+    "taoism": {
+      "name": "Taoísmo",
+      "description": "Genera podcasts taoístas, charlas filosóficas y guías de cultivo"
+    }
+  },
+  "dashboard": {
+    "welcome": "Bienvenido de Nuevo",
+    "createNew": "Crear Nuevo Proyecto",
+    "viewAll": "Ver Todos los Proyectos",
+    "podcastProjects": "Proyectos de Podcast",
+    "totalEpisodes": "Total de Episodios",
+    "inProgress": "En Progreso",
+    "recentProjects": "Proyectos Recientes",
+    "noProjects": "Aún no hay proyectos. ¡Crea tu primer podcast!",
+    "episodes": "episodios",
+    "updatedAt": "Actualizado el"
+  },
+  "stages": {
+    "planning": {
+      "name": "Planificación",
+      "description": "Define temas, audiencia y formato"
+    },
+    "scripting": {
+      "name": "Guión",
+      "description": "Escribe guiones y esquemas"
+    },
+    "recording": {
+      "name": "Grabación",
+      "description": "Graba contenido de audio"
+    },
+    "editing": {
+      "name": "Edición",
+      "description": "Edita y optimiza el audio"
+    },
+    "review": {
+      "name": "Revisión",
+      "description": "Revisión final y control de calidad"
+    },
+    "published": {
+      "name": "Publicado",
+      "description": "Episodio publicado"
+    }
+  },
+  "projectList": {
+    "title": "Mis Proyectos",
+    "subtitle": "Gestiona todos tus proyectos de podcast",
+    "newProject": "Nuevo Proyecto",
+    "searchPlaceholder": "Buscar proyectos...",
+    "allStages": "Todas las Etapas",
+    "viewDetails": "Ver Detalles",
+    "editProject": "Editar Proyecto",
+    "deleteProject": "Eliminar Proyecto",
+    "deleteConfirm": "¿Estás seguro de que deseas eliminar este proyecto? Esta acción no se puede deshacer.",
+    "noProjectsFound": "No se encontraron proyectos coincidentes",
+    "noProjectsYet": "Aún no hay proyectos",
+    "adjustSearch": "Intenta ajustar tus criterios de búsqueda",
+    "createFirst": "Crea Tu Primer Proyecto",
+    "createFirstDesc": "Comienza a difundir la voz de la fe creando tu primer proyecto de podcast"
+  },
+  "projectCreator": {
+    "title": "Crear Nuevo Proyecto",
+    "step": "Paso",
+    "of": "de",
+    "confirmInfo": "Por favor confirma la información anterior antes de crear tu proyecto",
+    "steps": {
+      "specConfirmation": {
+        "title": "Confirmación de Especificaciones",
+        "description": "Ingresa o sube la descripción de tu contenido"
+      },
+      "scriptGeneration": {
+        "title": "Generación de Guión",
+        "description": "Genera guiones con línea de tiempo"
+      },
+      "characterVoices": {
+        "title": "Personajes y Voces",
+        "description": "Extrae y asigna voces a los personajes"
+      },
+      "generation": {
+        "title": "Generación",
+        "description": "Genera contenido de audio"
+      },
+      "postProcessing": {
+        "title": "Post-procesamiento",
+        "description": "Guarda el proyecto"
+      }
+    },
+    "spec": {
+      "geminiApiKey": "Clave API de Gemini",
+      "geminiApiKeyPlaceholder": "Ingresa tu Clave API de Gemini",
+      "geminiApiKeyHint": "La clave se guardará en el navegador local",
+      "textInput": "Entrada de Texto",
+      "fileUpload": "Subir Archivo",
+      "contentDescription": "Descripción del Contenido",
+      "contentPlaceholder": "Ingresa la descripción del contenido de podcast que deseas crear...\n\nEjemplo: Quiero crear un audio de meditación guiada de 5 minutos para principiantes, con un estilo tranquilo y relajante...",
+      "uploadFile": "Subir Archivo",
+      "uploadHint": "Haz clic para subir archivo TXT, PDF o Word",
+      "analyzeWithAi": "Analizar con IA",
+      "analyzing": "Analizando...",
+      "generatedSpec": "Especificación Generada",
+      "editable": "Editable",
+      "storyTitle": "Título de la Historia",
+      "targetAudience": "¿Para quién es esto?",
+      "formatDuration": "Formato y Duración",
+      "toneExpression": "Tono y Expresión",
+      "bgm": "Música de Fondo",
+      "soundEffects": "Efectos de Sonido",
+      "visual": "Visual",
+      "useExistingCharacters": "Usar Personajes Existentes"
+    },
+    "script": {
+      "generateScript": "Generar Guión con Línea de Tiempo",
+      "generating": "Generando guión...",
+      "regenerate": "Regenerar",
+      "preview": "Vista Previa del Guión",
+      "coverImageDesc": "Descripción de la Imagen de Portada",
+      "timeline": "Línea de Tiempo",
+      "scriptContent": "Guión",
+      "soundMusic": "Sonido/Música",
+      "addTimelineItem": "Agregar Elemento a la Línea de Tiempo"
+    },
+    "characters": {
+      "noCharactersDetected": "No se detectaron personajes",
+      "noCharactersHint": "Usa el formato \"NombrePersonaje:\" en los guiones.",
+      "extractedCharacters": "Se extrajeron los siguientes personajes del guión. Asigna una voz a cada uno.",
+      "selectVoice": "Seleccionar Voz",
+      "noVoicesAvailable": "No hay voces disponibles. Crea personajes en el Estudio de Voz primero.",
+      "uploadVoiceSample": "Subir Muestra de Voz"
+    },
+    "generation": {
+      "generationComplete": "¡Generación Completa!",
+      "audioReady": "El audio está listo. Haz clic en siguiente para guardar tu proyecto.",
+      "audioPreview": "Vista Previa de Audio",
+      "visualPreview": "Vista Previa Visual",
+      "preparingAudio": "Preparando recursos de audio...",
+      "synthesizingVoice": "Sintetizando voz...",
+      "addingBgm": "Agregando música de fondo...",
+      "processingSoundEffects": "Procesando efectos de sonido...",
+      "finalProcessing": "Procesamiento final...",
+      "complete": "¡Completo!"
+    },
+    "postProcessing": {
+      "style": "Estilo",
+      "scriptSections": "Secciones del Guión",
+      "characterCount": "Personajes",
+      "confirmSave": "Confirma la información anterior y haz clic abajo para guardar el proyecto",
+      "saveProject": "Guardar Proyecto"
+    },
+    "errors": {
+      "uploadFileType": "Por favor sube archivo TXT, PDF o Word",
+      "inputOrUpload": "Por favor ingresa descripción o sube archivos",
+      "unknownError": "Ocurrió un error desconocido, por favor intenta de nuevo"
+    },
+    "buttons": {
+      "cancel": "Cancelar",
+      "back": "Atrás",
+      "next": "Siguiente",
+      "create": "Crear Proyecto"
+    },
+    "files": "archivos",
+    "clickToExpand": "Haz clic para expandir",
+    "quickAnalyze": "⌘+Enter para analizar",
+    "dropToUpload": "Suelta los archivos para subir",
+    "analyzing": "Analizando",
+    "analyze": "Analizar",
+    "projectSpec": "Especificaciones del Proyecto",
+    "fieldTitle": "Título",
+    "subtitle": "Subtítulo",
+    "addSubtitle": "Agregar subtítulo",
+    "addSubtitleOrTagline": "Agregar un subtítulo o eslogan",
+    "audience": "Audiencia",
+    "duration": "Duración",
+    "style": "Estilo",
+    "sfx": "EFX",
+    "visual": "Visual",
+    "existingCharacters": "Personajes",
+    "generating": "Generando...",
+    "generateScript": "Generar Guión",
+    "regen": "Regenerar",
+    "scriptLabel": "Guión",
+    "cover": "Portada",
+    "describeCover": "Describe la portada",
+    "lines": "Líneas",
+    "speaker": "Orador",
+    "lineContent": "Contenido de línea...",
+    "addLine": "Agregar línea",
+    "soundMusic": "Sonido/Música",
+    "bgmSoundEffects": "Música de fondo, efectos de sonido...",
+    "addSegment": "Agregar segmento",
+    "noCharactersFound": "No se encontraron personajes",
+    "useNameFormat": "Usa formato \"Nombre:\" en guiones",
+    "voice": "Voz",
+    "noVoicesYet": "Aún no hay voces",
+    "goToVoiceStudio": "Ir al Estudio de Voz",
+    "complete": "¡Completo!",
+    "clickNextToSave": "Haz clic en siguiente para guardar",
+    "audio": "Audio",
+    "sections": "secciones",
+    "chars": "personajes",
+    "current": "Actual",
+    "inProgress": "En Progreso",
+    "completed": "Completado",
+    "overall": "General",
+    "estimated": "Est.",
+    "minutes": "min",
+    "processing": "Procesando",
+    "save": "Guardar",
+    "episode1": "Episodio 1"
+  },
+  "projectDetail": {
+    "episodeList": "Lista de Episodios",
+    "addEpisode": "Agregar Episodio",
+    "addFirstEpisode": "Agregar Primer Episodio",
+    "noEpisodes": "Aún no hay episodios. Agrega tu primer episodio para comenzar",
+    "projectInfo": "Información del Proyecto",
+    "projectSpec": "Especificaciones del Proyecto",
+    "audience": "Audiencia",
+    "format": "Formato",
+    "tone": "Tono",
+    "addShort": "Agregar",
+    "createdAt": "Creado",
+    "lastUpdated": "Última Actualización",
+    "episodeCount": "Cantidad de Episodios",
+    "editContent": "Editar Contenido",
+    "changeStatus": "Cambiar Estado",
+    "deleteEpisode": "Eliminar Episodio"
+  },
+  "episodeEditor": {
+    "createTitle": "Crear Nuevo Episodio",
+    "editTitle": "Editar Episodio",
+    "subtitle": "Completa los detalles del episodio",
+    "tabs": {
+      "info": "Información Básica",
+      "script": "Guión",
+      "characters": "Personajes",
+      "notes": "Notas"
+    },
+    "script": {
+      "noScriptContent": "Sin contenido de guión",
+      "addSection": "Agregar Sección",
+      "sectionName": "Nombre de sección",
+      "sectionDescription": "Descripción de sección...",
+      "coverDescription": "Descripción de Portada",
+      "describeCoverImage": "Describe la imagen de portada",
+      "lines": "Líneas",
+      "speaker": "Orador",
+      "lineContent": "Contenido de línea...",
+      "addLine": "Agregar línea",
+      "soundMusic": "Sonido/Música",
+      "bgmSoundEffects": "Música de fondo, efectos de sonido...",
+      "addSegment": "Agregar segmento",
+      "defaultSectionName": "Sección"
+    },
+    "characters": {
+      "noCharacters": "Sin personajes",
+      "charactersExtracted": "Los personajes se extraen del guión",
+      "assignVoices": "Asignar voces a los personajes",
+      "selectVoice": "Seleccionar voz",
+      "noVoicesAvailable": "No hay voces disponibles, por favor crea primero en el Estudio de Voz"
+    },
+    "form": {
+      "title": "Título del Episodio",
+      "titlePlaceholder": "Ingresa el título del episodio...",
+      "description": "Descripción del Episodio",
+      "descriptionPlaceholder": "Describe brevemente este episodio...",
+      "stage": "Etapa Actual",
+      "scriptTips": "Consejos para Escribir el Guión",
+      "scriptTipsList": [
+        "Comienza con un gancho que llame la atención",
+        "Mantén el contenido estructurado y organizado",
+        "Agrega marcadores de pausa donde sea apropiado",
+        "Termina con una reflexión o llamada a la acción"
+      ],
+      "scriptPlaceholder": "Escribe el guión de tu episodio aquí...\n\n[Apertura]\nBienvenidos a...\n\n[Contenido Principal]\nHoy compartiremos...\n\n[Cierre]\nGracias por escuchar...",
+      "wordCount": "Conteo de palabras",
+      "estimatedDuration": "Duración estimada",
+      "minutes": "min",
+      "notesPlaceholder": "Agregar notas...\n\nEjemplos:\n- Cuidar el ritmo al grabar\n- Referencia de escritura: xxx\n- Sugerencia de música: xxx",
+      "notesDesc": "Registra puntos clave, referencias u otras notas"
+    },
+    "buttons": {
+      "cancel": "Cancelar",
+      "save": "Guardar Cambios",
+      "create": "Crear Episodio"
+    },
+    "validation": {
+      "titleRequired": "Por favor ingresa un título para el episodio"
+    }
+  },
+  "voiceStudio": {
+    "title": "Estudio de Voz",
+    "subtitle": "Graba tu voz y gestiona personajes",
+    "tabs": {
+      "record": "Grabar",
+      "characters": "Mis Personajes"
+    },
+    "selectProject": "Seleccionar Proyecto",
+    "podcastProject": "Proyecto de Podcast",
+    "selectProjectPlaceholder": "Selecciona un proyecto...",
+    "episode": "Episodio",
+    "selectEpisodePlaceholder": "Selecciona un episodio...",
+    "status": {
+      "ready": "Listo",
+      "recording": "Grabando...",
+      "paused": "Pausado",
+      "completed": "Grabación Completa"
+    },
+    "tips": {
+      "title": "Consejos de Grabación",
+      "list": [
+        "Elige un ambiente tranquilo para minimizar el ruido de fondo",
+        "Mantén la distancia adecuada del micrófono (15-20cm)",
+        "Respira profundo antes de hablar, mantén un ritmo constante",
+        "Haz una grabación de prueba primero para verificar la calidad del audio",
+        "Prepara tu guión para evitar muletillas"
+      ]
+    },
+    "characters": {
+      "title": "Mis Personajes de Voz",
+      "subtitle": "Gestiona tus personajes de voz subidos",
+      "addNew": "Agregar Personaje",
+      "noCharacters": "Aún no hay personajes de voz",
+      "createFirst": "Crea tu primer personaje de voz",
+      "uploadVoiceFirst": "Subir Muestra de Voz",
+      "uploadVoiceHint": "Sube una muestra de voz para crear un personaje",
+      "dragDropHint": "Haz clic o arrastra un archivo de audio aquí (MP3, WAV, M4A)",
+      "analyzing": "Analizando voz...",
+      "analyzingHint": "Detectando características de la voz",
+      "analysisComplete": "Análisis completo",
+      "reupload": "Subir audio diferente",
+      "name": "Nombre del Personaje",
+      "namePlaceholder": "ej., Narrador, Presentador, Invitado...",
+      "description": "Descripción",
+      "descriptionPlaceholder": "Describe este personaje de voz...",
+      "tags": "Etiquetas",
+      "tagsPlaceholder": "Separar con comas",
+      "avatar": "Avatar",
+      "uploadAvatar": "Subir Avatar",
+      "audioSample": "Muestra de Voz",
+      "changeAudio": "Cambiar Audio",
+      "playSample": "Reproducir",
+      "voiceProvider": "Proveedor de Voz",
+      "selectProvider": "Seleccionar proveedor...",
+      "voiceId": "ID de Voz",
+      "voiceIdPlaceholder": "Ingresa el ID de voz del proveedor",
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "edit": "Editar",
+      "delete": "Eliminar",
+      "deleteConfirm": "¿Estás seguro de que deseas eliminar este personaje?",
+      "createdAt": "Creado"
+    }
+  },
+  "settings": {
+    "title": "Configuración",
+    "subtitle": "Gestiona la configuración de tu aplicación y datos",
+    "currentTheme": "Tema Actual",
+    "changeTheme": "Cambiar Tema",
+    "allThemes": "Vista Previa de Todos los Temas",
+    "currentlyUsing": "Actual",
+    "dataStats": "Estadísticas de Datos",
+    "totalProjects": "Total de Proyectos",
+    "totalEpisodes": "Total de Episodios",
+    "apiConfiguration": "Configuración de API",
+    "optional": "Opcional",
+    "enterGeminiApiKey": "Ingresa tu Clave API de Gemini",
+    "saved": "Guardado",
+    "save": "Guardar",
+    "apiKeyDescription": "Se usa para análisis de contenido con IA y generación de guiones. Si no se proporciona, se usará la configuración predeterminada del sistema.",
+    "dataManagement": "Gestión de Datos",
+    "exportData": "Exportar Datos",
+    "exportDataDesc": "Descarga una copia de seguridad de todos los datos de tus proyectos",
+    "importData": "Importar Datos",
+    "importDataDesc": "Restaurar datos desde un archivo de respaldo",
+    "comingSoon": "Próximamente",
+    "clearData": "Borrar Todos los Datos",
+    "clearDataDesc": "Eliminar todos los datos almacenados localmente",
+    "clearConfirm1": "¿Estás seguro de que deseas borrar todos los datos? ¡Esta acción no se puede deshacer!",
+    "clearConfirm2": "Confirmación final: ¡Esto eliminará TODOS los proyectos y datos de episodios!",
+    "about": "Acerca de",
+    "aboutText": "Una plataforma de creación de podcasts para comunidades religiosas. Todos los datos se almacenan localmente para proteger tu privacidad.",
+    "version": "v1.0.0"
+  },
+  "common": {
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "confirm": "Confirmar",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "view": "Ver",
+    "close": "Cerrar",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "yes": "Sí",
+    "no": "No",
+    "expand": "Expandir",
+    "collapse": "Colapsar"
+  },
+  "geminiApiKey": {
+    "title": "Se requiere Clave API de Gemini",
+    "description": "El análisis con IA y la generación de guiones requieren una Clave API de Gemini. Ingresa tu Clave API, que se guardará de forma segura en el almacenamiento local de tu navegador.",
+    "inputLabel": "Clave API de Gemini",
+    "inputPlaceholder": "Pega tu Clave API aquí",
+    "getKeyButton": "Obtener Clave API Gratuita",
+    "saveButton": "Guardar y Continuar",
+    "skipButton": "Omitir",
+    "hint1": "💡 Puedes obtener una Clave API gratuita de Google AI Studio",
+    "hint2": "🔒 Tu Clave API solo se guarda localmente y nunca se sube a ningún servidor"
+  }
+}

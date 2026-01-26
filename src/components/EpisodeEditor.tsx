@@ -33,7 +33,7 @@ interface EpisodeEditorProps {
 
 export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEditorProps) {
   const { theme, religion } = useTheme();
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   
   // Basic info
   const [formData, setFormData] = useState({
@@ -164,7 +164,7 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
   const addSection = () => {
     const newSection: ScriptSection = {
       id: `section-${Date.now()}`,
-      name: language === 'zh' ? `段落 ${scriptSections.length + 1}` : `Section ${scriptSections.length + 1}`,
+      name: `${t.episodeEditor.script.defaultSectionName} ${scriptSections.length + 1}`,
       description: '',
       timeline: [{ id: `item-${Date.now()}`, timeStart: '', timeEnd: '', lines: [{ speaker: '', line: '' }], soundMusic: '' }]
     };
@@ -197,7 +197,7 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
   const tabs = [
     { id: 'info', label: t.episodeEditor.tabs.info },
     { id: 'script', label: t.episodeEditor.tabs.script },
-    { id: 'characters', label: language === 'zh' ? '角色' : 'Characters' },
+    { id: 'characters', label: t.episodeEditor.tabs.characters },
     { id: 'notes', label: t.episodeEditor.tabs.notes },
   ];
 
@@ -277,49 +277,54 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
               <div>
                 <label className="block text-sm font-medium text-white/70 mb-3">{t.episodeEditor.form.stage}</label>
                 <div className="rounded-xl border border-white/10 p-4" style={{ background: theme.bgCard }}>
-                  {/* Progress Bar */}
-                  <div className="relative mb-4">
-                    <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ 
-                          width: `${((PROJECT_STAGES.findIndex(s => s.id === formData.stage) + 1) / PROJECT_STAGES.length) * 100}%`,
-                          background: `linear-gradient(90deg, ${theme.primary}, ${theme.primaryLight})`
-                        }}
-                      />
-                    </div>
-                  </div>
-                  
-                  {/* Stage Steps */}
-                  <div className="flex justify-between">
-                    {PROJECT_STAGES.map((stage, index) => {
-                      const stageT = t.stages[stage.id];
-                      const StageIcon = StageIconMap[stage.id];
-                      const currentIndex = PROJECT_STAGES.findIndex(s => s.id === formData.stage);
-                      const isCompleted = index < currentIndex;
-                      const isCurrent = index === currentIndex;
+                  {/* Combined Progress Bar and Stage Steps */}
+                  <div className="relative">
+                    {/* Progress Bar Container */}
+                    <div className="relative pt-4 pb-6">
+                      {/* Background Bar */}
+                      <div className="absolute top-8 left-0 right-0 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        {/* Active Progress */}
+                        <div 
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ 
+                            width: `${((PROJECT_STAGES.findIndex(s => s.id === formData.stage) + 1) / PROJECT_STAGES.length) * 100}%`,
+                            background: `linear-gradient(90deg, ${theme.primary}, ${theme.primaryLight})`
+                          }}
+                        />
+                      </div>
                       
-                      return (
-                        <div key={stage.id} className="flex flex-col items-center">
-                          <div 
-                            className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 transition-all ${
-                              isCompleted ? 'bg-green-500/20' : isCurrent ? '' : 'bg-white/5'
-                            }`}
-                            style={isCurrent ? { background: `${theme.primary}30`, boxShadow: `0 0 12px ${theme.glow}` } : {}}
-                          >
-                            <StageIcon 
-                              size={16} 
-                              color={isCompleted ? '#22c55e' : isCurrent ? theme.primaryLight : 'rgba(255,255,255,0.3)'} 
-                            />
-                          </div>
-                          <span className={`text-[10px] text-center max-w-[60px] ${
-                            isCompleted ? 'text-green-400' : isCurrent ? 'text-white' : 'text-white/30'
-                          }`}>
-                            {stageT.name}
-                          </span>
-                        </div>
-                      );
-                    })}
+                      {/* Stage Steps - positioned over the bar */}
+                      <div className="relative flex justify-between">
+                        {PROJECT_STAGES.map((stage, index) => {
+                          const stageT = t.stages[stage.id];
+                          const StageIcon = StageIconMap[stage.id];
+                          const currentIndex = PROJECT_STAGES.findIndex(s => s.id === formData.stage);
+                          const isCompleted = index < currentIndex;
+                          const isCurrent = index === currentIndex;
+                          
+                          return (
+                            <div key={stage.id} className="flex flex-col items-center">
+                              <div 
+                                className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 transition-all ${
+                                  isCompleted ? 'bg-green-500/20' : isCurrent ? '' : 'bg-white/5'
+                                }`}
+                                style={isCurrent ? { background: `${theme.primary}30`, boxShadow: `0 0 12px ${theme.glow}` } : {}}
+                              >
+                                <StageIcon 
+                                  size={16} 
+                                  color={isCompleted ? '#22c55e' : isCurrent ? theme.primaryLight : 'rgba(255,255,255,0.3)'} 
+                                />
+                              </div>
+                              <span className={`text-[10px] text-center max-w-[60px] ${
+                                isCompleted ? 'text-green-400' : isCurrent ? 'text-white' : 'text-white/30'
+                              }`}>
+                                {stageT.name}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -331,14 +336,14 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
               {scriptSections.length === 0 ? (
                 <div className="text-center py-12">
                   <FileText size={48} className="mx-auto mb-4 text-white/20" />
-                  <p className="text-white/50 mb-4">{language === 'zh' ? '暂无脚本内容' : 'No script content'}</p>
+                  <p className="text-white/50 mb-4">{t.episodeEditor.script.noScriptContent}</p>
                   <button
                     onClick={addSection}
                     className="px-4 py-2 rounded-xl text-white text-sm"
                     style={{ background: theme.primary }}
                   >
                     <Plus size={16} className="inline mr-2" />
-                    {language === 'zh' ? '添加段落' : 'Add Section'}
+                    {t.episodeEditor.script.addSection}
                   </button>
                 </div>
               ) : (
@@ -361,7 +366,7 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
                             onChange={(e) => { e.stopPropagation(); updateSectionInfo(section.id, 'name', e.target.value); }}
                             onClick={(e) => e.stopPropagation()}
                             className="font-medium text-white bg-transparent border-none focus:outline-none w-full"
-                            placeholder={language === 'zh' ? '段落名称' : 'Section name'}
+                            placeholder={t.episodeEditor.script.sectionName}
                           />
                           <input
                             type="text"
@@ -369,7 +374,7 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
                             onChange={(e) => { e.stopPropagation(); updateSectionInfo(section.id, 'description', e.target.value); }}
                             onClick={(e) => e.stopPropagation()}
                             className="text-xs text-white/50 bg-transparent border-none focus:outline-none w-full mt-1"
-                            placeholder={language === 'zh' ? '段落描述...' : 'Section description...'}
+                            placeholder={t.episodeEditor.script.sectionDescription}
                           />
                         </div>
                         <div className="flex items-center gap-2">
@@ -391,12 +396,12 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
                           {/* Cover Image Description */}
                           {spec?.hasVisualContent && (
                             <div className="mb-4">
-                              <label className="block text-xs text-white/50 mb-1">{language === 'zh' ? '封面描述' : 'Cover Description'}</label>
+                              <label className="block text-xs text-white/50 mb-1">{t.episodeEditor.script.coverDescription}</label>
                               <input
                                 type="text"
                                 value={section.coverImageDescription || ''}
                                 onChange={(e) => updateSectionInfo(section.id, 'coverImageDescription', e.target.value)}
-                                placeholder={language === 'zh' ? '描述封面图' : 'Describe cover image'}
+                                placeholder={t.episodeEditor.script.describeCoverImage}
                                 className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20 text-sm"
                               />
                             </div>
@@ -416,20 +421,20 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
                               
                               {/* Lines */}
                               <div className="space-y-2">
-                                <label className="block text-[10px] text-white/40">{language === 'zh' ? '台词' : 'Lines'}</label>
+                                <label className="block text-[10px] text-white/40">{t.episodeEditor.script.lines}</label>
                                 {(item.lines || []).map((scriptLine, lineIndex) => (
                                   <div key={lineIndex} className="flex items-start gap-2">
                                     <input 
                                       type="text" 
                                       value={scriptLine.speaker} 
                                       onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
-                                      placeholder={language === 'zh' ? '角色' : 'Speaker'}
+                                      placeholder={t.episodeEditor.script.speaker}
                                       className="w-24 px-2 py-1.5 rounded border border-white/10 bg-white/5 text-white text-xs focus:outline-none flex-shrink-0" 
                                     />
                                     <textarea 
                                       value={scriptLine.line} 
                                       onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
-                                      placeholder={language === 'zh' ? '台词内容...' : 'Line content...'}
+                                      placeholder={t.episodeEditor.script.lineContent}
                                       rows={2}
                                       className="flex-1 px-2 py-1.5 rounded border border-white/10 bg-white/5 text-white text-xs focus:outline-none resize-none" 
                                     />
@@ -445,21 +450,21 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
                                   onClick={() => addScriptLine(section.id, item.id)} 
                                   className="flex items-center gap-1 text-[10px] text-white/40 hover:text-white/60"
                                 >
-                                  <Plus size={10} />{language === 'zh' ? '添加台词' : 'Add line'}
+                                  <Plus size={10} />{t.episodeEditor.script.addLine}
                                 </button>
                               </div>
 
                               {/* Sound/Music - only show if BGM or SFX is enabled */}
                               {(spec?.addBgm || spec?.addSoundEffects) && (
                                 <div>
-                                  <label className="block text-[10px] text-white/40 mb-1">{language === 'zh' ? '音效/音乐' : 'Sound/Music'}</label>
-                                  <input type="text" value={item.soundMusic} onChange={(e) => updateTimelineItem(section.id, item.id, 'soundMusic', e.target.value)} placeholder={language === 'zh' ? '背景音乐、音效说明' : 'BGM, sound effects...'} className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white text-sm focus:outline-none" />
+                                  <label className="block text-[10px] text-white/40 mb-1">{t.episodeEditor.script.soundMusic}</label>
+                                  <input type="text" value={item.soundMusic} onChange={(e) => updateTimelineItem(section.id, item.id, 'soundMusic', e.target.value)} placeholder={t.episodeEditor.script.bgmSoundEffects} className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white text-sm focus:outline-none" />
                                 </div>
                               )}
                             </div>
                           ))}
                           <button onClick={() => addTimelineItem(section.id)} className="flex items-center gap-2 text-xs text-white/50 hover:text-white">
-                            <Plus size={14} />{language === 'zh' ? '添加时间段' : 'Add segment'}
+                            <Plus size={14} />{t.episodeEditor.script.addSegment}
                           </button>
                         </div>
                       )}
@@ -472,7 +477,7 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
                     className="w-full py-3 rounded-xl border border-dashed border-white/20 text-white/50 hover:text-white hover:border-white/40 transition-all flex items-center justify-center gap-2"
                   >
                     <Plus size={16} />
-                    {language === 'zh' ? '添加段落' : 'Add Section'}
+                    {t.episodeEditor.script.addSection}
                   </button>
                 </>
               )}
@@ -484,13 +489,13 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
               {characters.length === 0 ? (
                 <div className="text-center py-12">
                   <User size={48} className="mx-auto mb-4 text-white/20" />
-                  <p className="text-white/50">{language === 'zh' ? '暂无角色' : 'No characters'}</p>
-                  <p className="text-white/30 text-sm mt-2">{language === 'zh' ? '角色会从脚本中自动提取' : 'Characters are extracted from script'}</p>
+                  <p className="text-white/50">{t.episodeEditor.characters.noCharacters}</p>
+                  <p className="text-white/30 text-sm mt-2">{t.episodeEditor.characters.charactersExtracted}</p>
                 </div>
               ) : (
                 <>
                   <p className="text-sm text-white/50 mb-4">
-                    {language === 'zh' ? '为每个角色分配音色' : 'Assign voices to characters'}
+                    {t.episodeEditor.characters.assignVoices}
                   </p>
                   {characters.map((char, index) => (
                     <div 
@@ -507,7 +512,7 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
                         </div>
                         <div>
                           <h4 className="text-white font-medium">{char.name}</h4>
-                          <p className="text-xs text-white/50">{char.description || (language === 'zh' ? '选择音色' : 'Select voice')}</p>
+                          <p className="text-xs text-white/50">{char.description || t.episodeEditor.characters.selectVoice}</p>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -525,7 +530,7 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
                             </button>
                           ))
                         ) : (
-                          <p className="text-sm text-white/40">{language === 'zh' ? '暂无可用音色，请先在音色工作室创建' : 'No voices available'}</p>
+                          <p className="text-sm text-white/40">{t.episodeEditor.characters.noVoicesAvailable}</p>
                         )}
                       </div>
                     </div>

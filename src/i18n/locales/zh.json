@@ -1,0 +1,459 @@
+{
+  "appName": "灵声播客",
+  "appTagline": "为宗教社区打造的播客创作平台",
+  "appDescription": "创建和分享信仰播客",
+  "nav": {
+    "home": "首页",
+    "projects": "项目",
+    "voice": "音色",
+    "settings": "设置",
+    "switchTheme": "切换宗教主题"
+  },
+  "religionSelector": {
+    "title": "灵声播客",
+    "subtitle": "为宗教社区打造的播客创作平台",
+    "selectPrompt": "选择您的信仰,开始创作之旅",
+    "startUsing": "开始使用",
+    "footer": "本地存储 · 隐私保护 · 完全免费"
+  },
+  "religions": {
+    "default": {
+      "name": "默认",
+      "description": "为所有社区生成播客和音频内容"
+    },
+    "christianity": {
+      "name": "基督教",
+      "description": "生成基督教主题播客、讲道和见证音频"
+    },
+    "catholicism": {
+      "name": "天主教",
+      "description": "创作天主教播客、弥撒讲道和信仰内容"
+    },
+    "buddhism": {
+      "name": "佛教",
+      "description": "制作佛教教义、冥想引导和佛法开示音频"
+    },
+    "islam": {
+      "name": "伊斯兰教",
+      "description": "生成伊斯兰播客、古兰经诵读和灵修内容"
+    },
+    "judaism": {
+      "name": "犹太教",
+      "description": "创作犹太播客、托拉研习和信仰讨论音频"
+    },
+    "hinduism": {
+      "name": "印度教",
+      "description": "制作印度教播客、吠陀教义和灵修引导"
+    },
+    "taoism": {
+      "name": "道教",
+      "description": "生成道教播客、哲学讲解和修炼指南音频"
+    }
+  },
+  "dashboard": {
+    "welcome": "欢迎回来",
+    "createNew": "创建新项目",
+    "viewAll": "查看所有项目",
+    "podcastProjects": "播客项目",
+    "totalEpisodes": "总集数",
+    "inProgress": "进行中",
+    "recentProjects": "最近项目",
+    "noProjects": "还没有项目,开始创建您的第一个播客吧!",
+    "episodes": "集",
+    "updatedAt": "更新于"
+  },
+  "stages": {
+    "planning": {
+      "name": "规划",
+      "description": "确定主题、目标受众和节目形式"
+    },
+    "scripting": {
+      "name": "脚本",
+      "description": "撰写节目脚本和内容大纲"
+    },
+    "recording": {
+      "name": "录制",
+      "description": "录制音频内容"
+    },
+    "editing": {
+      "name": "剪辑",
+      "description": "编辑和优化音频"
+    },
+    "review": {
+      "name": "审核",
+      "description": "最终检查和质量审核"
+    },
+    "published": {
+      "name": "发布",
+      "description": "节目已发布"
+    }
+  },
+  "projectList": {
+    "title": "我的项目",
+    "subtitle": "管理您的所有播客项目",
+    "newProject": "新建项目",
+    "searchPlaceholder": "搜索项目...",
+    "allStages": "所有阶段",
+    "viewDetails": "查看详情",
+    "editProject": "编辑项目",
+    "deleteProject": "删除项目",
+    "deleteConfirm": "确定要删除这个项目吗?此操作无法撤销。",
+    "noProjectsFound": "没有找到匹配的项目",
+    "noProjectsYet": "还没有项目",
+    "adjustSearch": "尝试调整搜索条件",
+    "createFirst": "创建第一个项目",
+    "createFirstDesc": "创建您的第一个播客项目,开始传播信仰的声音"
+  },
+  "projectCreator": {
+    "title": "创建新项目",
+    "step": "第",
+    "of": "步,共",
+    "confirmInfo": "确认以上信息无误后,点击下方按钮创建项目",
+    "steps": {
+      "specConfirmation": {
+        "title": "需求确认",
+        "description": "输入或上传您的内容描述"
+      },
+      "scriptGeneration": {
+        "title": "脚本生成",
+        "description": "生成时间轴脚本"
+      },
+      "characterVoices": {
+        "title": "角色与音色",
+        "description": "提取并分配角色音色"
+      },
+      "generation": {
+        "title": "开始生成",
+        "description": "生成音频内容"
+      },
+      "postProcessing": {
+        "title": "后处理",
+        "description": "保存项目"
+      }
+    },
+    "spec": {
+      "geminiApiKey": "Gemini API Key",
+      "geminiApiKeyPlaceholder": "输入您的 Gemini API Key",
+      "geminiApiKeyHint": "密钥将保存在本地浏览器中",
+      "textInput": "文本输入",
+      "fileUpload": "文件上传",
+      "contentDescription": "内容描述",
+      "contentPlaceholder": "输入您想要创建的播客内容描述...\n\n例如:我想要创建一个关于冥想和正念的5分钟引导音频,针对初学者,风格轻柔舒缓...",
+      "uploadFile": "上传文件",
+      "uploadHint": "点击上传 TXT、PDF 或 Word 文件",
+      "analyzeWithAi": "使用 AI 分析",
+      "analyzing": "分析中...",
+      "generatedSpec": "生成规格",
+      "editable": "可编辑",
+      "storyTitle": "故事标题",
+      "targetAudience": "目标受众",
+      "formatDuration": "格式和时长",
+      "toneExpression": "风格和表达",
+      "bgm": "背景音乐",
+      "soundEffects": "音效",
+      "visual": "视觉",
+      "useExistingCharacters": "使用已有角色"
+    },
+    "script": {
+      "generateScript": "生成时间轴脚本",
+      "generating": "生成脚本中...",
+      "regenerate": "重新生成",
+      "preview": "脚本预览",
+      "coverImageDesc": "封面图描述",
+      "timeline": "时间轴",
+      "scriptContent": "脚本",
+      "soundMusic": "音乐/音效",
+      "addTimelineItem": "添加时间段"
+    },
+    "characters": {
+      "noCharactersDetected": "未检测到角色",
+      "noCharactersHint": "请在脚本中使用 \"角色名:\" 格式",
+      "extractedCharacters": "从脚本中提取了以下角色,请为每个角色分配音色",
+      "selectVoice": "选择音色",
+      "noVoicesAvailable": "没有可用的音色,请先在音色工作室创建角色",
+      "uploadVoiceSample": "上传音色样本"
+    },
+    "generation": {
+      "generationComplete": "生成完成!",
+      "audioReady": "音频已准备就绪,点击下一步保存项目",
+      "audioPreview": "音频预览",
+      "visualPreview": "视觉预览",
+      "preparingAudio": "正在准备音频资源...",
+      "synthesizingVoice": "正在合成语音...",
+      "addingBgm": "正在添加背景音乐...",
+      "processingSoundEffects": "正在处理音效...",
+      "finalProcessing": "正在最终处理...",
+      "complete": "生成完成！"
+    },
+    "postProcessing": {
+      "style": "风格",
+      "scriptSections": "脚本段落",
+      "characterCount": "角色数量",
+      "confirmSave": "确认以上信息无误后,点击下方按钮保存项目",
+      "saveProject": "保存项目"
+    },
+    "errors": {
+      "uploadFileType": "请上传 TXT、PDF 或 Word 文件",
+      "inputOrUpload": "请输入描述或上传文件",
+      "unknownError": "发生未知错误，请稍后重试"
+    },
+    "buttons": {
+      "cancel": "取消",
+      "back": "上一步",
+      "next": "下一步",
+      "create": "创建项目"
+    },
+    "files": "个文件",
+    "clickToExpand": "点击展开编辑",
+    "quickAnalyze": "⌘+Enter 快速分析",
+    "dropToUpload": "松开以上传文件",
+    "analyzing": "分析中",
+    "analyze": "智能分析",
+    "projectSpec": "项目规格",
+    "fieldTitle": "标题",
+    "subtitle": "副标题",
+    "addSubtitle": "添加副标题",
+    "addSubtitleOrTagline": "添加副标题或标语",
+    "audience": "受众",
+    "duration": "时长",
+    "style": "风格",
+    "sfx": "音效",
+    "visual": "视觉",
+    "existingCharacters": "已有角色",
+    "generating": "生成中...",
+    "generateScript": "生成脚本",
+    "regen": "重新生成",
+    "scriptLabel": "脚本",
+    "cover": "封面",
+    "describeCover": "描述封面图",
+    "lines": "台词",
+    "speaker": "角色",
+    "lineContent": "台词内容...",
+    "addLine": "添加台词",
+    "soundMusic": "音效/音乐",
+    "bgmSoundEffects": "背景音乐、音效说明",
+    "addSegment": "添加时间段",
+    "noCharactersFound": "未检测到角色",
+    "useNameFormat": "在脚本中使用 \"角色名:\" 格式",
+    "voice": "选择音色",
+    "noVoicesYet": "暂无音色",
+    "goToVoiceStudio": "去音色工作室",
+    "complete": "生成完成！",
+    "clickNextToSave": "点击下一步保存项目",
+    "audio": "音频",
+    "sections": "段",
+    "chars": "角色",
+    "current": "当前",
+    "inProgress": "进行中",
+    "completed": "已完成",
+    "overall": "总体进度",
+    "estimated": "预计 ",
+    "minutes": " 分钟",
+    "processing": "处理中",
+    "save": "保存",
+    "episode1": "第1集"
+  },
+  "projectDetail": {
+    "episodeList": "节目列表",
+    "addEpisode": "添加节目",
+    "addFirstEpisode": "添加第一集",
+    "noEpisodes": "还没有节目,开始添加您的第一集吧",
+    "projectInfo": "项目信息",
+    "projectSpec": "项目规格",
+    "audience": "目标受众",
+    "format": "时长格式",
+    "tone": "风格基调",
+    "addShort": "添加",
+    "createdAt": "创建时间",
+    "lastUpdated": "最后更新",
+    "episodeCount": "节目数量",
+    "editContent": "编辑内容",
+    "changeStatus": "更改状态",
+    "deleteEpisode": "删除节目"
+  },
+  "episodeEditor": {
+    "createTitle": "创建新节目",
+    "editTitle": "编辑节目",
+    "subtitle": "填写节目详细信息",
+    "tabs": {
+      "info": "基本信息",
+      "script": "脚本内容",
+      "characters": "角色",
+      "notes": "备注"
+    },
+    "script": {
+      "noScriptContent": "暂无脚本内容",
+      "addSection": "添加段落",
+      "sectionName": "段落名称",
+      "sectionDescription": "段落描述...",
+      "coverDescription": "封面描述",
+      "describeCoverImage": "描述封面图",
+      "lines": "台词",
+      "speaker": "角色",
+      "lineContent": "台词内容...",
+      "addLine": "添加台词",
+      "soundMusic": "音效/音乐",
+      "bgmSoundEffects": "背景音乐、音效说明",
+      "addSegment": "添加时间段",
+      "defaultSectionName": "段落"
+    },
+    "characters": {
+      "noCharacters": "暂无角色",
+      "charactersExtracted": "角色会从脚本中自动提取",
+      "assignVoices": "为每个角色分配音色",
+      "selectVoice": "选择音色",
+      "noVoicesAvailable": "暂无可用音色，请先在音色工作室创建"
+    },
+    "form": {
+      "title": "节目标题",
+      "titlePlaceholder": "输入节目标题...",
+      "description": "节目描述",
+      "descriptionPlaceholder": "简要描述这一集的内容...",
+      "stage": "当前阶段",
+      "scriptTips": "脚本撰写提示",
+      "scriptTipsList": [
+        "开头吸引听众注意力",
+        "内容结构清晰,层次分明",
+        "适当加入停顿标记",
+        "结尾留下思考或行动呼吁"
+      ],
+      "scriptPlaceholder": "在这里撰写您的节目脚本...\n\n[开场白]\n欢迎收听...\n\n[主要内容]\n今天我们要分享的是...\n\n[结束语]\n感谢您的收听...",
+      "wordCount": "字数",
+      "estimatedDuration": "预估时长",
+      "minutes": "分钟",
+      "notesPlaceholder": "添加备注...\n\n例如:\n- 录制时注意语速\n- 参考经文:xxx\n- 配乐建议:xxx",
+      "notesDesc": "记录录制要点、参考资料或其他备注信息"
+    },
+    "buttons": {
+      "cancel": "取消",
+      "save": "保存更改",
+      "create": "创建节目"
+    },
+    "validation": {
+      "titleRequired": "请输入节目标题"
+    }
+  },
+  "voiceStudio": {
+    "title": "音色工作室",
+    "subtitle": "录制您的声音,管理角色音色",
+    "tabs": {
+      "record": "录制",
+      "characters": "我的角色"
+    },
+    "selectProject": "选择项目",
+    "podcastProject": "播客项目",
+    "selectProjectPlaceholder": "选择项目...",
+    "episode": "节目集数",
+    "selectEpisodePlaceholder": "选择节目...",
+    "status": {
+      "ready": "准备就绪",
+      "recording": "录制中...",
+      "paused": "已暂停",
+      "completed": "录制完成"
+    },
+    "tips": {
+      "title": "录音小贴士",
+      "list": [
+        "选择安静的环境,减少背景噪音",
+        "保持与麦克风适当距离(约15-20厘米)",
+        "说话前深呼吸,保持稳定的语速",
+        "录制前先试录一小段检查音质",
+        "准备好脚本或大纲,避免过多的\"嗯\"\"啊\""
+      ]
+    },
+    "characters": {
+      "title": "我的角色音色",
+      "subtitle": "管理您上传的角色音色",
+      "addNew": "添加角色",
+      "noCharacters": "还没有角色音色",
+      "createFirst": "创建您的第一个角色音色",
+      "uploadVoiceFirst": "上传音色样本",
+      "uploadVoiceHint": "上传音色样本以创建角色",
+      "dragDropHint": "点击或拖拽音频文件到此处 (MP3, WAV, M4A)",
+      "analyzing": "正在分析音色...",
+      "analyzingHint": "检测音色特征中",
+      "analysisComplete": "分析完成",
+      "reupload": "重新上传音频",
+      "name": "角色名称",
+      "namePlaceholder": "例如:旁白、主持人、嘉宾...",
+      "description": "描述",
+      "descriptionPlaceholder": "描述这个角色音色...",
+      "tags": "标签",
+      "tagsPlaceholder": "用逗号分隔",
+      "avatar": "头像",
+      "uploadAvatar": "上传头像",
+      "audioSample": "音色样本",
+      "changeAudio": "更换音频",
+      "playSample": "播放",
+      "voiceProvider": "语音服务",
+      "selectProvider": "选择服务商...",
+      "voiceId": "音色 ID",
+      "voiceIdPlaceholder": "输入服务商的音色 ID",
+      "save": "保存",
+      "cancel": "取消",
+      "edit": "编辑",
+      "delete": "删除",
+      "deleteConfirm": "确定要删除这个角色吗?",
+      "createdAt": "创建于"
+    }
+  },
+  "settings": {
+    "title": "设置",
+    "subtitle": "管理您的应用设置和数据",
+    "currentTheme": "当前主题",
+    "changeTheme": "更换主题",
+    "allThemes": "所有主题预览",
+    "currentlyUsing": "当前使用",
+    "dataStats": "数据统计",
+    "totalProjects": "总项目数",
+    "totalEpisodes": "总节目数",
+    "apiConfiguration": "API 配置",
+    "optional": "可选",
+    "enterGeminiApiKey": "输入您的 Gemini API Key",
+    "saved": "已保存",
+    "save": "保存",
+    "apiKeyDescription": "用于 AI 内容分析和脚本生成。如果不填写，将使用系统默认配置。",
+    "dataManagement": "数据管理",
+    "exportData": "导出数据",
+    "exportDataDesc": "下载所有项目数据的备份文件",
+    "importData": "导入数据",
+    "importDataDesc": "从备份文件恢复数据",
+    "comingSoon": "即将推出",
+    "clearData": "清除所有数据",
+    "clearDataDesc": "删除所有本地存储的数据",
+    "clearConfirm1": "确定要清除所有数据吗?此操作无法撤销!",
+    "clearConfirm2": "再次确认:这将删除所有项目和节目数据!",
+    "about": "关于",
+    "aboutText": "为宗教社区打造的播客创作平台。所有数据均存储在本地,保护您的隐私。",
+    "version": "v1.0.0"
+  },
+  "common": {
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功",
+    "confirm": "确认",
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "view": "查看",
+    "close": "关闭",
+    "back": "返回",
+    "next": "下一步",
+    "yes": "是",
+    "no": "否",
+    "expand": "展开",
+    "collapse": "收起"
+  },
+  "geminiApiKey": {
+    "title": "需要 Gemini API Key",
+    "description": "使用 AI 分析和脚本生成功能需要 Gemini API Key。请输入您的 API Key,它将安全地保存在您的浏览器本地存储中。",
+    "inputLabel": "Gemini API Key",
+    "inputPlaceholder": "粘贴您的 API Key",
+    "getKeyButton": "获取免费 API Key",
+    "saveButton": "保存并继续",
+    "skipButton": "跳过",
+    "hint1": "💡 您可以从 Google AI Studio 免费获取 API Key",
+    "hint2": "🔒 API Key 仅保存在您的浏览器中,不会被上传到任何服务器"
+  }
+}

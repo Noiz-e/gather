@@ -2,19 +2,13 @@ import { useState, useRef, useEffect } from 'react';
 import { Religion, RELIGIONS } from '../types';
 import { religionThemes } from '../themes';
 import { useLanguage } from '../i18n/LanguageContext';
-import { Language } from '../i18n/translations';
+import { Language, LANGUAGE_OPTIONS } from '../i18n/types';
 import { ReligionIconMap } from './icons/ReligionIcons';
 import { ChevronDown } from 'lucide-react';
 
 interface ReligionSelectorProps {
   onSelect: (religion: Religion) => void;
 }
-
-const LANGUAGE_OPTIONS: { value: Language; label: string }[] = [
-  { value: 'en', label: 'English' },
-  { value: 'zh', label: '中文' },
-  { value: 'es', label: 'Español' },
-];
 
 export function ReligionSelector({ onSelect }: ReligionSelectorProps) {
   const { t, language, setLanguage } = useLanguage();
