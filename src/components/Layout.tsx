@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { Language, LANGUAGE_OPTIONS } from '../i18n/types';
-import { Home, FolderOpen, Settings, AudioWaveform, Globe, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Menu, X, Palette } from 'lucide-react';
+import { Home, FolderOpen, Settings, AudioWaveform, Globe, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Menu, X } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
 
 interface LayoutProps {
@@ -208,7 +208,7 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
         </nav>
 
         {/* Mobile Bottom Actions */}
-        <div className="p-4 space-y-3 border-t border-white/5">
+        <div className="p-4 border-t border-white/5">
           <div className="relative" ref={mobileLangMenuRef}>
             <button
               onClick={() => setMobileLangMenuOpen(!mobileLangMenuOpen)}
@@ -238,12 +238,6 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
               </div>
             )}
           </div>
-          <button
-            onClick={() => handleNavigate('religion-select')}
-            className="w-full px-4 py-2.5 rounded-xl border border-white/10 hover:border-white/20 transition-all duration-300 text-white/50 hover:text-white/70 text-sm tracking-wide"
-          >
-            {t.nav.switchTheme}
-          </button>
         </div>
       </aside>
 
@@ -341,15 +335,6 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
                 </div>
               )}
             </div>
-
-            {/* Theme Switcher */}
-            <button
-              onClick={() => handleNavigate('religion-select')}
-              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-white/5 transition-all duration-300 text-white/40 hover:text-white/60"
-              title={t.nav.switchTheme}
-            >
-              <Palette size={16} />
-            </button>
 
             {/* Collapse Toggle */}
             <button

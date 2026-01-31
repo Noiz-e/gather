@@ -413,6 +413,26 @@ class LLMService {
       throw error;
     }
   }
+  
+  /**
+   * Generate JSON with streaming - shows raw text progressively, parses JSON when complete
+   * @param prompt The prompt to send
+   * @param onChunk Callback for each text chunk (chunk, accumulated)
+   * @param config Optional configuration
+   * @returns Parsed JSON result
+   */
+  async generateJsonStream<T>(
+    prompt: string, 
+    onChunk: StreamCallback, 
+    config?: LLMConfig
+  ): Promise<T> {
+    const response = await this.generateStream(prompt, onChunk, config);
+    const parsed = parseJson<T>(response.text);
+    if (parsed === null) {
+      throw new LLMError('PARSE_ERROR', 'Failed to parse JSON from response', undefined, response.text);
+    }
+    return parsed;
+  }
 }
 
 export const llm = new LLMService();

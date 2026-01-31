@@ -221,6 +221,7 @@
     "visual": "Visual",
     "existingCharacters": "Personajes",
     "generating": "Generando...",
+    "streamingHint": "La IA está escribiendo el guión...",
     "generateScript": "Generar Guión",
     "regen": "Regenerar",
     "scriptLabel": "Guión",

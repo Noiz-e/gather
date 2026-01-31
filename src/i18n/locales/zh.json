@@ -221,6 +221,7 @@
     "visual": "视觉",
     "existingCharacters": "已有角色",
     "generating": "生成中...",
+    "streamingHint": "AI 正在撰写脚本...",
     "generateScript": "生成脚本",
     "regen": "重新生成",
     "scriptLabel": "脚本",

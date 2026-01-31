@@ -221,6 +221,7 @@
     "visual": "Visual",
     "existingCharacters": "Characters",
     "generating": "Generating...",
+    "streamingHint": "AI is writing the script...",
     "generateScript": "Generate Script",
     "regen": "Regen",
     "scriptLabel": "Script",

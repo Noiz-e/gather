@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { ProjectProvider, useProjects } from './contexts/ProjectContext';
 import { LanguageProvider } from './i18n/LanguageContext';
-import { Religion, Project, Episode } from './types';
-import { ReligionSelector } from './components/ReligionSelector';
+import { Project, Episode } from './types';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { ProjectList } from './components/ProjectList';
@@ -14,10 +13,9 @@ import { EpisodeEditor } from './components/EpisodeEditor';
 import { VoiceStudio } from './components/VoiceStudio';
 import { Settings } from './components/Settings';
 
-type Page = 'dashboard' | 'projects' | 'voice' | 'settings' | 'religion-select' | 'project-detail';
+type Page = 'dashboard' | 'projects' | 'voice' | 'settings' | 'project-detail';
 
 function AppContent() {
-  const { setReligion } = useTheme();
   const { projects, currentProject, setCurrentProject, addEpisode, updateEpisode } = useProjects();
   
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
@@ -26,25 +24,9 @@ function AppContent() {
   const [editingEpisode, setEditingEpisode] = useState<Episode | null>(null);
   const [showEpisodeEditor, setShowEpisodeEditor] = useState(false);
 
-  // Show religion selector only when explicitly navigating to it
-  if (currentPage === 'religion-select') {
-    return (
-      <ReligionSelector 
-        onSelect={(selectedReligion: Religion) => {
-          setReligion(selectedReligion);
-          setCurrentPage('dashboard');
-        }} 
-      />
-    );
-  }
-
   const handleNavigate = (page: string) => {
-    if (page === 'religion-select') {
-      setCurrentPage('religion-select');
-    } else {
-      setCurrentPage(page as Page);
-      setCurrentProject(null);
-    }
+    setCurrentPage(page as Page);
+    setCurrentProject(null);
   };
 
   const handleViewProject = (project: Project) => {
@@ -104,7 +86,7 @@ function AppContent() {
       case 'voice':
         return <VoiceStudio />;
       case 'settings':
-        return <Settings onChangeReligion={() => setCurrentPage('religion-select')} />;
+        return <Settings />;
       default:
         return <Dashboard onCreateProject={() => setShowProjectCreator(true)} onViewProjects={() => setCurrentPage('projects')} />;
     }

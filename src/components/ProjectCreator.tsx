@@ -50,6 +50,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
   // Step 2: Script Generation
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [editingSection, setEditingSection] = useState<string | null>(null);
+  const [streamingText, setStreamingText] = useState<string>(''); // For progressive loading
   
   // Step 3: Character Extraction
   const [availableVoices, setAvailableVoices] = useState<VoiceCharacter[]>([]);
@@ -219,7 +220,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
     }
   };
 
-  // Generate script with LLM
+  // Generate script with LLM (streaming)
   const generateScript = async () => {
     if (!llm.hasApiKey()) {
       setPendingApiAction('generate');
@@ -228,6 +229,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
     }
 
     setIsGeneratingScript(true);
+    setStreamingText(''); // Reset streaming text
 
     try {
       // Collect content without labels for script generation
@@ -243,7 +245,13 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
         hasVisualContent: specData.hasVisualContent,
       });
 
-      const sections = await llm.generateJson<ScriptSection[]>(prompt);
+      // Use streaming to show progressive generation
+      const sections = await llm.generateJsonStream<ScriptSection[]>(
+        prompt,
+        (_chunk, accumulated) => {
+          setStreamingText(accumulated);
+        }
+      );
       
       if (sections && sections.length > 0) {
         dispatch(actions.setScriptSections(sections));
@@ -254,6 +262,7 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
       handleLLMError(error);
     } finally {
       setIsGeneratingScript(false);
+      setStreamingText(''); // Clear streaming text after completion
     }
   };
 
@@ -761,25 +770,45 @@ export function ProjectCreator({ onClose, onSuccess }: ProjectCreatorProps) {
   const renderScriptStep = () => (
     <div className="space-y-6">
       {/* Generate Script Button */}
-      {scriptSections.length === 0 && (
+      {scriptSections.length === 0 && !isGeneratingScript && (
         <button
           onClick={generateScript}
           disabled={isGeneratingScript}
           className="w-full flex items-center justify-center gap-2 px-4 py-4 rounded-xl text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: theme.primary }}
         >
-          {isGeneratingScript ? (
-            <>
-              <Loader2 size={20} className="animate-spin" />
-              {t.projectCreator.generating}
-            </>
-          ) : (
-            <>
-              <Sparkles size={20} />
-              {t.projectCreator.generateScript}
-            </>
-          )}
+          <Sparkles size={20} />
+          {t.projectCreator.generateScript}
         </button>
+      )}
+
+      {/* Streaming Text Display - Shows during generation */}
+      {isGeneratingScript && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div 
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: `${theme.primary}30` }}
+            >
+              <Loader2 size={16} className="animate-spin" style={{ color: theme.primaryLight }} />
+            </div>
+            <div>
+              <p className="text-white font-medium">{t.projectCreator.generating}</p>
+              <p className="text-xs text-white/50">{t.projectCreator.streamingHint || 'AI is writing the script...'}</p>
+            </div>
+          </div>
+          
+          {/* Streaming content area */}
+          <div 
+            className="rounded-xl border border-white/10 p-4 max-h-[400px] overflow-auto"
+            style={{ background: theme.bgCard }}
+          >
+            <pre className="text-sm text-white/80 whitespace-pre-wrap font-mono leading-relaxed">
+              {streamingText || '...'}
+              <span className="inline-block w-2 h-4 ml-1 bg-white/60 animate-pulse" />
+            </pre>
+          </div>
+        </div>
       )}
 
       {/* Regenerate Button */}

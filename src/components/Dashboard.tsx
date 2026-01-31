@@ -59,26 +59,6 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
             </div>
           </div>
           
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button
-              onClick={onCreateProject}
-              className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-medium transition-all duration-300 hover:scale-105 text-sm md:text-base"
-              style={{ 
-                background: theme.accent,
-                color: theme.primaryDark,
-              }}
-            >
-              <Plus size={18} />
-              {t.dashboard.createNew}
-            </button>
-            <button
-              onClick={onViewProjects}
-              className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-medium bg-white/10 hover:bg-white/20 transition-all duration-300 text-white text-sm md:text-base"
-            >
-              {t.dashboard.viewAll}
-              <ArrowRight size={18} />
-            </button>
-          </div>
         </div>
       </div>
 
@@ -175,6 +155,28 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
             <p className="text-white/40 text-sm md:text-base">{t.dashboard.noProjects}</p>
           </div>
         )}
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <button
+          onClick={onViewProjects}
+          className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-medium bg-white/10 hover:bg-white/20 transition-all duration-300 text-white text-sm md:text-base"
+        >
+          {t.dashboard.viewAll}
+          <ArrowRight size={18} />
+        </button>
+        <button
+          onClick={onCreateProject}
+          className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-medium transition-all duration-300 hover:scale-105 text-sm md:text-base"
+          style={{ 
+            background: theme.accent,
+            color: theme.primaryDark,
+          }}
+        >
+          <Plus size={18} />
+          {t.dashboard.createNew}
+        </button>
       </div>
     </div>
   );

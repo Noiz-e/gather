@@ -7,11 +7,7 @@ import { religionThemes } from '../themes';
 import { Trash2, Download, Upload, Info, Key, Eye, EyeOff, Check } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
 
-interface SettingsProps {
-  onChangeReligion: () => void;
-}
-
-export function Settings({ onChangeReligion }: SettingsProps) {
+export function Settings() {
   const { theme, religion, setReligion } = useTheme();
   const { projects } = useProjects();
   const { t } = useLanguage();
@@ -68,24 +64,15 @@ export function Settings({ onChangeReligion }: SettingsProps) {
       {/* Current Theme */}
       <div className="rounded-xl md:rounded-2xl p-4 md:p-6 border border-white/10" style={{ background: theme.bgCard }}>
         <h2 className="text-base md:text-lg font-serif text-white mb-3 md:mb-4">{t.settings.currentTheme}</h2>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 md:gap-4 p-3 md:p-4 rounded-lg md:rounded-xl border border-white/10" style={{ background: `${theme.primary}10` }}>
-          <div className="flex items-center gap-3 md:gap-4">
-            <div className="w-11 h-11 md:w-14 md:h-14 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${theme.primary}30` }}>
-              <ReligionIcon size={22} className="md:hidden" color={theme.primaryLight} />
-              <ReligionIcon size={28} className="hidden md:block" color={theme.primaryLight} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-medium text-white text-sm md:text-base">{religionT.name}</h3>
-              <p className="text-xs md:text-sm text-white/50 line-clamp-1">{religionT.description}</p>
-            </div>
+        <div className="flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-lg md:rounded-xl border border-white/10" style={{ background: `${theme.primary}10` }}>
+          <div className="w-11 h-11 md:w-14 md:h-14 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${theme.primary}30` }}>
+            <ReligionIcon size={22} className="md:hidden" color={theme.primaryLight} />
+            <ReligionIcon size={28} className="hidden md:block" color={theme.primaryLight} />
           </div>
-          <button
-            onClick={onChangeReligion}
-            className="px-3 md:px-4 py-2 rounded-lg md:rounded-xl text-xs md:text-sm font-medium transition-all hover:scale-105 flex-shrink-0 w-full sm:w-auto text-center"
-            style={{ background: theme.accent, color: theme.primaryDark }}
-          >
-            {t.settings.changeTheme}
-          </button>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-medium text-white text-sm md:text-base">{religionT.name}</h3>
+            <p className="text-xs md:text-sm text-white/50 line-clamp-1">{religionT.description}</p>
+          </div>
         </div>
         <div className="mt-3 md:mt-4 flex gap-2">
           <div className="flex-1 h-6 md:h-8 rounded-md md:rounded-lg" style={{ background: theme.primary }} title="Primary" />
