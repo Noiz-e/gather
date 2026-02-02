@@ -1,9 +1,9 @@
 import { Project, Religion } from '../types';
 
 const STORAGE_KEYS = {
-  PROJECTS: 'religious_podcast_projects',
-  CURRENT_RELIGION: 'religious_podcast_religion',
-  USER_PREFERENCES: 'religious_podcast_preferences',
+  PROJECTS: 'gather_projects',
+  CURRENT_RELIGION: 'gather_religion',
+  USER_PREFERENCES: 'gather_preferences',
 };
 
 export const storage = {

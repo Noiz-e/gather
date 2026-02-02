@@ -8,9 +8,24 @@ export interface Translations {
   appTagline: string;
   appDescription: string;
   
+  // Landing
+  landing: {
+    badge: string;
+    headline1: string;
+    headline2: string;
+    headline3: string;
+    headline4: string;
+    body: string;
+    selectFormat: string;
+    startJourney: string;
+    journeyPrompt: string;
+    inputPlaceholder: string;
+    beginProduction: string;
+  };
+
   // Navigation
   nav: {
-    home: string;
+    workspace: string;
     projects: string;
     voice: string;
     settings: string;
@@ -50,6 +65,13 @@ export interface Translations {
     noProjects: string;
     episodes: string;
     updatedAt: string;
+    newProduction: string;
+    inputPlaceholder: string;
+    uploadFile: string;
+    filesSelected: string;
+    orDragDrop: string;
+    dropToUpload: string;
+    startCreating: string;
   };
   
   // Project Stages

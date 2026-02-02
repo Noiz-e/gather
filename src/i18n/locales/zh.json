@@ -1,16 +1,29 @@
 {
-  "appName": "灵声播客",
+  "appName": "Gather",
   "appTagline": "为宗教社区打造的播客创作平台",
   "appDescription": "创建和分享信仰播客",
+  "landing": {
+    "badge": "新一代信仰主题音频工作室",
+    "headline1": "专业级",
+    "headline2": "音频",
+    "headline3": "制作，",
+    "headline4": "化繁为简",
+    "body": "Gather 为真实出版流程而设计。让旧作焕发新生、制作有声书、周更播客或教育音频。专业级制作能力，零复杂操作。",
+    "selectFormat": "选择工作室格式",
+    "startJourney": "开始你的旅程",
+    "journeyPrompt": "用你对制作人说话的方式，描述你想实现的目标……",
+    "inputPlaceholder": "我想用戏剧化有声书模板开始一个新项目……",
+    "beginProduction": "开始制作"
+  },
   "nav": {
-    "home": "首页",
+    "workspace": "工作区",
     "projects": "项目",
     "voice": "音色",
     "settings": "设置",
     "switchTheme": "切换宗教主题"
   },
   "religionSelector": {
-    "title": "灵声播客",
+    "title": "Gather",
     "subtitle": "为宗教社区打造的播客创作平台",
     "selectPrompt": "选择您的信仰,开始创作之旅",
     "startUsing": "开始使用",
@@ -53,14 +66,21 @@
   "dashboard": {
     "welcome": "欢迎回来",
     "createNew": "创建新项目",
-    "viewAll": "查看所有项目",
+    "viewAll": "查看全部",
     "podcastProjects": "播客项目",
     "totalEpisodes": "总集数",
     "inProgress": "进行中",
     "recentProjects": "最近项目",
     "noProjects": "还没有项目,开始创建您的第一个播客吧!",
     "episodes": "集",
-    "updatedAt": "更新于"
+    "updatedAt": "更新于",
+    "newProduction": "新建作品",
+    "inputPlaceholder": "描述你的播客想法、粘贴脚本或拖入文件...",
+    "uploadFile": "上传",
+    "filesSelected": "个文件",
+    "orDragDrop": "或拖放文件到此处",
+    "dropToUpload": "放下以上传",
+    "startCreating": "开始创作"
   },
   "stages": {
     "planning": {

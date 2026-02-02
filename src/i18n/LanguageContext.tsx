@@ -12,7 +12,7 @@ interface LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'religious_podcast_language';
+const STORAGE_KEY = 'gather_language';
 
 // Dynamic import function for JSON files
 async function loadTranslations(lang: Language): Promise<Translations> {

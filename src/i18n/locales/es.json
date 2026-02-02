@@ -1,16 +1,29 @@
 {
-  "appName": "Voz Sagrada",
+  "appName": "Gather",
   "appTagline": "Plataforma de Podcast para Comunidades Religiosas",
   "appDescription": "Crea y comparte podcasts de fe",
+  "landing": {
+    "badge": "ESTUDIO DE AUDIO DE FE DE NUEVA GENERACIÓN",
+    "headline1": "Producción",
+    "headline2": "de audio",
+    "headline3": "de nivel profesional,",
+    "headline4": "simplificada",
+    "body": "Gather está diseñada para publicaciones de fe en el mundo real. Da vida a tu catálogo, crea audiolibros, produce un podcast semanal o audio educativo. Control de producción profesional sin la complejidad.",
+    "selectFormat": "SELECCIONAR FORMATO DE ESTUDIO",
+    "startJourney": "Comienza tu viaje",
+    "journeyPrompt": "Explica qué quieres lograr, como lo harías con un productor...",
+    "inputPlaceholder": "Quiero iniciar un nuevo proyecto con la plantilla de audiolibro dramatizado...",
+    "beginProduction": "Comenzar producción"
+  },
   "nav": {
-    "home": "Inicio",
+    "workspace": "Espacio de trabajo",
     "projects": "Proyectos",
     "voice": "Voz",
     "settings": "Configuración",
     "switchTheme": "Cambiar Tema"
   },
   "religionSelector": {
-    "title": "Voz Sagrada",
+    "title": "Gather",
     "subtitle": "Plataforma de podcast para comunidades religiosas",
     "selectPrompt": "Selecciona tu fe para comenzar tu viaje",
     "startUsing": "Comenzar",
@@ -53,14 +66,21 @@
   "dashboard": {
     "welcome": "Bienvenido de Nuevo",
     "createNew": "Crear Nuevo Proyecto",
-    "viewAll": "Ver Todos los Proyectos",
+    "viewAll": "Ver Todo",
     "podcastProjects": "Proyectos de Podcast",
     "totalEpisodes": "Total de Episodios",
     "inProgress": "En Progreso",
     "recentProjects": "Proyectos Recientes",
     "noProjects": "Aún no hay proyectos. ¡Crea tu primer podcast!",
     "episodes": "episodios",
-    "updatedAt": "Actualizado el"
+    "updatedAt": "Actualizado el",
+    "newProduction": "Nueva Producción",
+    "inputPlaceholder": "Describe tu idea de podcast, pega un guión o suelta un archivo...",
+    "uploadFile": "Subir",
+    "filesSelected": "archivos",
+    "orDragDrop": "o arrastra y suelta archivos aquí",
+    "dropToUpload": "Suelta para subir",
+    "startCreating": "Empezar a Crear"
   },
   "stages": {
     "planning": {

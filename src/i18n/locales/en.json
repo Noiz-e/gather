@@ -1,16 +1,29 @@
 {
-  "appName": "Sacred Voice",
+  "appName": "Gather",
   "appTagline": "Podcast Platform for Religious Communities",
   "appDescription": "Create and share faith-based podcasts",
+  "landing": {
+    "badge": "NEXT GENERATION FAITH-BASED AUDIO STUDIO",
+    "headline1": "Studio-grade",
+    "headline2": "audio",
+    "headline3": "production,",
+    "headline4": "simplified",
+    "body": "Gather is designed for real-world faith publishing. Bring your back catalogue to life, craft audiobooks, produce a weekly podcast series, or create educational audio. You get the production control of a professional studio with none of the complexity.",
+    "selectFormat": "SELECT STUDIO FORMAT",
+    "startJourney": "Start Your Journey",
+    "journeyPrompt": "Explain what you want to achieve, as you would to a human producer...",
+    "inputPlaceholder": "I want to start a new project using the Dramatised Audiobook template...",
+    "beginProduction": "Begin Production"
+  },
   "nav": {
-    "home": "Home",
+    "workspace": "Workspace",
     "projects": "Projects",
     "voice": "Voice",
     "settings": "Settings",
     "switchTheme": "Switch Theme"
   },
   "religionSelector": {
-    "title": "Sacred Voice",
+    "title": "Gather",
     "subtitle": "Podcast platform for religious communities",
     "selectPrompt": "Select your faith to begin your journey",
     "startUsing": "Get Started",
@@ -53,14 +66,21 @@
   "dashboard": {
     "welcome": "Welcome Back",
     "createNew": "Create New Project",
-    "viewAll": "View All Projects",
+    "viewAll": "View All",
     "podcastProjects": "Podcast Projects",
     "totalEpisodes": "Total Episodes",
     "inProgress": "In Progress",
     "recentProjects": "Recent Projects",
     "noProjects": "No projects yet. Create your first podcast!",
     "episodes": "episodes",
-    "updatedAt": "Updated on"
+    "updatedAt": "Updated on",
+    "newProduction": "New Production",
+    "inputPlaceholder": "Describe your podcast idea, paste a script, or drop a file...",
+    "uploadFile": "Upload",
+    "filesSelected": "files",
+    "orDragDrop": "or drag & drop files here",
+    "dropToUpload": "Drop to upload",
+    "startCreating": "Start Creating"
   },
   "stages": {
     "planning": {

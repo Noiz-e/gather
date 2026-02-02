@@ -1,6 +1,7 @@
 // ProjectCreator state management with Immer
 import { produce } from 'immer';
 import { ScriptSection, EpisodeCharacter } from '../../types';
+import { ProjectTemplate, getTemplateById } from './templates';
 
 export interface SpecData {
   storyTitle: string;
@@ -14,10 +15,49 @@ export interface SpecData {
   selectedCharacters: string[];
 }
 
+// Production phases for the new workflow
+export type ProductionPhase = 
+  | 'voice-generation'    // Chunk-by-Chunk Voice Generation
+  | 'media-production'    // Music, Sound Effects, and Images
+  | 'mixing-editing';     // Mixing and Timeline Editing
+
+export interface ProductionProgress {
+  voiceGeneration: {
+    status: 'idle' | 'processing' | 'completed';
+    progress: number;
+    currentChunk?: string;
+  };
+  mediaProduction: {
+    status: 'idle' | 'processing' | 'completed';
+    progress: number;
+    currentTask?: string;
+  };
+  mixingEditing: {
+    status: 'idle' | 'processing' | 'completed';
+    progress: number;
+  };
+}
+
 export interface ProjectCreatorState {
+  // Template selection (new Step 1)
+  selectedTemplateId: string | null;
+  selectedTemplate: ProjectTemplate | null;
+  
+  // Spec configuration
   spec: SpecData;
+  
+  // Content input (moved after spec)
+  contentInput: {
+    textContent: string;
+    uploadedFiles: File[];
+  };
+  
+  // Script and characters
   scriptSections: ScriptSection[];
   characters: EpisodeCharacter[];
+  
+  // Production progress (3 phases)
+  production: ProductionProgress;
 }
 
 const initialSpecData: SpecData = {
@@ -32,17 +72,40 @@ const initialSpecData: SpecData = {
   selectedCharacters: []
 };
 
+const initialProductionProgress: ProductionProgress = {
+  voiceGeneration: { status: 'idle', progress: 0 },
+  mediaProduction: { status: 'idle', progress: 0 },
+  mixingEditing: { status: 'idle', progress: 0 },
+};
+
 export const initialState: ProjectCreatorState = {
+  selectedTemplateId: null,
+  selectedTemplate: null,
   spec: initialSpecData,
+  contentInput: {
+    textContent: '',
+    uploadedFiles: [],
+  },
   scriptSections: [],
-  characters: []
+  characters: [],
+  production: initialProductionProgress,
 };
 
 type Action =
+  // Template selection
+  | { type: 'SELECT_TEMPLATE'; templateId: string }
+  | { type: 'CLEAR_TEMPLATE' }
+  // Spec management
   | { type: 'SET_SPEC'; payload: Partial<SpecData> }
   | { type: 'UPDATE_SPEC_FIELD'; field: keyof SpecData; value: SpecData[keyof SpecData] }
   | { type: 'TOGGLE_CHARACTER_SELECTION'; voiceId: string }
   | { type: 'RESET_SPEC' }
+  // Content input
+  | { type: 'SET_TEXT_CONTENT'; content: string }
+  | { type: 'ADD_UPLOADED_FILES'; files: File[] }
+  | { type: 'REMOVE_UPLOADED_FILE'; index: number }
+  | { type: 'CLEAR_CONTENT_INPUT' }
+  // Script and sections
   | { type: 'SET_SCRIPT_SECTIONS'; payload: ScriptSection[] }
   | { type: 'UPDATE_SECTION_COVER'; sectionId: string; coverImageDescription: string }
   | { type: 'UPDATE_TIMELINE_ITEM'; sectionId: string; itemId: string; field: string; value: string }
@@ -51,9 +114,14 @@ type Action =
   | { type: 'REMOVE_SCRIPT_LINE'; sectionId: string; itemId: string; lineIndex: number }
   | { type: 'ADD_TIMELINE_ITEM'; sectionId: string }
   | { type: 'REMOVE_TIMELINE_ITEM'; sectionId: string; itemId: string }
+  // Characters
   | { type: 'SET_CHARACTERS'; payload: EpisodeCharacter[] }
   | { type: 'ASSIGN_VOICE_TO_CHARACTER'; characterIndex: number; voiceId: string }
   | { type: 'EXTRACT_CHARACTERS_FROM_SCRIPT' }
+  // Production progress
+  | { type: 'UPDATE_PRODUCTION_PHASE'; phase: ProductionPhase; status: 'idle' | 'processing' | 'completed'; progress: number; detail?: string }
+  | { type: 'RESET_PRODUCTION' }
+  // Global
   | { type: 'RESET_ALL' };
 
 function findTimelineItem(sections: ScriptSection[], sectionId: string, itemId: string) {
@@ -63,6 +131,33 @@ function findTimelineItem(sections: ScriptSection[], sectionId: string, itemId: 
 
 export const projectCreatorReducer = produce((state: ProjectCreatorState, action: Action) => {
   switch (action.type) {
+    // Template selection
+    case 'SELECT_TEMPLATE': {
+      const template = getTemplateById(action.templateId);
+      if (template) {
+        state.selectedTemplateId = action.templateId;
+        state.selectedTemplate = template;
+        // Pre-fill spec from template defaults
+        state.spec = {
+          ...initialSpecData,
+          targetAudience: template.defaultSpec.targetAudience,
+          formatAndDuration: template.defaultSpec.formatAndDuration,
+          toneAndExpression: template.defaultSpec.toneAndExpression,
+          addBgm: template.suggestedDefaults.addBgm,
+          addSoundEffects: template.suggestedDefaults.addSoundEffects,
+          hasVisualContent: template.suggestedDefaults.hasVisualContent,
+        };
+      }
+      break;
+    }
+
+    case 'CLEAR_TEMPLATE':
+      state.selectedTemplateId = null;
+      state.selectedTemplate = null;
+      state.spec = initialSpecData;
+      break;
+
+    // Spec management
     case 'SET_SPEC':
       Object.assign(state.spec, action.payload);
       break;
@@ -84,6 +179,23 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
 
     case 'RESET_SPEC':
       state.spec = initialSpecData;
+      break;
+
+    // Content input
+    case 'SET_TEXT_CONTENT':
+      state.contentInput.textContent = action.content;
+      break;
+
+    case 'ADD_UPLOADED_FILES':
+      state.contentInput.uploadedFiles.push(...action.files);
+      break;
+
+    case 'REMOVE_UPLOADED_FILE':
+      state.contentInput.uploadedFiles.splice(action.index, 1);
+      break;
+
+    case 'CLEAR_CONTENT_INPUT':
+      state.contentInput = { textContent: '', uploadedFiles: [] };
       break;
 
     case 'SET_SCRIPT_SECTIONS':
@@ -189,6 +301,23 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
       break;
     }
 
+    // Production progress
+    case 'UPDATE_PRODUCTION_PHASE': {
+      const { phase, status, progress, detail } = action;
+      if (phase === 'voice-generation') {
+        state.production.voiceGeneration = { status, progress, currentChunk: detail };
+      } else if (phase === 'media-production') {
+        state.production.mediaProduction = { status, progress, currentTask: detail };
+      } else if (phase === 'mixing-editing') {
+        state.production.mixingEditing = { status, progress };
+      }
+      break;
+    }
+
+    case 'RESET_PRODUCTION':
+      state.production = initialProductionProgress;
+      break;
+
     case 'RESET_ALL':
       return initialState;
   }
@@ -196,11 +325,30 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
 
 // Action creators
 export const actions = {
+  // Template selection
+  selectTemplate: (templateId: string): Action => 
+    ({ type: 'SELECT_TEMPLATE', templateId }),
+  clearTemplate: (): Action => 
+    ({ type: 'CLEAR_TEMPLATE' }),
+  
+  // Spec management
   setSpec: (payload: Partial<SpecData>): Action => ({ type: 'SET_SPEC', payload }),
   updateSpecField: <K extends keyof SpecData>(field: K, value: SpecData[K]): Action => 
     ({ type: 'UPDATE_SPEC_FIELD', field, value }),
   toggleCharacterSelection: (voiceId: string): Action => 
     ({ type: 'TOGGLE_CHARACTER_SELECTION', voiceId }),
+  
+  // Content input
+  setTextContent: (content: string): Action => 
+    ({ type: 'SET_TEXT_CONTENT', content }),
+  addUploadedFiles: (files: File[]): Action => 
+    ({ type: 'ADD_UPLOADED_FILES', files }),
+  removeUploadedFile: (index: number): Action => 
+    ({ type: 'REMOVE_UPLOADED_FILE', index }),
+  clearContentInput: (): Action => 
+    ({ type: 'CLEAR_CONTENT_INPUT' }),
+  
+  // Script sections
   setScriptSections: (payload: ScriptSection[]): Action => 
     ({ type: 'SET_SCRIPT_SECTIONS', payload }),
   updateSectionCover: (sectionId: string, coverImageDescription: string): Action => 
@@ -217,10 +365,26 @@ export const actions = {
     ({ type: 'ADD_TIMELINE_ITEM', sectionId }),
   removeTimelineItem: (sectionId: string, itemId: string): Action => 
     ({ type: 'REMOVE_TIMELINE_ITEM', sectionId, itemId }),
+  
+  // Characters
   setCharacters: (payload: EpisodeCharacter[]): Action => 
     ({ type: 'SET_CHARACTERS', payload }),
   assignVoiceToCharacter: (characterIndex: number, voiceId: string): Action => 
     ({ type: 'ASSIGN_VOICE_TO_CHARACTER', characterIndex, voiceId }),
   extractCharactersFromScript: (): Action => 
-    ({ type: 'EXTRACT_CHARACTERS_FROM_SCRIPT' })
+    ({ type: 'EXTRACT_CHARACTERS_FROM_SCRIPT' }),
+  
+  // Production progress
+  updateProductionPhase: (
+    phase: ProductionPhase, 
+    status: 'idle' | 'processing' | 'completed', 
+    progress: number, 
+    detail?: string
+  ): Action => ({ type: 'UPDATE_PRODUCTION_PHASE', phase, status, progress, detail }),
+  resetProduction: (): Action => 
+    ({ type: 'RESET_PRODUCTION' }),
+  
+  // Global
+  resetAll: (): Action => 
+    ({ type: 'RESET_ALL' }),
 };

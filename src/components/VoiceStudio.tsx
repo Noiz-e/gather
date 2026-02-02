@@ -5,7 +5,7 @@ import { VoiceCharacter } from '../types';
 import { Mic, Square, Play, Pause, Download, Trash2, Plus, User, Volume2, Edit2, X, Upload, AudioWaveform } from 'lucide-react';
 
 // Storage key for voice characters
-const VOICE_CHARACTERS_KEY = 'sacred-voice-characters';
+const VOICE_CHARACTERS_KEY = 'gather-voice-characters';
 
 // Helper functions for voice characters storage
 const loadVoiceCharacters = (): VoiceCharacter[] => {

@@ -315,7 +315,7 @@ export interface Translations {
 
 export const translations: Record<Language, Translations> = {
   en: {
-    appName: 'Sacred Voice',
+    appName: 'Gather',
     appTagline: 'Podcast Platform for Religious Communities',
     appDescription: 'Create and share faith-based podcasts',
     
@@ -328,7 +328,7 @@ export const translations: Record<Language, Translations> = {
     },
     
     religionSelector: {
-      title: 'Sacred Voice',
+      title: 'Gather',
       subtitle: 'Podcast platform for religious communities',
       selectPrompt: 'Select your faith to begin your journey',
       startUsing: 'Get Started',
@@ -662,7 +662,7 @@ Examples:
   },
   
   zh: {
-    appName: '灵声播客',
+    appName: 'Gather',
     appTagline: '为宗教社区打造的播客创作平台',
     appDescription: '创建和分享信仰播客',
     
@@ -675,7 +675,7 @@ Examples:
     },
     
     religionSelector: {
-      title: '灵声播客',
+      title: 'Gather',
       subtitle: '为宗教社区打造的播客创作平台',
       selectPrompt: '选择您的信仰，开始创作之旅',
       startUsing: '开始使用',
@@ -1009,7 +1009,7 @@ Examples:
   },
 
   es: {
-    appName: 'Voz Sagrada',
+    appName: 'Gather',
     appTagline: 'Plataforma de Podcast para Comunidades Religiosas',
     appDescription: 'Crea y comparte podcasts de fe',
     
@@ -1022,7 +1022,7 @@ Examples:
     },
     
     religionSelector: {
-      title: 'Voz Sagrada',
+      title: 'Gather',
       subtitle: 'Plataforma de podcast para comunidades religiosas',
       selectPrompt: 'Selecciona tu fe para comenzar tu viaje',
       startUsing: 'Comenzar',

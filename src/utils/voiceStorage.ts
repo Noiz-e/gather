@@ -2,7 +2,7 @@
 
 import { VoiceCharacter } from '../types';
 
-const STORAGE_KEY = 'sacred-voice-characters';
+const STORAGE_KEY = 'gather-voice-characters';
 
 export function loadVoiceCharacters(): VoiceCharacter[] {
   try {

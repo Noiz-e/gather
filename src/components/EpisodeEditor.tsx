@@ -6,7 +6,7 @@ import { X, Save, FileText, ChevronRight, Plus, Trash2, User, Volume2 } from 'lu
 import { ReligionIconMap, StageIconMap } from './icons/ReligionIcons';
 
 // Storage key for voice characters (same as VoiceStudio)
-const VOICE_CHARACTERS_KEY = 'sacred-voice-characters';
+const VOICE_CHARACTERS_KEY = 'gather-voice-characters';
 
 interface VoiceCharacter {
   id: string;

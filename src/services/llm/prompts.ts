@@ -19,11 +19,32 @@ export interface ScriptGenerationConfig {
   addBgm: boolean;
   addSoundEffects: boolean;
   hasVisualContent: boolean;
+  // Optional template hints for better script generation
+  styleHint?: string;
+  structureHint?: string;
+  voiceDirectionHint?: string;
 }
 
-export function buildSpecAnalysisPrompt(content: string): string {
+export interface SpecAnalysisConfig {
+  templateName?: string;
+  targetAudience?: string;
+  formatAndDuration?: string;
+  toneAndExpression?: string;
+}
+
+export function buildSpecAnalysisPrompt(content: string, config?: SpecAnalysisConfig): string {
+  const contextSection = config && (config.templateName || config.targetAudience) 
+    ? `
+Project Context (use this to better understand what the user wants):
+${config.templateName ? `- Template/Type: ${config.templateName}` : ''}
+${config.targetAudience ? `- Target Audience: ${config.targetAudience}` : ''}
+${config.formatAndDuration ? `- Format: ${config.formatAndDuration}` : ''}
+${config.toneAndExpression ? `- Tone/Style: ${config.toneAndExpression}` : ''}
+`
+    : '';
+
   return `Analyze the following content and extract podcast/audio production specifications. Return a JSON object with these fields:
-- storyTitle: The main title of the story/content
+- storyTitle: The main title of the story/content (extract from content, considering the project context)
 - subtitle: A short subtitle or tagline for the content (optional, can be empty)
 - targetAudience: Who this content is for (e.g., "Students ages 11-15", "General audience")
 - formatAndDuration: Format and estimated duration (e.g., "Audio podcast mp3, ~5 minutes")
@@ -31,7 +52,7 @@ export function buildSpecAnalysisPrompt(content: string): string {
 - addBgm: boolean - whether background music is recommended
 - addSoundEffects: boolean - whether sound effects are recommended
 - hasVisualContent: boolean - whether visual content is requested
-
+${contextSection}
 Content to analyze:
 ${content}
 

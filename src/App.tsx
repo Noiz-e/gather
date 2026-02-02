@@ -4,6 +4,7 @@ import { ProjectProvider, useProjects } from './contexts/ProjectContext';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { Project, Episode } from './types';
 import { Layout } from './components/Layout';
+import { Landing, LandingData } from './components/Landing';
 import { Dashboard } from './components/Dashboard';
 import { ProjectList } from './components/ProjectList';
 import { ProjectCreator } from './components/ProjectCreator';
@@ -15,11 +16,16 @@ import { Settings } from './components/Settings';
 
 type Page = 'dashboard' | 'projects' | 'voice' | 'settings' | 'project-detail';
 
-function AppContent() {
+interface AppContentProps {
+  initialLandingData: LandingData | null;
+  onClearLandingData: () => void;
+}
+
+function AppContent({ initialLandingData, onClearLandingData }: AppContentProps) {
   const { projects, currentProject, setCurrentProject, addEpisode, updateEpisode } = useProjects();
   
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
-  const [showProjectCreator, setShowProjectCreator] = useState(false);
+  const [showProjectCreator, setShowProjectCreator] = useState(!!initialLandingData);
   const [showEpisodeCreator, setShowEpisodeCreator] = useState(false);
   const [editingEpisode, setEditingEpisode] = useState<Episode | null>(null);
   const [showEpisodeEditor, setShowEpisodeEditor] = useState(false);
@@ -100,8 +106,9 @@ function AppContent() {
 
       {showProjectCreator && (
         <ProjectCreator
-          onClose={() => setShowProjectCreator(false)}
-          onSuccess={() => { setShowProjectCreator(false); setCurrentPage('projects'); }}
+          onClose={() => { setShowProjectCreator(false); onClearLandingData(); }}
+          onSuccess={() => { setShowProjectCreator(false); onClearLandingData(); setCurrentPage('projects'); }}
+          initialData={initialLandingData || undefined}
         />
       )}
 
@@ -131,12 +138,26 @@ function AppContent() {
 }
 
 function App() {
+  const [showLanding, setShowLanding] = useState(true);
+  const [landingData, setLandingData] = useState<LandingData | null>(null);
+
+  const handleEnterWorkspace = (data?: LandingData) => {
+    if (data) {
+      setLandingData(data);
+    }
+    setShowLanding(false);
+  };
+
   return (
     <LanguageProvider>
       <ThemeProvider>
-        <ProjectProvider>
-          <AppContent />
-        </ProjectProvider>
+        {showLanding ? (
+          <Landing onEnterWorkspace={handleEnterWorkspace} />
+        ) : (
+          <ProjectProvider>
+            <AppContent initialLandingData={landingData} onClearLandingData={() => setLandingData(null)} />
+          </ProjectProvider>
+        )}
       </ThemeProvider>
     </LanguageProvider>
   );

@@ -11,7 +11,7 @@ import {
 import { ReligionIconMap } from './icons/ReligionIcons';
 
 // Storage key for voice characters (same as VoiceStudio)
-const VOICE_CHARACTERS_KEY = 'sacred-voice-characters';
+const VOICE_CHARACTERS_KEY = 'gather-voice-characters';
 
 const loadVoiceCharacters = (): VoiceCharacter[] => {
   try {
