@@ -152,9 +152,6 @@
       }
     },
     "spec": {
-      "geminiApiKey": "Gemini API Key",
-      "geminiApiKeyPlaceholder": "输入您的 Gemini API Key",
-      "geminiApiKeyHint": "密钥将保存在本地浏览器中",
       "textInput": "文本输入",
       "fileUpload": "文件上传",
       "contentDescription": "内容描述",
@@ -428,12 +425,6 @@
     "dataStats": "数据统计",
     "totalProjects": "总项目数",
     "totalEpisodes": "总节目数",
-    "apiConfiguration": "API 配置",
-    "optional": "可选",
-    "enterGeminiApiKey": "输入您的 Gemini API Key",
-    "saved": "已保存",
-    "save": "保存",
-    "apiKeyDescription": "用于 AI 内容分析和脚本生成。如果不填写，将使用系统默认配置。",
     "dataManagement": "数据管理",
     "exportData": "导出数据",
     "exportDataDesc": "下载所有项目数据的备份文件",
@@ -465,16 +456,5 @@
     "no": "否",
     "expand": "展开",
     "collapse": "收起"
-  },
-  "geminiApiKey": {
-    "title": "需要 Gemini API Key",
-    "description": "使用 AI 分析和脚本生成功能需要 Gemini API Key。请输入您的 API Key,它将安全地保存在您的浏览器本地存储中。",
-    "inputLabel": "Gemini API Key",
-    "inputPlaceholder": "粘贴您的 API Key",
-    "getKeyButton": "获取免费 API Key",
-    "saveButton": "保存并继续",
-    "skipButton": "跳过",
-    "hint1": "💡 您可以从 Google AI Studio 免费获取 API Key",
-    "hint2": "🔒 API Key 仅保存在您的浏览器中,不会被上传到任何服务器"
   }
 }

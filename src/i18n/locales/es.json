@@ -152,9 +152,6 @@
       }
     },
     "spec": {
-      "geminiApiKey": "Clave API de Gemini",
-      "geminiApiKeyPlaceholder": "Ingresa tu Clave API de Gemini",
-      "geminiApiKeyHint": "La clave se guardará en el navegador local",
       "textInput": "Entrada de Texto",
       "fileUpload": "Subir Archivo",
       "contentDescription": "Descripción del Contenido",
@@ -428,12 +425,6 @@
     "dataStats": "Estadísticas de Datos",
     "totalProjects": "Total de Proyectos",
     "totalEpisodes": "Total de Episodios",
-    "apiConfiguration": "Configuración de API",
-    "optional": "Opcional",
-    "enterGeminiApiKey": "Ingresa tu Clave API de Gemini",
-    "saved": "Guardado",
-    "save": "Guardar",
-    "apiKeyDescription": "Se usa para análisis de contenido con IA y generación de guiones. Si no se proporciona, se usará la configuración predeterminada del sistema.",
     "dataManagement": "Gestión de Datos",
     "exportData": "Exportar Datos",
     "exportDataDesc": "Descarga una copia de seguridad de todos los datos de tus proyectos",
@@ -465,16 +456,5 @@
     "no": "No",
     "expand": "Expandir",
     "collapse": "Colapsar"
-  },
-  "geminiApiKey": {
-    "title": "Se requiere Clave API de Gemini",
-    "description": "El análisis con IA y la generación de guiones requieren una Clave API de Gemini. Ingresa tu Clave API, que se guardará de forma segura en el almacenamiento local de tu navegador.",
-    "inputLabel": "Clave API de Gemini",
-    "inputPlaceholder": "Pega tu Clave API aquí",
-    "getKeyButton": "Obtener Clave API Gratuita",
-    "saveButton": "Guardar y Continuar",
-    "skipButton": "Omitir",
-    "hint1": "💡 Puedes obtener una Clave API gratuita de Google AI Studio",
-    "hint2": "🔒 Tu Clave API solo se guarda localmente y nunca se sube a ningún servidor"
   }
 }

@@ -152,9 +152,6 @@
       }
     },
     "spec": {
-      "geminiApiKey": "Gemini API Key",
-      "geminiApiKeyPlaceholder": "Enter your Gemini API Key",
-      "geminiApiKeyHint": "Key will be saved in local browser",
       "textInput": "Text Input",
       "fileUpload": "File Upload",
       "contentDescription": "Content Description",
@@ -428,12 +425,6 @@
     "dataStats": "Data Statistics",
     "totalProjects": "Total Projects",
     "totalEpisodes": "Total Episodes",
-    "apiConfiguration": "API Configuration",
-    "optional": "Optional",
-    "enterGeminiApiKey": "Enter your Gemini API Key",
-    "saved": "Saved",
-    "save": "Save",
-    "apiKeyDescription": "Used for AI content analysis and script generation. If not provided, system default will be used.",
     "dataManagement": "Data Management",
     "exportData": "Export Data",
     "exportDataDesc": "Download a backup of all your project data",
@@ -465,16 +456,5 @@
     "no": "No",
     "expand": "Expand",
     "collapse": "Collapse"
-  },
-  "geminiApiKey": {
-    "title": "Gemini API Key Required",
-    "description": "AI analysis and script generation require a Gemini API Key. Please enter your API Key, which will be securely saved in your browser's local storage.",
-    "inputLabel": "Gemini API Key",
-    "inputPlaceholder": "Paste your API Key here",
-    "getKeyButton": "Get Free API Key",
-    "saveButton": "Save & Continue",
-    "skipButton": "Skip",
-    "hint1": "💡 You can get a free API Key from Google AI Studio",
-    "hint2": "🔒 Your API Key is only saved locally and never uploaded to any server"
   }
 }

@@ -1,34 +1,15 @@
-import { useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useProjects } from '../contexts/ProjectContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { RELIGIONS } from '../types';
 import { religionThemes } from '../themes';
-import { Trash2, Download, Upload, Info, Key, Eye, EyeOff, Check } from 'lucide-react';
+import { Trash2, Download, Upload, Info } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
 
 export function Settings() {
   const { theme, religion, setReligion } = useTheme();
   const { projects } = useProjects();
   const { t } = useLanguage();
-  
-  // API Key state
-  const [geminiApiKey, setGeminiApiKey] = useState('');
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [apiKeySaved, setApiKeySaved] = useState(false);
-  
-  // Load API key on mount
-  useEffect(() => {
-    const savedKey = localStorage.getItem('gemini-api-key') || '';
-    setGeminiApiKey(savedKey);
-  }, []);
-  
-  // Save API key
-  const saveApiKey = () => {
-    localStorage.setItem('gemini-api-key', geminiApiKey);
-    setApiKeySaved(true);
-    setTimeout(() => setApiKeySaved(false), 2000);
-  };
 
   const religionT = t.religions[religion];
   const ReligionIcon = ReligionIconMap[religion];
@@ -133,53 +114,6 @@ export function Settings() {
           <div className="p-3 md:p-4 rounded-lg md:rounded-xl" style={{ background: `${theme.primary}10` }}>
             <div className="text-2xl md:text-3xl font-light text-white">{projects.reduce((acc, p) => acc + p.episodes.length, 0)}</div>
             <div className="text-xs md:text-sm text-white/50">{t.settings.totalEpisodes}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* API Configuration */}
-      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 border border-white/10" style={{ background: theme.bgCard }}>
-        <h2 className="text-base md:text-lg font-serif text-white mb-3 md:mb-4">
-          {t.settings.apiConfiguration}
-        </h2>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-white/70 mb-2">
-              Gemini API Key
-              <span className="text-white/40 font-normal ml-2">
-                ({t.settings.optional})
-              </span>
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input
-                  type={showApiKey ? 'text' : 'password'}
-                  value={geminiApiKey}
-                  onChange={(e) => setGeminiApiKey(e.target.value)}
-                  placeholder={t.settings.enterGeminiApiKey}
-                  className="w-full px-4 py-3 pr-10 rounded-xl border border-white/10 bg-white/5 text-white placeholder-white/30 focus:outline-none focus:border-white/20 text-sm"
-                />
-                <button
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/60 transition-colors"
-                >
-                  {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              <button
-                onClick={saveApiKey}
-                className="px-4 py-3 rounded-xl text-white font-medium transition-all flex items-center gap-2"
-                style={{ background: apiKeySaved ? '#22c55e' : theme.primary }}
-              >
-                {apiKeySaved ? <Check size={18} /> : <Key size={18} />}
-                <span className="hidden sm:inline">
-                  {apiKeySaved ? t.settings.saved : t.settings.save}
-                </span>
-              </button>
-            </div>
-            <p className="text-xs text-white/40 mt-2">
-              {t.settings.apiKeyDescription}
-            </p>
           </div>
         </div>
       </div>

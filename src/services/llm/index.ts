@@ -1,4 +1,6 @@
-// LLM Service - Gemini API Integration
+// LLM Service - Backend API Integration
+
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
 export class LLMError extends Error {
   code: string;
@@ -15,16 +17,6 @@ export class LLMError extends Error {
 
   getUserMessage(lang: string = 'en'): string {
     const messages: Record<string, Record<string, string>> = {
-      API_KEY_MISSING: {
-        zh: '请先设置 API Key',
-        en: 'Please set your API Key first',
-        es: 'Por favor, configure su API Key primero'
-      },
-      API_KEY_INVALID: {
-        zh: 'API Key 无效，请检查后重试',
-        en: 'Invalid API Key, please check and try again',
-        es: 'API Key inválida, por favor verifique e intente de nuevo'
-      },
       RATE_LIMITED: {
         zh: '请求过于频繁，请稍后重试',
         en: 'Rate limited, please try again later',
@@ -50,6 +42,11 @@ export class LLMError extends Error {
         en: 'Service overloaded, please try again later',
         es: 'Servicio sobrecargado, intente más tarde'
       },
+      SERVER_ERROR: {
+        zh: '服务器错误，请稍后重试',
+        en: 'Server error, please try again later',
+        es: 'Error del servidor, intente más tarde'
+      },
       UNKNOWN_ERROR: {
         zh: '发生未知错误，请稍后重试',
         en: 'An unknown error occurred, please try again',
@@ -61,13 +58,7 @@ export class LLMError extends Error {
   }
 }
 
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const DEFAULT_MODEL = 'gemini-2.0-flash';
-const API_KEY_STORAGE_KEY = 'gemini-api-key';
-
 interface LLMConfig {
-  apiKey?: string;
-  model?: string;
   temperature?: number;
   maxTokens?: number;
 }
@@ -75,142 +66,74 @@ interface LLMConfig {
 interface LLMResponse {
   text: string;
   raw: unknown;
-  usage?: {
-    promptTokens?: number;
-    completionTokens?: number;
-    totalTokens?: number;
-  };
 }
 
 type StreamCallback = (chunk: string, accumulated: string) => void;
 
-function getApiKey(): string | null {
-  try {
-    return localStorage.getItem(API_KEY_STORAGE_KEY) || null;
-  } catch {
-    return null;
-  }
-}
-
-function setApiKey(key: string): void {
-  localStorage.setItem(API_KEY_STORAGE_KEY, key);
-}
-
-function clearApiKey(): void {
-  localStorage.removeItem(API_KEY_STORAGE_KEY);
-}
-
-function hasApiKey(): boolean {
-  return !!getApiKey();
-}
-
-function handleApiError(status: number, body: string): LLMError {
+function handleApiError(status: number, errorData: { error?: string; code?: string }): LLMError {
+  const code = errorData.code || 'UNKNOWN_ERROR';
+  const message = errorData.error || 'Unknown error';
+  
   switch (status) {
-    case 400:
-      if (body.includes('API_KEY_INVALID') || body.includes('API key not valid')) {
-        return new LLMError('API_KEY_INVALID', 'Invalid API key', status, body);
-      }
-      return new LLMError('UNKNOWN_ERROR', `Bad request: ${body}`, status, body);
-    case 401:
-    case 403:
-      return new LLMError('API_KEY_INVALID', 'Authentication failed', status, body);
     case 429:
-      return new LLMError('RATE_LIMITED', 'Rate limit exceeded', status, body);
+      return new LLMError('RATE_LIMITED', message, status);
     case 500:
     case 502:
     case 503:
-      return new LLMError('MODEL_OVERLOADED', 'Service temporarily unavailable', status, body);
+      return new LLMError('SERVER_ERROR', message, status);
     default:
-      return new LLMError('UNKNOWN_ERROR', `Request failed with status ${status}`, status, body);
+      return new LLMError(code, message, status);
   }
 }
 
-const geminiProvider = {
-  name: 'gemini',
+// Backend API provider
+const backendProvider = {
+  name: 'backend',
   
   async request(prompt: string, config?: LLMConfig): Promise<LLMResponse> {
-    const apiKey = config?.apiKey || getApiKey();
-    const model = config?.model || DEFAULT_MODEL;
-    
-    if (!apiKey) {
-      throw new LLMError('API_KEY_MISSING', 'Gemini API key not configured');
-    }
-    
-    const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
-    
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await fetch(`${API_BASE}/llm/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: config?.temperature,
-            maxOutputTokens: config?.maxTokens
-          }
+          prompt,
+          temperature: config?.temperature,
+          maxTokens: config?.maxTokens
         })
       });
     } catch (error) {
-      throw new LLMError('NETWORK_ERROR', 'Failed to connect to Gemini API', undefined, error);
+      throw new LLMError('NETWORK_ERROR', 'Failed to connect to server', undefined, error);
     }
     
     if (!response.ok) {
-      throw handleApiError(response.status, await response.text());
+      const errorData = await response.json().catch(() => ({}));
+      throw handleApiError(response.status, errorData);
     }
     
     const data = await response.json();
-    
-    if (data.promptFeedback?.blockReason) {
-      throw new LLMError('CONTENT_FILTERED', `Content blocked: ${data.promptFeedback.blockReason}`, undefined, data);
-    }
-    
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
-    if (!text && data.candidates?.[0]?.finishReason === 'SAFETY') {
-      throw new LLMError('CONTENT_FILTERED', 'Response filtered for safety', undefined, data);
-    }
-    
-    return {
-      text,
-      raw: data,
-      usage: {
-        promptTokens: data.usageMetadata?.promptTokenCount,
-        completionTokens: data.usageMetadata?.candidatesTokenCount,
-        totalTokens: data.usageMetadata?.totalTokenCount
-      }
-    };
+    return { text: data.text, raw: data };
   },
   
   async requestStream(prompt: string, onChunk: StreamCallback, config?: LLMConfig): Promise<LLMResponse> {
-    const apiKey = config?.apiKey || getApiKey();
-    const model = config?.model || DEFAULT_MODEL;
-    
-    if (!apiKey) {
-      throw new LLMError('API_KEY_MISSING', 'Gemini API key not configured');
-    }
-    
-    const url = `${GEMINI_API_BASE}/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
-    
     let response: Response;
     try {
-      response = await fetch(url, {
+      response = await fetch(`${API_BASE}/llm/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: config?.temperature,
-            maxOutputTokens: config?.maxTokens
-          }
+          prompt,
+          temperature: config?.temperature,
+          maxTokens: config?.maxTokens
         })
       });
     } catch (error) {
-      throw new LLMError('NETWORK_ERROR', 'Failed to connect to Gemini API', undefined, error);
+      throw new LLMError('NETWORK_ERROR', 'Failed to connect to server', undefined, error);
     }
     
     if (!response.ok) {
-      throw handleApiError(response.status, await response.text());
+      const errorData = await response.json().catch(() => ({}));
+      throw handleApiError(response.status, errorData);
     }
     
     if (!response.body) {
@@ -237,12 +160,13 @@ const geminiProvider = {
             if (jsonStr && jsonStr !== '[DONE]') {
               try {
                 const parsed = JSON.parse(jsonStr);
-                const chunk = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
-                if (chunk) {
-                  accumulated += chunk;
-                  onChunk(chunk, accumulated);
+                if (parsed.error) {
+                  throw new LLMError('SERVER_ERROR', parsed.error);
                 }
-              } catch {
+                accumulated = parsed.accumulated || accumulated;
+                onChunk(parsed.text || '', accumulated);
+              } catch (e) {
+                if (e instanceof LLMError) throw e;
                 // Skip invalid JSON
               }
             }
@@ -344,7 +268,7 @@ function hasRequiredFields(obj: unknown, fields: string[]): boolean {
 
 // LLM Service class
 class LLMService {
-  private provider = geminiProvider;
+  private provider = backendProvider;
   private defaultConfig: LLMConfig = {};
   
   get providerName(): string {
@@ -355,22 +279,6 @@ class LLMService {
     this.defaultConfig = { ...this.defaultConfig, ...config };
   }
   
-  hasApiKey(): boolean {
-    return hasApiKey();
-  }
-  
-  getApiKey(): string | null {
-    return getApiKey();
-  }
-  
-  setApiKey(key: string): void {
-    setApiKey(key);
-  }
-  
-  clearApiKey(): void {
-    clearApiKey();
-  }
-  
   async generate(prompt: string, config?: LLMConfig): Promise<LLMResponse> {
     const mergedConfig = { ...this.defaultConfig, ...config };
     return this.provider.request(prompt, mergedConfig);
@@ -378,12 +286,7 @@ class LLMService {
   
   async generateStream(prompt: string, onChunk: StreamCallback, config?: LLMConfig): Promise<LLMResponse> {
     const mergedConfig = { ...this.defaultConfig, ...config };
-    if (this.provider.requestStream) {
-      return this.provider.requestStream(prompt, onChunk, mergedConfig);
-    }
-    const response = await this.provider.request(prompt, mergedConfig);
-    onChunk(response.text, response.text);
-    return response;
+    return this.provider.requestStream(prompt, onChunk, mergedConfig);
   }
   
   async generateJson<T>(prompt: string, config?: LLMConfig): Promise<T> {
@@ -416,10 +319,6 @@ class LLMService {
   
   /**
    * Generate JSON with streaming - shows raw text progressively, parses JSON when complete
-   * @param prompt The prompt to send
-   * @param onChunk Callback for each text chunk (chunk, accumulated)
-   * @param config Optional configuration
-   * @returns Parsed JSON result
    */
   async generateJsonStream<T>(
     prompt: string, 

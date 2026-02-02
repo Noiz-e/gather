@@ -303,11 +303,24 @@ export function VoiceStudio() {
   };
 
   const voiceProviders = [
+    { id: 'gemini', name: 'Gemini TTS' },
     { id: 'elevenlabs', name: 'ElevenLabs' },
     { id: 'azure', name: 'Azure Speech' },
     { id: 'google', name: 'Google Cloud TTS' },
     { id: 'amazon', name: 'Amazon Polly' },
     { id: 'custom', name: 'Custom' },
+  ];
+
+  // Gemini TTS voice options
+  const geminiVoices = [
+    { id: 'Puck', name: 'Puck - 活力年轻' },
+    { id: 'Charon', name: 'Charon - 深沉权威' },
+    { id: 'Kore', name: 'Kore - 温暖友好' },
+    { id: 'Fenrir', name: 'Fenrir - 强劲戏剧' },
+    { id: 'Aoede', name: 'Aoede - 旋律感强' },
+    { id: 'Leda', name: 'Leda - 温柔舒缓' },
+    { id: 'Orus', name: 'Orus - 清晰专业' },
+    { id: 'Zephyr', name: 'Zephyr - 轻柔飘逸' },
   ];
 
   return (
@@ -740,17 +753,30 @@ export function VoiceStudio() {
                     </select>
                   </div>
 
-                  {/* Voice ID */}
+                  {/* Voice ID - Show dropdown for Gemini, text input for others */}
                   {characterForm.voiceProvider && (
                     <div>
                       <label className="block text-sm font-medium text-white/50 mb-2">{t.voiceStudio.characters.voiceId}</label>
-                      <input
-                        type="text"
-                        value={characterForm.voiceId}
-                        onChange={(e) => setCharacterForm({ ...characterForm, voiceId: e.target.value })}
-                        placeholder={t.voiceStudio.characters.voiceIdPlaceholder}
-                        className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20"
-                      />
+                      {characterForm.voiceProvider === 'gemini' ? (
+                        <select
+                          value={characterForm.voiceId}
+                          onChange={(e) => setCharacterForm({ ...characterForm, voiceId: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20"
+                        >
+                          <option value="" className="bg-gray-900">{t.voiceStudio.characters.selectProvider}</option>
+                          {geminiVoices.map((voice) => (
+                            <option key={voice.id} value={voice.id} className="bg-gray-900">{voice.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={characterForm.voiceId}
+                          onChange={(e) => setCharacterForm({ ...characterForm, voiceId: e.target.value })}
+                          placeholder={t.voiceStudio.characters.voiceIdPlaceholder}
+                          className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20"
+                        />
+                      )}
                     </div>
                   )}
                 </div>

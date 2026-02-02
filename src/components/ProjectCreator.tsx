@@ -5,20 +5,20 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { VoiceCharacter, ScriptSection, EpisodeCharacter } from '../types';
 import { 
   ChevronLeft, ChevronRight, Check, X, Upload, FileText, 
-  Sparkles, Plus, Trash2, Play, User, Loader2,
+  Sparkles, Plus, Trash2, Play, Pause, User, Loader2,
   Music, Volume2, Image, RefreshCw, Save,
   BookOpen, Heart, Mic2, Wand2, Sliders, GraduationCap,
-  LucideIcon
+  LucideIcon, Square
 } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
-import { GeminiApiKeyDialog } from './GeminiApiKeyDialog';
 import { filterValidFiles, collectAnalysisContent } from '../utils/fileUtils';
-import { llm, LLMError } from '../services/llm';
+import { parseStreamingScriptSections } from '../utils/partialJsonParser';
 import { 
   buildSpecAnalysisPrompt, 
   buildScriptGenerationPrompt,
   SpecAnalysisResult
 } from '../services/llm/prompts';
+import * as api from '../services/api';
 import { 
   projectCreatorReducer, 
   initialState, 
@@ -68,14 +68,25 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [streamingText, setStreamingText] = useState<string>('');
-  // Voice characters - loaded but reserved for future character assignment UI
-  const [, setAvailableVoices] = useState<VoiceCharacter[]>([]);
+  // Parsed streaming sections for progressive UI rendering
+  const [streamingParsed, setStreamingParsed] = useState<{
+    completeSections: ScriptSection[];
+    partialSection: Partial<ScriptSection> | null;
+  }>({ completeSections: [], partialSection: null });
+  // Voice characters - for character voice assignment UI
+  const [availableVoices, setAvailableVoices] = useState<VoiceCharacter[]>([]);
+  // Track if user has confirmed voice assignments before synthesis
+  const [voicesConfirmed, setVoicesConfirmed] = useState(false);
+  // System voices from backend (Gemini TTS)
+  const [systemVoices, setSystemVoices] = useState<api.Voice[]>([]);
+  // Voice preview state
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [showProgressTooltip, setShowProgressTooltip] = useState(false);
   const [hoveredStep, setHoveredStep] = useState<number | null>(null);
   const [isProcessingNext, setIsProcessingNext] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
-  const [pendingApiAction, setPendingApiAction] = useState<'analyze' | 'generate' | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -187,36 +198,15 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     }
   };
 
-  // Handle API key save
-  const handleApiKeySave = (apiKey: string) => {
-    llm.setApiKey(apiKey);
-    // Execute the pending action
-    if (pendingApiAction === 'analyze') {
-      analyzeWithGemini();
-    } else if (pendingApiAction === 'generate') {
-      generateScript();
-    }
-    setPendingApiAction(null);
-  };
-
-  // Handle LLM errors with localized messages
-  const handleLLMError = useCallback((error: unknown) => {
-    console.error('LLM error:', error);
-    if (error instanceof LLMError) {
-      alert(error.getUserMessage(language));
-    } else {
-      alert(t.projectCreator.errors.unknownError);
-    }
-  }, [language, t]);
+  // Handle API errors with localized messages
+  const handleApiError = useCallback((error: unknown) => {
+    console.error('API error:', error);
+    const message = error instanceof Error ? error.message : String(error);
+    alert(message || t.projectCreator.errors.unknownError);
+  }, [t]);
 
   // Analyze with LLM - extracts title and updates spec from content
   const analyzeWithGemini = async () => {
-    if (!llm.hasApiKey()) {
-      setPendingApiAction('analyze');
-      setShowApiKeyDialog(true);
-      return;
-    }
-
     setIsAnalyzing(true);
     
     try {
@@ -240,7 +230,15 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       };
 
       const prompt = buildSpecAnalysisPrompt(content, specContext);
-      const parsed = await llm.generateJson<SpecAnalysisResult>(prompt);
+      
+      // Use backend API for text generation
+      const responseText = await api.generateText(prompt);
+      
+      // Parse JSON from response
+      const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/) || 
+                        responseText.match(/\{[\s\S]*\}/);
+      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]).trim() : responseText;
+      const parsed = JSON.parse(jsonStr) as SpecAnalysisResult;
 
       // Only update title from analysis, keep template defaults for other fields
       dispatch(actions.setSpec({
@@ -256,7 +254,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         setShowSubtitle(true);
       }
     } catch (error) {
-      handleLLMError(error);
+      handleApiError(error);
     } finally {
       setIsAnalyzing(false);
     }
@@ -264,12 +262,6 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
   // Generate script with LLM (streaming)
   const generateScript = async () => {
-    if (!llm.hasApiKey()) {
-      setPendingApiAction('generate');
-      setShowApiKeyDialog(true);
-      return;
-    }
-
     setIsGeneratingScript(true);
     setStreamingText(''); // Reset streaming text
 
@@ -296,13 +288,19 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         }),
       });
 
-      // Use streaming to show progressive generation
-      const sections = await llm.generateJsonStream<ScriptSection[]>(
+      // Use backend streaming API for progressive generation
+      const finalText = await api.generateTextStream(
         prompt,
-        (_chunk, accumulated) => {
-          setStreamingText(accumulated);
+        (chunk) => {
+          setStreamingText(chunk.accumulated);
         }
       );
+      
+      // Parse JSON from final response
+      const jsonMatch = finalText.match(/```(?:json)?\s*([\s\S]*?)```/) || 
+                        finalText.match(/\[[\s\S]*\]/);
+      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]).trim() : finalText;
+      const sections = JSON.parse(jsonStr) as ScriptSection[];
       
       if (sections && sections.length > 0) {
         dispatch(actions.setScriptSections(sections));
@@ -310,7 +308,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         setEditingSection(sections[0].id);
       }
     } catch (error) {
-      handleLLMError(error);
+      handleApiError(error);
     } finally {
       setIsGeneratingScript(false);
       setStreamingText(''); // Clear streaming text after completion
@@ -322,6 +320,71 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     dispatch(actions.extractCharactersFromScript());
     setAvailableVoices(loadVoiceCharacters());
   }, []);
+
+  // Assign voice to character
+  const assignVoiceToCharacter = useCallback((characterIndex: number, voiceId: string) => {
+    dispatch(actions.assignVoiceToCharacter(characterIndex, voiceId));
+  }, []);
+
+  // Start voice generation after confirming voice assignments
+  const startVoiceGeneration = () => {
+    setVoicesConfirmed(true);
+    performVoiceGeneration();
+  };
+
+  // Play voice sample preview
+  const playVoiceSample = async (voiceId: string) => {
+    // If same voice is playing, stop it
+    if (playingVoiceId === voiceId) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      setPlayingVoiceId(null);
+      return;
+    }
+
+    // Stop any currently playing audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+
+    try {
+      setLoadingVoiceId(voiceId);
+      setPlayingVoiceId(null);
+      
+      const audio = await api.playVoiceSample(voiceId, language === 'zh' ? 'zh' : 'en');
+      audioRef.current = audio;
+      setPlayingVoiceId(voiceId);
+      setLoadingVoiceId(null);
+      
+      // When audio ends, clear playing state
+      audio.onended = () => {
+        setPlayingVoiceId(null);
+        audioRef.current = null;
+      };
+      
+      audio.onerror = () => {
+        setPlayingVoiceId(null);
+        setLoadingVoiceId(null);
+        audioRef.current = null;
+      };
+    } catch (error) {
+      console.error('Failed to play voice sample:', error);
+      setLoadingVoiceId(null);
+      setPlayingVoiceId(null);
+    }
+  };
+
+  // Stop voice preview when leaving step 5
+  useEffect(() => {
+    if (currentStep !== 5 && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+      setPlayingVoiceId(null);
+    }
+  }, [currentStep]);
 
   // Memoized action dispatchers to avoid re-creating on each render
   const updateTimelineItem = useCallback(
@@ -381,25 +444,71 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     []
   );
 
-  // Simulate voice generation process (Phase 1)
-  const simulateVoiceGeneration = async () => {
-    const chunks = extractedCharacters.length > 0 
-      ? extractedCharacters.map(c => c.name)
-      : ['Section 1', 'Section 2', 'Section 3'];
+  // Voice generation using real TTS API
+  const performVoiceGeneration = async () => {
+    // Collect all script lines that need TTS
+    const segments: api.AudioSegment[] = [];
     
-    for (let i = 0; i < chunks.length; i++) {
-      dispatch(actions.updateProductionPhase('voice-generation', 'processing', Math.round(((i + 1) / chunks.length) * 100), chunks[i]));
-      await new Promise(resolve => setTimeout(resolve, 800));
+    for (const section of scriptSections) {
+      for (const item of section.timeline) {
+        for (const line of item.lines) {
+          if (line.line.trim()) {
+            // Find assigned voice for this speaker
+            const character = extractedCharacters.find(c => c.name === line.speaker);
+            const voice = availableVoices.find(v => v.id === character?.assignedVoiceId);
+            
+            segments.push({
+              text: line.line,
+              speaker: line.speaker,
+              // Map to Gemini voice name or use default
+              voiceName: voice?.voiceId || 'Kore',
+            });
+          }
+        }
+      }
     }
-    dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100));
+    
+    if (segments.length === 0) {
+      dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100));
+      return;
+    }
+    
+    // Use streaming batch API for progress updates
+    try {
+      await api.generateAudioBatchStream(
+        segments,
+        (event) => {
+          if (event.type === 'progress') {
+            const progress = Math.round(((event.index || 0) + 1) / segments.length * 100);
+            dispatch(actions.updateProductionPhase('voice-generation', 'processing', progress, event.speaker));
+          } else if (event.type === 'done') {
+            dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100));
+          } else if (event.type === 'error') {
+            console.error('Voice generation error:', event.error);
+          }
+        }
+      );
+    } catch (error) {
+      console.error('Voice generation failed:', error);
+      // Fallback to simulated progress if API fails
+      const chunks = extractedCharacters.length > 0 
+        ? extractedCharacters.map(c => c.name)
+        : ['Section 1', 'Section 2', 'Section 3'];
+      
+      for (let i = 0; i < chunks.length; i++) {
+        dispatch(actions.updateProductionPhase('voice-generation', 'processing', Math.round(((i + 1) / chunks.length) * 100), chunks[i]));
+        await new Promise(resolve => setTimeout(resolve, 800));
+      }
+      dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100));
+    }
   };
 
-  // Simulate media production process (Phase 2)
-  const simulateMediaProduction = async () => {
-    const tasks = [];
-    if (specData.addBgm) tasks.push(language === 'zh' ? '生成背景音乐' : 'Generating BGM');
-    if (specData.addSoundEffects) tasks.push(language === 'zh' ? '添加音效' : 'Adding SFX');
-    if (specData.hasVisualContent) tasks.push(language === 'zh' ? '生成图片' : 'Generating Images');
+  // Media production using real APIs (BGM, SFX, Images)
+  const performMediaProduction = async () => {
+    const tasks: { type: string; label: string }[] = [];
+    if (specData.addBgm) tasks.push({ type: 'bgm', label: language === 'zh' ? '生成背景音乐' : 'Generating BGM' });
+    if (specData.addSoundEffects) tasks.push({ type: 'sfx', label: language === 'zh' ? '添加音效' : 'Adding SFX' });
+    if (specData.hasVisualContent) tasks.push({ type: 'images', label: language === 'zh' ? '生成图片' : 'Generating Images' });
     
     if (tasks.length === 0) {
       dispatch(actions.updateProductionPhase('media-production', 'completed', 100));
@@ -407,9 +516,42 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     }
     
     for (let i = 0; i < tasks.length; i++) {
-      dispatch(actions.updateProductionPhase('media-production', 'processing', Math.round(((i + 1) / tasks.length) * 100), tasks[i]));
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const task = tasks[i];
+      dispatch(actions.updateProductionPhase('media-production', 'processing', Math.round((i / tasks.length) * 100), task.label));
+      
+      try {
+        if (task.type === 'bgm') {
+          // Generate background music
+          await api.generateBGM(
+            specData.toneAndExpression,
+            'peaceful',
+            30
+          );
+        } else if (task.type === 'sfx') {
+          // Generate sound effects from script instructions
+          for (const section of scriptSections) {
+            for (const item of section.timeline) {
+              if (item.soundMusic?.trim()) {
+                await api.generateSoundEffect(item.soundMusic, 5);
+              }
+            }
+          }
+        } else if (task.type === 'images') {
+          // Generate cover images for sections
+          for (const section of scriptSections) {
+            if (section.coverImageDescription?.trim()) {
+              await api.generateCoverImage(section.coverImageDescription);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`${task.type} generation failed:`, error);
+        // Continue with other tasks even if one fails
+      }
+      
+      dispatch(actions.updateProductionPhase('media-production', 'processing', Math.round(((i + 1) / tasks.length) * 100), task.label));
     }
+    
     dispatch(actions.updateProductionPhase('media-production', 'completed', 100));
   };
 
@@ -468,7 +610,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       case 2: return specData.storyTitle.trim().length > 0; // Title filled
       case 3: return contentInput.textContent.trim().length > 0 || contentInput.uploadedFiles.length > 0; // Content provided
       case 4: return scriptSections.length > 0; // Script generated
-      case 5: return production.voiceGeneration.status === 'completed'; // Voice generation done
+      case 5: return voicesConfirmed && production.voiceGeneration.status === 'completed'; // Voice confirmed and generation done
       case 6: return production.mediaProduction.status === 'completed'; // Media production done
       case 7: return production.mixingEditing.status === 'completed'; // Mixing done
       default: return true;
@@ -533,10 +675,9 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       await new Promise(resolve => setTimeout(resolve, 300));
       setIsProcessingNext(false);
       setCurrentStep(5);
-      // Auto-start voice generation
-      setTimeout(() => {
-        simulateVoiceGeneration();
-      }, 100);
+      // Reset voice confirmation state when entering Step 5
+      setVoicesConfirmed(false);
+      // DO NOT auto-start voice generation - wait for user to confirm voice assignments
       return;
     }
     
@@ -545,7 +686,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       setCurrentStep(6);
       // Auto-start media production
       setTimeout(() => {
-        simulateMediaProduction();
+        performMediaProduction();
       }, 100);
       return;
     }
@@ -802,71 +943,60 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   // Render Step 2: Spec Confirmation (simplified - no file upload)
   const renderSpecStep = () => (
     <div className="space-y-6">
-      {/* Selected Template or Custom Badge */}
-      {selectedTemplate ? (
-        <div 
-          className="flex items-center gap-4 p-4 rounded-xl border border-white/10"
-          style={{ background: `${theme.primary}10` }}
-        >
-          <div 
-            className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{ background: `${theme.primary}30` }}
-          >
-            {(() => {
-              const IconComponent = TemplateIconMap[selectedTemplate.icon] || FileText;
-              return <IconComponent size={20} style={{ color: theme.primaryLight }} />;
-            })()}
-          </div>
-          <div className="flex-1">
-            <p className="text-base text-white font-medium">
-              {language === 'zh' ? selectedTemplate.nameZh : selectedTemplate.name}
-            </p>
-            <p className="text-sm text-white/50">
-              {language === 'zh' ? '可以编辑以下预设配置' : 'Edit the preset configuration below'}
-            </p>
-          </div>
-          <button
-            onClick={() => setCurrentStep(1)}
-            className="text-sm text-white/40 hover:text-white/60 px-3 py-1.5 rounded hover:bg-white/10"
-          >
-            {language === 'zh' ? '更换' : 'Change'}
-          </button>
-        </div>
-      ) : (
-        <div 
-          className="flex items-center gap-4 p-4 rounded-xl border border-white/10"
-          style={{ background: `${theme.primary}10` }}
-        >
-          <div 
-            className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{ background: `${theme.primary}30` }}
-          >
-            <Sparkles size={20} style={{ color: theme.primaryLight }} />
-          </div>
-          <div className="flex-1">
-            <p className="text-base text-white font-medium">
-              {language === 'zh' ? '自定义项目' : 'Custom Project'}
-            </p>
-            <p className="text-sm text-white/50">
-              {language === 'zh' ? '根据您的描述配置项目' : 'Configure based on your description'}
-            </p>
-          </div>
-          <button
-            onClick={() => setCurrentStep(1)}
-            className="text-sm text-white/40 hover:text-white/60 px-3 py-1.5 rounded hover:bg-white/10"
-          >
-            {language === 'zh' ? '更换' : 'Change'}
-          </button>
-        </div>
-      )}
-
       {/* Spec Form */}
       <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: theme.bgCard }}>
         <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
           <h4 className="text-base font-medium text-white">
             {language === 'zh' ? '项目规格' : 'Project Specifications'}
           </h4>
-          <span className="text-sm text-white/40">✏️</span>
+          {/* Compact Template Badge */}
+          <div className="flex items-center gap-2">
+            {selectedTemplate ? (
+              <>
+                <div 
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                  style={{ background: `${theme.primary}15` }}
+                >
+                  <div 
+                    className="w-5 h-5 rounded flex items-center justify-center"
+                    style={{ background: `${theme.primary}30` }}
+                  >
+                    {(() => {
+                      const IconComponent = TemplateIconMap[selectedTemplate.icon] || FileText;
+                      return <IconComponent size={12} style={{ color: theme.primaryLight }} />;
+                    })()}
+                  </div>
+                  <span className="text-sm text-white/70">
+                    {language === 'zh' ? selectedTemplate.nameZh : selectedTemplate.name}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setCurrentStep(1)}
+                  className="text-xs text-white/40 hover:text-white/60 px-2 py-1 rounded hover:bg-white/10 transition-all"
+                >
+                  {language === 'zh' ? '更换' : 'Change'}
+                </button>
+              </>
+            ) : (
+              <>
+                <div 
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                  style={{ background: `${theme.primary}15` }}
+                >
+                  <Sparkles size={12} style={{ color: theme.primaryLight }} />
+                  <span className="text-sm text-white/70">
+                    {language === 'zh' ? '自定义' : 'Custom'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setCurrentStep(1)}
+                  className="text-xs text-white/40 hover:text-white/60 px-2 py-1 rounded hover:bg-white/10 transition-all"
+                >
+                  {language === 'zh' ? '更换' : 'Change'}
+                </button>
+              </>
+            )}
+          </div>
         </div>
         <div className="p-5 space-y-5">
           {/* Story Title */}
@@ -1125,7 +1255,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         </button>
       )}
 
-      {/* Streaming Text Display - Shows during generation */}
+      {/* Streaming Text Display - Shows during generation with progressive UI */}
       {isGeneratingScript && (
         <div className="space-y-4">
           <div className="flex items-center gap-4">
@@ -1137,19 +1267,72 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             </div>
             <div>
               <p className="text-base text-white font-medium">{t.projectCreator.generating}</p>
-              <p className="text-sm text-white/50">{language === 'zh' ? 'AI 正在编写脚本...' : 'AI is writing the script...'}</p>
+              <p className="text-sm text-white/50">
+                {language === 'zh' 
+                  ? `AI 正在编写脚本... (${streamingParsed.completeSections.length} ${streamingParsed.completeSections.length === 1 ? '段' : '段'}已完成)`
+                  : `AI is writing the script... (${streamingParsed.completeSections.length} section${streamingParsed.completeSections.length === 1 ? '' : 's'} complete)`
+                }
+              </p>
             </div>
           </div>
           
-          {/* Streaming content area */}
+          {/* Progressive streaming content - show parsed sections */}
           <div 
-            className="rounded-xl border border-white/10 p-5 max-h-[400px] overflow-auto"
+            className="rounded-xl border border-white/10 p-5 max-h-[400px] overflow-auto space-y-3"
             style={{ background: theme.bgCard }}
           >
-            <pre className="text-base text-white/80 whitespace-pre-wrap font-mono leading-relaxed">
-              {streamingText || '...'}
-              <span className="inline-block w-2 h-5 ml-1 bg-white/60 animate-pulse" />
-            </pre>
+            {/* Completed sections */}
+            {streamingParsed.completeSections.map((section, index) => (
+              <div 
+                key={section.id || index}
+                className="rounded-lg border border-white/10 p-4 animate-fade-in"
+                style={{ background: 'rgba(255,255,255,0.03)' }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Check size={16} className="text-green-400" />
+                  <h5 className="text-sm font-medium text-white">{section.name}</h5>
+                </div>
+                <p className="text-xs text-white/60 mb-2">{section.description}</p>
+                <div className="flex items-center gap-4 text-xs text-white/40">
+                  <span>{section.timeline?.length || 0} {language === 'zh' ? '个片段' : 'segments'}</span>
+                  {section.timeline?.[0] && (
+                    <span>{section.timeline[0].timeStart} - {section.timeline[section.timeline.length - 1]?.timeEnd}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+            
+            {/* Partial section being streamed */}
+            {streamingParsed.partialSection && (
+              <div 
+                className="rounded-lg border border-white/20 p-4"
+                style={{ background: `${theme.primary}15`, borderColor: `${theme.primary}40` }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Loader2 size={14} className="animate-spin" style={{ color: theme.primaryLight }} />
+                  <h5 className="text-sm font-medium text-white">
+                    {streamingParsed.partialSection.name || (language === 'zh' ? '正在生成...' : 'Generating...')}
+                  </h5>
+                </div>
+                {streamingParsed.partialSection.description && (
+                  <p className="text-xs text-white/60 mb-2">{streamingParsed.partialSection.description}</p>
+                )}
+                {streamingParsed.partialSection.timeline && streamingParsed.partialSection.timeline.length > 0 && (
+                  <div className="text-xs text-white/40">
+                    {streamingParsed.partialSection.timeline.length} {language === 'zh' ? '个片段' : 'segments'}
+                    <span className="inline-block w-1.5 h-3 ml-1 bg-white/60 animate-pulse" />
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Show waiting state if no sections yet */}
+            {streamingParsed.completeSections.length === 0 && !streamingParsed.partialSection && (
+              <div className="flex items-center justify-center py-8 text-white/40">
+                <Loader2 size={20} className="animate-spin mr-2" />
+                <span className="text-sm">{language === 'zh' ? '正在解析脚本结构...' : 'Parsing script structure...'}</span>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1314,47 +1497,210 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   const renderVoiceGenerationStep = () => {
     const { voiceGeneration } = production;
     
+    // Show voice assignment UI before confirming
+    if (!voicesConfirmed) {
+      return (
+        <div className="space-y-6">
+          <div className="text-center py-4">
+            <div 
+              className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
+              style={{ background: `${theme.primary}20` }}
+            >
+              <Mic2 size={32} style={{ color: theme.primaryLight }} />
+            </div>
+            <h3 className="text-xl font-medium text-white mb-2">
+              {language === 'zh' ? '角色音色配置' : 'Character Voice Configuration'}
+            </h3>
+            <p className="text-base text-white/50">
+              {language === 'zh' 
+                ? '为每个角色选择音色，确认后开始语音合成' 
+                : 'Assign voices to each character, then start synthesis'}
+            </p>
+          </div>
+
+          {/* Available voices preview section */}
+          {systemVoices.length > 0 && (
+            <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: theme.bgCard }}>
+              <div className="px-5 py-3 border-b border-white/10">
+                <span className="text-sm text-white/50">
+                  {language === 'zh' ? '可用音色 - 点击试听' : 'Available Voices - Click to Preview'}
+                </span>
+              </div>
+              <div className="p-4 grid grid-cols-2 gap-3">
+                {systemVoices.map((voice) => {
+                  const isPlaying = playingVoiceId === voice.id;
+                  const isLoading = loadingVoiceId === voice.id;
+                  
+                  return (
+                    <button
+                      key={voice.id}
+                      onClick={() => playVoiceSample(voice.id)}
+                      disabled={isLoading}
+                      className={`flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${
+                        isPlaying 
+                          ? 'border-white/30 bg-white/10' 
+                          : 'border-white/5 bg-white/5 hover:border-white/20 hover:bg-white/10'
+                      }`}
+                      style={isPlaying ? { borderColor: theme.primary, background: `${theme.primary}15` } : {}}
+                    >
+                      <div 
+                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ background: isPlaying ? theme.primary : 'rgba(255,255,255,0.1)' }}
+                      >
+                        {isLoading ? (
+                          <Loader2 size={18} className="animate-spin text-white" />
+                        ) : isPlaying ? (
+                          <Square size={14} className="text-white" />
+                        ) : (
+                          <Play size={16} className="text-white/70 ml-0.5" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{voice.name}</p>
+                        <p className="text-xs text-white/40 truncate">
+                          {language === 'zh' ? voice.descriptionZh : voice.description}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Character voice assignment list */}
+          {extractedCharacters.length > 0 && (
+            <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: theme.bgCard }}>
+              <div className="px-5 py-3 border-b border-white/10 flex items-center justify-between">
+                <span className="text-sm text-white/50">
+                  {language === 'zh' ? '角色音色分配' : 'Character Voice Assignment'}
+                </span>
+                <span className="text-xs text-white/40">
+                  {extractedCharacters.length} {language === 'zh' ? '个角色' : 'characters'}
+                </span>
+              </div>
+              <div className="p-4 space-y-3">
+                {extractedCharacters.map((char, index) => {
+                  const assignedVoiceId = char.assignedVoiceId;
+                  const assignedSystemVoice = systemVoices.find(v => v.id === assignedVoiceId);
+                  const assignedCustomVoice = availableVoices.find(v => v.id === assignedVoiceId);
+                  const hasAssignment = assignedSystemVoice || assignedCustomVoice;
+                  
+                  return (
+                    <div key={index} className="flex items-center gap-4 p-4 rounded-lg bg-white/5 border border-white/5">
+                      <div className="w-12 h-12 rounded-full flex items-center justify-center bg-white/10">
+                        <User size={20} className="text-white/60" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base text-white font-medium truncate">{char.name}</p>
+                        {char.description && (
+                          <p className="text-sm text-white/40 truncate">{char.description}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={assignedVoiceId || ''}
+                          onChange={(e) => assignVoiceToCharacter(index, e.target.value)}
+                          className="px-4 py-2.5 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20 min-w-[160px]"
+                          style={{ background: hasAssignment ? `${theme.primary}15` : 'rgba(255,255,255,0.05)' }}
+                        >
+                          <option value="" className="bg-gray-900">
+                            {language === 'zh' ? '选择音色...' : 'Select voice...'}
+                          </option>
+                          {/* System voices from Gemini TTS */}
+                          {systemVoices.length > 0 && (
+                            <optgroup label={language === 'zh' ? '系统音色' : 'System Voices'}>
+                              {systemVoices.map((voice) => (
+                                <option key={voice.id} value={voice.id} className="bg-gray-900">
+                                  {voice.name} - {language === 'zh' ? voice.descriptionZh : voice.description}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {/* Custom voices from Voice Studio */}
+                          {availableVoices.length > 0 && (
+                            <optgroup label={language === 'zh' ? '自定义音色' : 'Custom Voices'}>
+                              {availableVoices.map((voice) => (
+                                <option key={voice.id} value={voice.id} className="bg-gray-900">
+                                  {voice.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </select>
+                        {/* Play button for assigned voice */}
+                        {assignedSystemVoice && (
+                          <button 
+                            onClick={() => playVoiceSample(assignedSystemVoice.id)}
+                            disabled={loadingVoiceId === assignedSystemVoice.id}
+                            className={`p-2.5 rounded-lg transition-all ${
+                              playingVoiceId === assignedSystemVoice.id 
+                                ? 'text-white' 
+                                : 'text-white/50 hover:text-white hover:bg-white/10'
+                            }`}
+                            style={playingVoiceId === assignedSystemVoice.id ? { background: theme.primary } : {}}
+                            title={language === 'zh' ? '试听' : 'Preview'}
+                          >
+                            {loadingVoiceId === assignedSystemVoice.id ? (
+                              <Loader2 size={18} className="animate-spin" />
+                            ) : playingVoiceId === assignedSystemVoice.id ? (
+                              <Square size={16} />
+                            ) : (
+                              <Play size={18} />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* No characters message */}
+          {extractedCharacters.length === 0 && (
+            <div className="text-center py-10 text-white/40">
+              <User size={40} className="mx-auto mb-3 opacity-50" />
+              <p>{language === 'zh' ? '未检测到角色' : 'No characters detected'}</p>
+            </div>
+          )}
+
+          {/* Voice studio hint */}
+          {availableVoices.length === 0 && (
+            <div 
+              className="p-4 rounded-xl border border-white/10 flex items-start gap-3"
+              style={{ background: `${theme.primary}10` }}
+            >
+              <Sparkles size={20} className="flex-shrink-0 mt-0.5" style={{ color: theme.primaryLight }} />
+              <div>
+                <p className="text-sm text-white/70">
+                  {language === 'zh' 
+                    ? '您可以在"音色工作室"中创建自定义音色，或使用系统默认音色。' 
+                    : 'You can create custom voices in Voice Studio, or use system default voices.'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Start synthesis button */}
+          <button
+            onClick={startVoiceGeneration}
+            disabled={extractedCharacters.length === 0}
+            className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-xl text-base text-white font-medium transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            style={{ background: theme.primary }}
+          >
+            <Mic2 size={22} />
+            {language === 'zh' ? '确认并开始语音合成' : 'Confirm & Start Voice Synthesis'}
+          </button>
+        </div>
+      );
+    }
+    
+    // Show progress UI after confirming
     return (
       <div className="space-y-6">
-        <div className="text-center py-6">
-          <div 
-            className="w-20 h-20 mx-auto mb-5 rounded-full flex items-center justify-center"
-            style={{ background: `${theme.primary}20` }}
-          >
-            {voiceGeneration.status === 'completed' ? (
-              <Check size={40} style={{ color: theme.primaryLight }} />
-            ) : (
-              <Mic2 size={40} className={voiceGeneration.status === 'processing' ? 'animate-pulse' : ''} style={{ color: theme.primaryLight }} />
-            )}
-          </div>
-          <h3 className="text-xl font-medium text-white mb-2">
-            {language === 'zh' ? '语音生成' : 'Voice Generation'}
-          </h3>
-          <p className="text-base text-white/50">
-            {voiceGeneration.status === 'completed' 
-              ? (language === 'zh' ? '语音生成完成' : 'Voice generation complete')
-              : voiceGeneration.currentChunk 
-                ? `${language === 'zh' ? '正在生成: ' : 'Generating: '}${voiceGeneration.currentChunk}`
-                : (language === 'zh' ? '准备中...' : 'Preparing...')
-            }
-          </p>
-        </div>
-
-        {/* Progress bar */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm text-white/50">
-            <span>{language === 'zh' ? '进度' : 'Progress'}</span>
-            <span>{voiceGeneration.progress}%</span>
-          </div>
-          <div className="h-3 rounded-full bg-white/10 overflow-hidden">
-            <div 
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${voiceGeneration.progress}%`, background: theme.primary }}
-            />
-          </div>
-        </div>
-
-        {/* Character list with status */}
+        {/* Character list with status - at top */}
         {extractedCharacters.length > 0 && (
           <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: theme.bgCard }}>
             <div className="px-5 py-3 border-b border-white/10">
@@ -1363,23 +1709,85 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               </span>
             </div>
             <div className="p-4 space-y-3">
-              {extractedCharacters.map((char, index) => (
-                <div key={index} className="flex items-center gap-4 p-3 rounded-lg bg-white/5">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10">
-                    <User size={18} className="text-white/60" />
+              {extractedCharacters.map((char, index) => {
+                const assignedVoice = availableVoices.find(v => v.id === char.assignedVoiceId);
+                const isCompleted = voiceGeneration.progress > (index + 1) * (100 / extractedCharacters.length);
+                const isCurrent = voiceGeneration.currentChunk === char.name;
+                
+                return (
+                  <div 
+                    key={index} 
+                    className={`flex items-center gap-4 p-3 rounded-lg transition-all ${
+                      isCurrent ? 'bg-white/10 border border-white/20' : 'bg-white/5'
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10">
+                      <User size={18} className="text-white/60" />
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-base text-white">{char.name}</span>
+                      {assignedVoice && (
+                        <span className="text-sm text-white/40 ml-2">· {assignedVoice.name}</span>
+                      )}
+                    </div>
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center" 
+                      style={{ background: isCompleted ? `${theme.primary}30` : isCurrent ? `${theme.primary}20` : 'transparent' }}>
+                      {isCompleted ? (
+                        <Check size={14} style={{ color: theme.primaryLight }} />
+                      ) : isCurrent ? (
+                        <Loader2 size={14} className="animate-spin" style={{ color: theme.primaryLight }} />
+                      ) : null}
+                    </div>
                   </div>
-                  <span className="flex-1 text-base text-white">{char.name}</span>
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center" 
-                    style={{ background: voiceGeneration.progress > (index + 1) * (100 / extractedCharacters.length) ? `${theme.primary}30` : 'transparent' }}>
-                    {voiceGeneration.progress > (index + 1) * (100 / extractedCharacters.length) && (
-                      <Check size={14} style={{ color: theme.primaryLight }} />
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
+
+        {/* Status + Progress bar grouped together */}
+        <div 
+          className="rounded-xl border border-white/10 p-5"
+          style={{ background: theme.bgCard }}
+        >
+          {/* Status display */}
+          <div className="flex items-center gap-4 mb-4">
+            <div 
+              className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: `${theme.primary}20` }}
+            >
+              {voiceGeneration.status === 'completed' ? (
+                <Check size={24} style={{ color: theme.primaryLight }} />
+              ) : (
+                <Mic2 size={24} className={voiceGeneration.status === 'processing' ? 'animate-pulse' : ''} style={{ color: theme.primaryLight }} />
+              )}
+            </div>
+            <div className="flex-1">
+              <h4 className="text-base font-medium text-white">
+                {language === 'zh' ? '语音生成' : 'Voice Generation'}
+              </h4>
+              <p className="text-sm text-white/50">
+                {voiceGeneration.status === 'completed' 
+                  ? (language === 'zh' ? '语音生成完成' : 'Voice generation complete')
+                  : voiceGeneration.currentChunk 
+                    ? `${language === 'zh' ? '正在生成: ' : 'Generating: '}${voiceGeneration.currentChunk}`
+                    : (language === 'zh' ? '准备中...' : 'Preparing...')
+                }
+              </p>
+            </div>
+            <span className="text-lg font-medium" style={{ color: theme.primaryLight }}>
+              {voiceGeneration.progress}%
+            </span>
+          </div>
+          
+          {/* Progress bar */}
+          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+            <div 
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${voiceGeneration.progress}%`, background: theme.primary }}
+            />
+          </div>
+        </div>
       </div>
     );
   };
@@ -1666,6 +2074,11 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   // Load available voices on mount
   useEffect(() => {
     setAvailableVoices(loadVoiceCharacters());
+    
+    // Load system voices from backend
+    api.getVoices()
+      .then(voices => setSystemVoices(voices))
+      .catch(err => console.error('Failed to load system voices:', err));
   }, []);
 
   // Initialize from Landing page data if provided
@@ -1706,6 +2119,19 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       }
     }
   }, [initialData]);
+
+  // Parse streaming text progressively for UI rendering
+  useEffect(() => {
+    if (!streamingText) {
+      setStreamingParsed({ completeSections: [], partialSection: null });
+      return;
+    }
+    const parsed = parseStreamingScriptSections(streamingText);
+    setStreamingParsed({
+      completeSections: parsed.completeSections,
+      partialSection: parsed.partialSection,
+    });
+  }, [streamingText]);
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -1982,15 +2408,6 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         </div>
       </div>
 
-      {/* Gemini API Key Dialog */}
-      <GeminiApiKeyDialog
-        isOpen={showApiKeyDialog}
-        onClose={() => {
-          setShowApiKeyDialog(false);
-          setPendingApiAction(null);
-        }}
-        onSave={handleApiKeySave}
-      />
     </div>
   );
 }

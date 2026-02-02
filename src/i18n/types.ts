@@ -121,9 +121,6 @@ export interface Translations {
     
     // Spec Step - Content Input & Analysis
     spec: {
-      geminiApiKey: string;
-      geminiApiKeyPlaceholder: string;
-      geminiApiKeyHint: string;
       textInput: string;
       fileUpload: string;
       contentDescription: string;
@@ -418,12 +415,6 @@ export interface Translations {
     dataStats: string;
     totalProjects: string;
     totalEpisodes: string;
-    apiConfiguration: string;
-    optional: string;
-    enterGeminiApiKey: string;
-    saved: string;
-    save: string;
-    apiKeyDescription: string;
     dataManagement: string;
     exportData: string;
     exportDataDesc: string;
@@ -457,19 +448,6 @@ export interface Translations {
     no: string;
     expand: string;
     collapse: string;
-  };
-  
-  // Gemini API Key Dialog
-  geminiApiKey: {
-    title: string;
-    description: string;
-    inputLabel: string;
-    inputPlaceholder: string;
-    getKeyButton: string;
-    saveButton: string;
-    skipButton: string;
-    hint1: string;
-    hint2: string;
   };
 }
 

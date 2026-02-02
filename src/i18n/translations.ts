@@ -91,9 +91,6 @@ export interface Translations {
       postProcessing: { title: string; description: string };
     };
     spec: {
-      geminiApiKey: string;
-      geminiApiKeyPlaceholder: string;
-      geminiApiKeyHint: string;
       textInput: string;
       fileUpload: string;
       contentDescription: string;
@@ -421,9 +418,6 @@ export const translations: Record<Language, Translations> = {
         postProcessing: { title: 'Post-processing', description: 'Save project' },
       },
       spec: {
-        geminiApiKey: 'Gemini API Key',
-        geminiApiKeyPlaceholder: 'Enter your Gemini API Key',
-        geminiApiKeyHint: 'Key will be saved in local browser',
         textInput: 'Text Input',
         fileUpload: 'File Upload',
         contentDescription: 'Content Description',
@@ -768,9 +762,6 @@ Examples:
         postProcessing: { title: '后处理', description: '保存项目' },
       },
       spec: {
-        geminiApiKey: 'Gemini API Key',
-        geminiApiKeyPlaceholder: '输入您的 Gemini API Key',
-        geminiApiKeyHint: '密钥将保存在本地浏览器中',
         textInput: '文本输入',
         fileUpload: '文件上传',
         contentDescription: '内容描述',
@@ -1115,9 +1106,6 @@ Examples:
         postProcessing: { title: 'Post-procesamiento', description: 'Guarda el proyecto' },
       },
       spec: {
-        geminiApiKey: 'Clave API de Gemini',
-        geminiApiKeyPlaceholder: 'Ingresa tu Clave API de Gemini',
-        geminiApiKeyHint: 'La clave se guardará en el navegador local',
         textInput: 'Entrada de Texto',
         fileUpload: 'Subir Archivo',
         contentDescription: 'Descripción del Contenido',
