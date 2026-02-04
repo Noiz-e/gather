@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { generateSpeech, AVAILABLE_VOICES, TTSOptions, getVoiceSample, preGenerateVoiceSamples, hasCachedSamples } from '../services/gemini.js';
+import { generateSpeech, AVAILABLE_VOICES, TTSOptions, getVoiceSample, preGenerateVoiceSamples, hasCachedSamples, recommendVoicesForCharacters } from '../services/gemini.js';
 
 export const voiceRouter = Router();
 
@@ -8,6 +8,32 @@ interface SpeechRequest {
   voiceName?: string;
   apiKey?: string;
 }
+
+interface RecommendRequest {
+  characters: Array<{ name: string; description?: string }>;
+  voices: Array<{ id: string; name: string; description?: string; descriptionZh?: string }>;
+  language?: 'en' | 'zh';
+}
+
+/**
+ * POST /api/voice/recommend
+ * Use Gemini Flash to recommend best preset voice for each character
+ */
+voiceRouter.post('/recommend', async (req: Request, res: Response) => {
+  try {
+    const { characters, voices, language } = req.body as RecommendRequest;
+    if (!Array.isArray(characters) || !Array.isArray(voices)) {
+      res.status(400).json({ error: 'characters and voices must be arrays' });
+      return;
+    }
+    const assignments = await recommendVoicesForCharacters(characters, voices, { language });
+    res.json({ assignments });
+  } catch (error) {
+    console.error('Voice recommend error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
 
 /**
  * GET /api/voice/voices

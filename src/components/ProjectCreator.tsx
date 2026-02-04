@@ -5,7 +5,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { VoiceCharacter, ScriptSection, EpisodeCharacter } from '../types';
 import { 
   ChevronLeft, ChevronRight, Check, X, Upload, FileText, 
-  Sparkles, Plus, Trash2, Play, Pause, User, Loader2,
+  Sparkles, Plus, Trash2, Play, User, Loader2,
   Music, Volume2, Image, RefreshCw, Save,
   BookOpen, Heart, Mic2, Wand2, Sliders, GraduationCap,
   LucideIcon, Square
@@ -23,7 +23,8 @@ import {
   projectCreatorReducer, 
   initialState, 
   actions,
-  SpecData
+  SpecData,
+  SectionVoiceAudio
 } from './ProjectCreator/reducer';
 import { PROJECT_TEMPLATES } from './ProjectCreator/templates';
 import { loadVoiceCharacters } from '../utils/voiceStorage';
@@ -82,6 +83,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   // Voice preview state
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
+  const [isRecommendingVoices, setIsRecommendingVoices] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [showProgressTooltip, setShowProgressTooltip] = useState(false);
   const [hoveredStep, setHoveredStep] = useState<number | null>(null);
@@ -326,6 +328,32 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     dispatch(actions.assignVoiceToCharacter(characterIndex, voiceId));
   }, []);
 
+  // AI recommend voices for all characters (Gemini Flash)
+  const recommendVoicesForAll = useCallback(async () => {
+    const allVoices = [
+      ...systemVoices.map((v) => ({ id: v.id, name: v.name, description: v.description, descriptionZh: v.descriptionZh })),
+      ...availableVoices.map((v) => ({ id: v.id, name: v.name, description: v.description }))
+    ];
+    if (extractedCharacters.length === 0 || allVoices.length === 0) return;
+    setIsRecommendingVoices(true);
+    try {
+      const assignments = await api.recommendVoices({
+        characters: extractedCharacters.map((c) => ({ name: c.name, description: c.description })),
+        voices: allVoices,
+        language: language === 'zh' ? 'zh' : 'en'
+      });
+      assignments.forEach((voiceId, index) => {
+        if (index < extractedCharacters.length && voiceId) {
+          dispatch(actions.assignVoiceToCharacter(index, voiceId));
+        }
+      });
+    } catch (err) {
+      console.error('Recommend voices failed:', err);
+    } finally {
+      setIsRecommendingVoices(false);
+    }
+  }, [extractedCharacters, systemVoices, availableVoices, language]);
+
   // Start voice generation after confirming voice assignments
   const startVoiceGeneration = () => {
     setVoicesConfirmed(true);
@@ -444,63 +472,100 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     []
   );
 
-  // Voice generation using real TTS API
-  const performVoiceGeneration = async () => {
-    // Collect all script lines that need TTS
-    const segments: api.AudioSegment[] = [];
+  // Voice generation for a single section
+  const generateVoiceForSection = async (section: ScriptSection) => {
+    const sectionId = section.id;
     
-    for (const section of scriptSections) {
-      for (const item of section.timeline) {
-        for (const line of item.lines) {
-          if (line.line.trim()) {
-            // Find assigned voice for this speaker
-            const character = extractedCharacters.find(c => c.name === line.speaker);
-            const voice = availableVoices.find(v => v.id === character?.assignedVoiceId);
-            
-            segments.push({
-              text: line.line,
-              speaker: line.speaker,
-              // Map to Gemini voice name or use default
-              voiceName: voice?.voiceId || 'Kore',
-            });
-          }
+    // Collect lines for this section
+    const segments: Array<{ text: string; speaker: string; voiceName: string; lineIndex: number }> = [];
+    let lineIndex = 0;
+    
+    for (const item of section.timeline) {
+      for (const line of item.lines) {
+        if (line.line.trim()) {
+          // Find assigned voice for this speaker
+          const character = extractedCharacters.find(c => c.name === line.speaker);
+          // Check system voices first, then custom voices
+          const systemVoice = systemVoices.find(v => v.id === character?.assignedVoiceId);
+          const customVoice = availableVoices.find(v => v.id === character?.assignedVoiceId);
+          
+          segments.push({
+            text: line.line,
+            speaker: line.speaker || 'Narrator',
+            voiceName: systemVoice?.id || customVoice?.voiceId || 'Kore',
+            lineIndex
+          });
         }
+        lineIndex++;
       }
     }
     
     if (segments.length === 0) {
+      dispatch(actions.updateSectionVoiceStatus(sectionId, 'completed', 100));
+      return;
+    }
+    
+    // Update section status to processing
+    dispatch(actions.updateSectionVoiceStatus(sectionId, 'processing', 0));
+    dispatch(actions.setCurrentSection(sectionId));
+    
+    try {
+      // Generate voice for each segment in this section
+      for (let i = 0; i < segments.length; i++) {
+        const segment = segments[i];
+        const progress = Math.round(((i + 1) / segments.length) * 100);
+        
+        dispatch(actions.updateSectionVoiceStatus(sectionId, 'processing', progress));
+        dispatch(actions.updateProductionPhase('voice-generation', 'processing', 0, segment.speaker));
+        
+        try {
+          // Call synthesize API for each segment
+          const result = await api.synthesizeSpeech(segment.text, { voiceName: segment.voiceName });
+          
+          // Add audio to section
+          const audio: SectionVoiceAudio = {
+            lineIndex: segment.lineIndex,
+            speaker: segment.speaker,
+            text: segment.text,
+            audioData: result.audioData,
+            mimeType: result.mimeType
+          };
+          dispatch(actions.addSectionVoiceAudio(sectionId, audio));
+        } catch (error) {
+          console.error(`Failed to generate voice for line ${i}:`, error);
+          // Continue with other segments even if one fails
+        }
+      }
+      
+      dispatch(actions.updateSectionVoiceStatus(sectionId, 'completed', 100));
+    } catch (error) {
+      console.error('Section voice generation failed:', error);
+      dispatch(actions.updateSectionVoiceStatus(sectionId, 'error', 0, 
+        error instanceof Error ? error.message : 'Generation failed'));
+    }
+    
+    dispatch(actions.setCurrentSection(undefined));
+  };
+  
+  // Voice generation for all sections sequentially
+  const performVoiceGeneration = async () => {
+    if (scriptSections.length === 0) {
       dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100));
       return;
     }
     
-    // Use streaming batch API for progress updates
-    try {
-      await api.generateAudioBatchStream(
-        segments,
-        (event) => {
-          if (event.type === 'progress') {
-            const progress = Math.round(((event.index || 0) + 1) / segments.length * 100);
-            dispatch(actions.updateProductionPhase('voice-generation', 'processing', progress, event.speaker));
-          } else if (event.type === 'done') {
-            dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100));
-          } else if (event.type === 'error') {
-            console.error('Voice generation error:', event.error);
-          }
-        }
-      );
-    } catch (error) {
-      console.error('Voice generation failed:', error);
-      // Fallback to simulated progress if API fails
-      const chunks = extractedCharacters.length > 0 
-        ? extractedCharacters.map(c => c.name)
-        : ['Section 1', 'Section 2', 'Section 3'];
+    dispatch(actions.updateProductionPhase('voice-generation', 'processing', 0));
+    
+    for (let i = 0; i < scriptSections.length; i++) {
+      const section = scriptSections[i];
+      await generateVoiceForSection(section);
       
-      for (let i = 0; i < chunks.length; i++) {
-        dispatch(actions.updateProductionPhase('voice-generation', 'processing', Math.round(((i + 1) / chunks.length) * 100), chunks[i]));
-        await new Promise(resolve => setTimeout(resolve, 800));
-      }
-      dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100));
+      // Update overall progress
+      const overallProgress = Math.round(((i + 1) / scriptSections.length) * 100);
+      dispatch(actions.updateProductionPhase('voice-generation', 'processing', overallProgress, section.name));
     }
+    
+    dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100));
   };
 
   // Media production using real APIs (BGM, SFX, Images)
@@ -757,7 +822,6 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
   // Custom project description state
   const [customDescription, setCustomDescription] = useState('');
-  const isCustomMode = customDescription.trim().length > 0 && !selectedTemplateId;
 
   // Template configuration state (shown after template selection)
   const [templateConfig, setTemplateConfig] = useState<{
@@ -1518,56 +1582,6 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             </p>
           </div>
 
-          {/* Available voices preview section */}
-          {systemVoices.length > 0 && (
-            <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: theme.bgCard }}>
-              <div className="px-5 py-3 border-b border-white/10">
-                <span className="text-sm text-white/50">
-                  {language === 'zh' ? '可用音色 - 点击试听' : 'Available Voices - Click to Preview'}
-                </span>
-              </div>
-              <div className="p-4 grid grid-cols-2 gap-3">
-                {systemVoices.map((voice) => {
-                  const isPlaying = playingVoiceId === voice.id;
-                  const isLoading = loadingVoiceId === voice.id;
-                  
-                  return (
-                    <button
-                      key={voice.id}
-                      onClick={() => playVoiceSample(voice.id)}
-                      disabled={isLoading}
-                      className={`flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${
-                        isPlaying 
-                          ? 'border-white/30 bg-white/10' 
-                          : 'border-white/5 bg-white/5 hover:border-white/20 hover:bg-white/10'
-                      }`}
-                      style={isPlaying ? { borderColor: theme.primary, background: `${theme.primary}15` } : {}}
-                    >
-                      <div 
-                        className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{ background: isPlaying ? theme.primary : 'rgba(255,255,255,0.1)' }}
-                      >
-                        {isLoading ? (
-                          <Loader2 size={18} className="animate-spin text-white" />
-                        ) : isPlaying ? (
-                          <Square size={14} className="text-white" />
-                        ) : (
-                          <Play size={16} className="text-white/70 ml-0.5" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{voice.name}</p>
-                        <p className="text-xs text-white/40 truncate">
-                          {language === 'zh' ? voice.descriptionZh : voice.description}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {/* Character voice assignment list */}
           {extractedCharacters.length > 0 && (
             <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: theme.bgCard }}>
@@ -1575,9 +1589,26 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                 <span className="text-sm text-white/50">
                   {language === 'zh' ? '角色音色分配' : 'Character Voice Assignment'}
                 </span>
-                <span className="text-xs text-white/40">
-                  {extractedCharacters.length} {language === 'zh' ? '个角色' : 'characters'}
-                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={recommendVoicesForAll}
+                    disabled={isRecommendingVoices || systemVoices.length + availableVoices.length === 0}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
+                    style={{ background: `${theme.primary}25`, color: theme.primaryLight }}
+                    title={language === 'zh' ? '用 AI 为每个角色推荐最合适的预置音色' : 'Use AI to recommend the best preset voice for each character'}
+                  >
+                    {isRecommendingVoices ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Wand2 size={16} />
+                    )}
+                    {language === 'zh' ? 'AI 推荐音色' : 'Recommend with AI'}
+                  </button>
+                  <span className="text-xs text-white/40">
+                    {extractedCharacters.length} {language === 'zh' ? '个角色' : 'characters'}
+                  </span>
+                </div>
               </div>
               <div className="p-4 space-y-3">
                 {extractedCharacters.map((char, index) => {
@@ -1697,97 +1728,193 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       );
     }
     
-    // Show progress UI after confirming
+    // Show section-by-section voice generation UI after confirming
+    const { sectionStatus } = voiceGeneration;
+    const completedSections = scriptSections.filter(s => sectionStatus[s.id]?.status === 'completed').length;
+    const allCompleted = completedSections === scriptSections.length && scriptSections.length > 0;
+    
     return (
       <div className="space-y-6">
-        {/* Character list with status - at top */}
-        {extractedCharacters.length > 0 && (
-          <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: theme.bgCard }}>
-            <div className="px-5 py-3 border-b border-white/10">
-              <span className="text-sm text-white/50">
-                {language === 'zh' ? '角色语音' : 'Character Voices'}
-              </span>
-            </div>
-            <div className="p-4 space-y-3">
-              {extractedCharacters.map((char, index) => {
-                const assignedVoice = availableVoices.find(v => v.id === char.assignedVoiceId);
-                const isCompleted = voiceGeneration.progress > (index + 1) * (100 / extractedCharacters.length);
-                const isCurrent = voiceGeneration.currentChunk === char.name;
-                
-                return (
+        {/* Overall progress header */}
+        <div className="text-center py-4">
+          <div 
+            className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
+            style={{ background: `${theme.primary}20` }}
+          >
+            {allCompleted ? (
+              <Check size={32} style={{ color: theme.primaryLight }} />
+            ) : (
+              <Mic2 size={32} className={voiceGeneration.status === 'processing' ? 'animate-pulse' : ''} style={{ color: theme.primaryLight }} />
+            )}
+          </div>
+          <h3 className="text-xl font-medium text-white mb-2">
+            {language === 'zh' ? '逐段语音生成' : 'Section-by-Section Voice Generation'}
+          </h3>
+          <p className="text-base text-white/50">
+            {allCompleted 
+              ? (language === 'zh' ? '所有段落已完成' : 'All sections completed')
+              : `${completedSections}/${scriptSections.length} ${language === 'zh' ? '段落已完成' : 'sections completed'}`
+            }
+          </p>
+        </div>
+
+        {/* Section list with individual controls */}
+        <div className="space-y-4">
+          {scriptSections.map((section, index) => {
+            const status = sectionStatus[section.id] || { status: 'idle', progress: 0, audioSegments: [] };
+            const isCurrentSection = voiceGeneration.currentSectionId === section.id;
+            const lineCount = section.timeline.reduce((acc, item) => acc + (item.lines?.filter(l => l.line.trim()).length || 0), 0);
+            
+            return (
+              <div 
+                key={section.id}
+                className={`rounded-xl border overflow-hidden transition-all ${
+                  isCurrentSection ? 'border-white/30' : 'border-white/10'
+                }`}
+                style={{ background: theme.bgCard }}
+              >
+                {/* Section header */}
+                <div className="px-5 py-4 flex items-center gap-4">
+                  {/* Status icon */}
                   <div 
-                    key={index} 
-                    className={`flex items-center gap-4 p-3 rounded-lg transition-all ${
-                      isCurrent ? 'bg-white/10 border border-white/20' : 'bg-white/5'
-                    }`}
+                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ 
+                      background: status.status === 'completed' 
+                        ? `${theme.primary}30` 
+                        : status.status === 'processing' 
+                          ? `${theme.primary}20` 
+                          : status.status === 'error'
+                            ? 'rgba(239, 68, 68, 0.2)'
+                            : 'rgba(255,255,255,0.05)'
+                    }}
                   >
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10">
-                      <User size={18} className="text-white/60" />
-                    </div>
-                    <div className="flex-1">
-                      <span className="text-base text-white">{char.name}</span>
-                      {assignedVoice && (
-                        <span className="text-sm text-white/40 ml-2">· {assignedVoice.name}</span>
+                    {status.status === 'completed' ? (
+                      <Check size={20} style={{ color: theme.primaryLight }} />
+                    ) : status.status === 'processing' ? (
+                      <Loader2 size={20} className="animate-spin" style={{ color: theme.primaryLight }} />
+                    ) : status.status === 'error' ? (
+                      <X size={20} className="text-red-400" />
+                    ) : (
+                      <span className="text-white/40 text-sm font-medium">{index + 1}</span>
+                    )}
+                  </div>
+                  
+                  {/* Section info */}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-base font-medium text-white truncate">{section.name}</h4>
+                    <p className="text-sm text-white/40">
+                      {lineCount} {language === 'zh' ? '条对话' : 'lines'}
+                      {status.status === 'completed' && status.audioSegments.length > 0 && (
+                        <span className="ml-2 text-green-400">
+                          · {status.audioSegments.length} {language === 'zh' ? '条音频' : 'audio clips'}
+                        </span>
                       )}
-                    </div>
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center" 
-                      style={{ background: isCompleted ? `${theme.primary}30` : isCurrent ? `${theme.primary}20` : 'transparent' }}>
-                      {isCompleted ? (
-                        <Check size={14} style={{ color: theme.primaryLight }} />
-                      ) : isCurrent ? (
-                        <Loader2 size={14} className="animate-spin" style={{ color: theme.primaryLight }} />
-                      ) : null}
+                    </p>
+                  </div>
+                  
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-2">
+                    {/* Progress indicator for processing */}
+                    {status.status === 'processing' && (
+                      <span className="text-sm font-medium" style={{ color: theme.primaryLight }}>
+                        {status.progress}%
+                      </span>
+                    )}
+                    
+                    {/* Generate / Regenerate button */}
+                    {(status.status === 'idle' || status.status === 'error') && (
+                      <button
+                        onClick={() => generateVoiceForSection(section)}
+                        disabled={voiceGeneration.status === 'processing'}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                        style={{ background: theme.primary }}
+                      >
+                        <Mic2 size={16} />
+                        {status.status === 'error' 
+                          ? (language === 'zh' ? '重试' : 'Retry')
+                          : (language === 'zh' ? '生成' : 'Generate')
+                        }
+                      </button>
+                    )}
+                    
+                    {/* Regenerate button for completed sections */}
+                    {status.status === 'completed' && (
+                      <button
+                        onClick={() => {
+                          dispatch(actions.clearSectionVoice(section.id));
+                          generateVoiceForSection(section);
+                        }}
+                        disabled={voiceGeneration.status === 'processing'}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/10 transition-all disabled:opacity-50"
+                        title={language === 'zh' ? '重新生成' : 'Regenerate'}
+                      >
+                        <RefreshCw size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Progress bar for processing sections */}
+                {status.status === 'processing' && (
+                  <div className="px-5 pb-4">
+                    <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                      <div 
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{ width: `${status.progress}%`, background: theme.primary }}
+                      />
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Status + Progress bar grouped together */}
-        <div 
-          className="rounded-xl border border-white/10 p-5"
-          style={{ background: theme.bgCard }}
-        >
-          {/* Status display */}
-          <div className="flex items-center gap-4 mb-4">
-            <div 
-              className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ background: `${theme.primary}20` }}
-            >
-              {voiceGeneration.status === 'completed' ? (
-                <Check size={24} style={{ color: theme.primaryLight }} />
-              ) : (
-                <Mic2 size={24} className={voiceGeneration.status === 'processing' ? 'animate-pulse' : ''} style={{ color: theme.primaryLight }} />
-              )}
-            </div>
-            <div className="flex-1">
-              <h4 className="text-base font-medium text-white">
-                {language === 'zh' ? '语音生成' : 'Voice Generation'}
-              </h4>
-              <p className="text-sm text-white/50">
-                {voiceGeneration.status === 'completed' 
-                  ? (language === 'zh' ? '语音生成完成' : 'Voice generation complete')
-                  : voiceGeneration.currentChunk 
-                    ? `${language === 'zh' ? '正在生成: ' : 'Generating: '}${voiceGeneration.currentChunk}`
-                    : (language === 'zh' ? '准备中...' : 'Preparing...')
-                }
-              </p>
-            </div>
-            <span className="text-lg font-medium" style={{ color: theme.primaryLight }}>
-              {voiceGeneration.progress}%
-            </span>
-          </div>
-          
-          {/* Progress bar */}
-          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-            <div 
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${voiceGeneration.progress}%`, background: theme.primary }}
-            />
-          </div>
+                )}
+                
+                {/* Error message */}
+                {status.status === 'error' && status.error && (
+                  <div className="px-5 pb-4">
+                    <p className="text-sm text-red-400">{status.error}</p>
+                  </div>
+                )}
+                
+                {/* Audio preview for completed sections */}
+                {status.status === 'completed' && status.audioSegments.length > 0 && (
+                  <div className="px-5 pb-4 border-t border-white/5 pt-3">
+                    <div className="flex flex-wrap gap-2">
+                      {status.audioSegments.map((audio, audioIndex) => (
+                        <button
+                          key={audioIndex}
+                          onClick={() => {
+                            const audioUrl = api.audioDataToUrl(audio.audioData, audio.mimeType);
+                            const audioEl = new Audio(audioUrl);
+                            audioEl.play();
+                          }}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-white/5 hover:bg-white/10 transition-all"
+                        >
+                          <Play size={12} style={{ color: theme.primaryLight }} />
+                          <span className="text-white/70">{audio.speaker}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
+
+        {/* Generate all button */}
+        {!allCompleted && (
+          <button
+            onClick={performVoiceGeneration}
+            disabled={voiceGeneration.status === 'processing'}
+            className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-xl text-base text-white font-medium transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            style={{ background: `${theme.primary}80` }}
+          >
+            {voiceGeneration.status === 'processing' ? (
+              <Loader2 size={22} className="animate-spin" />
+            ) : (
+              <Mic2 size={22} />
+            )}
+            {language === 'zh' ? '一键生成全部' : 'Generate All Sections'}
+          </button>
+        )}
       </div>
     );
   };

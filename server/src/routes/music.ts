@@ -1,27 +1,44 @@
 import { Router, Request, Response } from 'express';
 import { 
   generateMusic, 
-  generateSoundEffect, 
+  generateSoundEffect,
+  generateSoundEffectsBatch,
   MUSIC_GENRES, 
   MUSIC_MOODS,
   MusicGenerateOptions,
-  SoundEffectOptions
+  SoundEffectOptions,
+  SoundEffectParam,
+  SoundEffectType
 } from '../services/media.js';
 
 export const musicRouter = Router();
+
+// Max durations (aligned with sound_effect_design_tool.py)
+const MAX_SFX_DURATION_SECONDS = 22;
+const MAX_BGM_DURATION_SECONDS = 180;
 
 interface MusicRequest {
   description: string;
   genre?: string;
   mood?: string;
   durationSeconds?: number;
-  apiKey?: string;
+  instrumental?: boolean;
+  apiKey?: string;      // Gemini API key (legacy)
+  falApiKey?: string;   // fal.ai API key for ACE-Step
 }
 
 interface SoundEffectRequest {
   description: string;
   durationSeconds?: number;
-  apiKey?: string;
+  type?: SoundEffectType;
+  promptInfluence?: number;
+  apiKey?: string;  // ElevenLabs API key
+}
+
+interface BatchSoundEffectRequest {
+  effects: SoundEffectParam[];
+  apiKey?: string;      // ElevenLabs API key
+  falApiKey?: string;   // fal.ai API key
 }
 
 /**
@@ -37,11 +54,11 @@ musicRouter.get('/options', (_req: Request, res: Response) => {
 
 /**
  * POST /api/music/generate
- * Generate background music
+ * Generate background music using fal.ai ACE-Step
  */
 musicRouter.post('/generate', async (req: Request, res: Response) => {
   try {
-    const { description, genre, mood, durationSeconds, apiKey } = req.body as MusicRequest;
+    const { description, genre, mood, durationSeconds, instrumental, falApiKey } = req.body as MusicRequest;
     
     if (!description) {
       res.status(400).json({ error: 'description is required' });
@@ -51,8 +68,9 @@ musicRouter.post('/generate', async (req: Request, res: Response) => {
     const options: MusicGenerateOptions = { 
       genre, 
       mood, 
-      durationSeconds: Math.min(durationSeconds || 30, 60),  // Max 60 seconds
-      apiKey 
+      instrumental: instrumental !== false,
+      durationSeconds: Math.min(durationSeconds || 30, MAX_BGM_DURATION_SECONDS),
+      falApiKey 
     };
     
     const result = await generateMusic(description, options);
@@ -66,8 +84,8 @@ musicRouter.post('/generate', async (req: Request, res: Response) => {
     console.error('Music generation error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
     
-    if (message.includes('API_KEY') || message.includes('API key')) {
-      res.status(401).json({ error: 'Invalid or missing API key', code: 'API_KEY_INVALID' });
+    if (message.includes('FAL_KEY') || message.includes('fal.ai')) {
+      res.status(401).json({ error: 'Invalid or missing fal.ai API key', code: 'FAL_KEY_INVALID' });
       return;
     }
     
@@ -81,7 +99,7 @@ musicRouter.post('/generate', async (req: Request, res: Response) => {
  */
 musicRouter.post('/bgm', async (req: Request, res: Response) => {
   try {
-    const { description, mood, durationSeconds, apiKey } = req.body as MusicRequest;
+    const { description, mood, durationSeconds, falApiKey } = req.body as MusicRequest;
     
     // Default description for podcast BGM
     const bgmDescription = description || 'Gentle background music for podcast';
@@ -93,8 +111,9 @@ No sudden changes or loud sections. Consistent volume throughout.`;
     const options: MusicGenerateOptions = { 
       genre: 'ambient',
       mood: mood || 'peaceful', 
-      durationSeconds: Math.min(durationSeconds || 30, 60),
-      apiKey 
+      instrumental: true,
+      durationSeconds: Math.min(durationSeconds || 30, MAX_BGM_DURATION_SECONDS),
+      falApiKey 
     };
     
     const result = await generateMusic(enhancedDescription, options);
@@ -113,11 +132,11 @@ No sudden changes or loud sections. Consistent volume throughout.`;
 
 /**
  * POST /api/music/sfx
- * Generate sound effect
+ * Generate sound effect using ElevenLabs
  */
 musicRouter.post('/sfx', async (req: Request, res: Response) => {
   try {
-    const { description, durationSeconds, apiKey } = req.body as SoundEffectRequest;
+    const { description, durationSeconds, type, promptInfluence, apiKey } = req.body as SoundEffectRequest;
     
     if (!description) {
       res.status(400).json({ error: 'description is required' });
@@ -125,7 +144,9 @@ musicRouter.post('/sfx', async (req: Request, res: Response) => {
     }
     
     const options: SoundEffectOptions = { 
-      durationSeconds: Math.min(durationSeconds || 5, 15),  // Max 15 seconds for SFX
+      durationSeconds: Math.min(durationSeconds || 5, MAX_SFX_DURATION_SECONDS),
+      type: type || 'fx',
+      promptInfluence: promptInfluence ?? 1.0,
       apiKey 
     };
     
@@ -134,10 +155,45 @@ musicRouter.post('/sfx', async (req: Request, res: Response) => {
     res.json({
       audioData: result.audioData,
       mimeType: result.mimeType,
-      format: result.mimeType.split('/')[1] || 'wav'
+      format: result.mimeType.split('/')[1] || 'mp3'
     });
   } catch (error) {
     console.error('Sound effect generation error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    
+    if (message.includes('ELEVENLABS') || message.includes('ElevenLabs')) {
+      res.status(401).json({ error: 'Invalid or missing ElevenLabs API key', code: 'ELEVENLABS_KEY_INVALID' });
+      return;
+    }
+    
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/music/sfx/batch
+ * Generate multiple sound effects in batch
+ * Supports both SFX (ElevenLabs) and BGM (ACE-Step)
+ */
+musicRouter.post('/sfx/batch', async (req: Request, res: Response) => {
+  try {
+    const { effects, apiKey, falApiKey } = req.body as BatchSoundEffectRequest;
+    
+    if (!effects || !Array.isArray(effects) || effects.length === 0) {
+      res.status(400).json({ error: 'effects array is required' });
+      return;
+    }
+    
+    if (effects.length > 12) {
+      res.status(400).json({ error: 'At most 12 effects per batch' });
+      return;
+    }
+    
+    const results = await generateSoundEffectsBatch(effects, { apiKey, falApiKey });
+    
+    res.json({ results });
+  } catch (error) {
+    console.error('Batch sound effect generation error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({ error: message });
   }

@@ -11,6 +11,7 @@ import {
   Volume2,
   Image,
   User,
+  Home,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -86,6 +87,31 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
           style={{ background: theme.accent }}
         />
       </div>
+
+      {/* Top-right: Home navigation */}
+      <button
+        type="button"
+        onClick={() => onEnterWorkspace()}
+        className="absolute top-6 right-6 md:top-12 md:right-12 lg:top-16 lg:right-16 z-20 flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 hover:border-white/30 transition-all duration-200 hover:scale-105"
+        style={{ background: theme.bgCard }}
+      >
+        <Home size={16} style={{ color: theme.primaryLight }} />
+        <span className="text-sm font-medium" style={{ color: theme.textOnDark }}>
+          {language === 'zh' ? '工作台' : 'Home'}
+        </span>
+      </button>
+
+      {/* Bottom-left: Home navigation (subtle) */}
+      <button
+        type="button"
+        onClick={() => onEnterWorkspace()}
+        className="absolute bottom-6 left-6 md:bottom-12 md:left-12 lg:bottom-16 lg:left-16 z-20 flex items-center gap-1.5 text-white/30 hover:text-white/60 transition-colors duration-200"
+      >
+        <Home size={14} />
+        <span className="text-xs">
+          {language === 'zh' ? '进入工作台' : 'Enter Workspace'}
+        </span>
+      </button>
 
       {/* Left: Marketing */}
       <div className="flex-1 max-w-xl relative z-10">

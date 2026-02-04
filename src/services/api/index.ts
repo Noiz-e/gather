@@ -147,6 +147,34 @@ export async function getVoices(): Promise<Voice[]> {
   return data.voices;
 }
 
+export interface RecommendVoicesParams {
+  characters: Array<{ name: string; description?: string }>;
+  voices: Array<{ id: string; name: string; description?: string; descriptionZh?: string }>;
+  language?: 'en' | 'zh';
+}
+
+/**
+ * Recommend best preset voice for each character via Gemini Flash
+ * Returns voice IDs in same order as characters
+ */
+export async function recommendVoices(params: RecommendVoicesParams): Promise<string[]> {
+  const response = await fetch(`${API_BASE}/voice/recommend`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      characters: params.characters,
+      voices: params.voices,
+      language: params.language
+    })
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to recommend voices');
+  }
+  const data = await response.json();
+  return data.assignments ?? [];
+}
+
 /**
  * Get voice sample for preview (pre-generated)
  */
@@ -187,7 +215,15 @@ export async function getVoiceSampleCached(voiceId: string, language: 'en' | 'zh
  * Play voice sample
  */
 export async function playVoiceSample(voiceId: string, language: 'en' | 'zh' = 'en'): Promise<HTMLAudioElement> {
+  console.log(`Playing voice sample: ${voiceId} (${language})`);
+  
   const sample = await getVoiceSampleCached(voiceId, language);
+  console.log(`Got sample, mimeType: ${sample.mimeType}, data length: ${sample.audioData?.length || 0}`);
+  
+  if (!sample.audioData) {
+    throw new Error('No audio data in voice sample');
+  }
+  
   return playAudio(sample.audioData, sample.mimeType);
 }
 
@@ -371,10 +407,17 @@ export function audioDataToBlob(audioData: string, mimeType: string): Blob {
 /**
  * Play audio from base64 data
  */
-export function playAudio(audioData: string, mimeType: string): HTMLAudioElement {
+export async function playAudio(audioData: string, mimeType: string): Promise<HTMLAudioElement> {
   const url = audioDataToUrl(audioData, mimeType);
   const audio = new Audio(url);
-  audio.play();
+  
+  try {
+    await audio.play();
+  } catch (error) {
+    console.error('Audio playback failed:', error);
+    throw error;
+  }
+  
   return audio;
 }
 

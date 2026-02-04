@@ -6,6 +6,7 @@ import { voiceRouter } from './routes/voice.js';
 import { audioRouter } from './routes/audio.js';
 import { imageRouter } from './routes/image.js';
 import { musicRouter } from './routes/music.js';
+import { preGenerateVoiceSamples } from './services/gemini.js';
 
 dotenv.config();
 
@@ -40,4 +41,11 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
   console.log(`   Health check: http://localhost:${PORT}/api/health`);
+  
+  // Pre-generate voice samples in background (don't block server startup)
+  console.log('📢 Pre-generating voice samples...');
+  preGenerateVoiceSamples('en')
+    .then(() => preGenerateVoiceSamples('zh'))
+    .then(() => console.log('✅ All voice samples pre-generated'))
+    .catch(err => console.error('❌ Voice sample pre-generation failed:', err.message));
 });

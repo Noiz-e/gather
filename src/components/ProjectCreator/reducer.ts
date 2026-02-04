@@ -21,11 +21,30 @@ export type ProductionPhase =
   | 'media-production'    // Music, Sound Effects, and Images
   | 'mixing-editing';     // Mixing and Timeline Editing
 
+// Section-level voice generation status
+export interface SectionVoiceAudio {
+  lineIndex: number;
+  speaker: string;
+  text: string;
+  audioData: string;
+  mimeType: string;
+}
+
+export interface SectionVoiceStatus {
+  status: 'idle' | 'processing' | 'completed' | 'error';
+  progress: number;
+  audioSegments: SectionVoiceAudio[];
+  error?: string;
+}
+
 export interface ProductionProgress {
   voiceGeneration: {
     status: 'idle' | 'processing' | 'completed';
     progress: number;
+    currentSectionId?: string;
     currentChunk?: string;
+    // Section-level tracking for progressive generation
+    sectionStatus: Record<string, SectionVoiceStatus>;
   };
   mediaProduction: {
     status: 'idle' | 'processing' | 'completed';
@@ -73,7 +92,7 @@ const initialSpecData: SpecData = {
 };
 
 const initialProductionProgress: ProductionProgress = {
-  voiceGeneration: { status: 'idle', progress: 0 },
+  voiceGeneration: { status: 'idle', progress: 0, sectionStatus: {} },
   mediaProduction: { status: 'idle', progress: 0 },
   mixingEditing: { status: 'idle', progress: 0 },
 };
@@ -121,6 +140,11 @@ type Action =
   // Production progress
   | { type: 'UPDATE_PRODUCTION_PHASE'; phase: ProductionPhase; status: 'idle' | 'processing' | 'completed'; progress: number; detail?: string }
   | { type: 'RESET_PRODUCTION' }
+  // Section-level voice generation
+  | { type: 'UPDATE_SECTION_VOICE_STATUS'; sectionId: string; status: SectionVoiceStatus['status']; progress?: number; error?: string }
+  | { type: 'ADD_SECTION_VOICE_AUDIO'; sectionId: string; audio: SectionVoiceAudio }
+  | { type: 'CLEAR_SECTION_VOICE'; sectionId: string }
+  | { type: 'SET_CURRENT_SECTION'; sectionId: string | undefined }
   // Global
   | { type: 'RESET_ALL' };
 
@@ -305,7 +329,9 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
     case 'UPDATE_PRODUCTION_PHASE': {
       const { phase, status, progress, detail } = action;
       if (phase === 'voice-generation') {
-        state.production.voiceGeneration = { status, progress, currentChunk: detail };
+        state.production.voiceGeneration.status = status;
+        state.production.voiceGeneration.progress = progress;
+        state.production.voiceGeneration.currentChunk = detail;
       } else if (phase === 'media-production') {
         state.production.mediaProduction = { status, progress, currentTask: detail };
       } else if (phase === 'mixing-editing') {
@@ -316,6 +342,55 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
 
     case 'RESET_PRODUCTION':
       state.production = initialProductionProgress;
+      break;
+
+    // Section-level voice generation
+    case 'UPDATE_SECTION_VOICE_STATUS': {
+      const { sectionId, status, progress, error } = action;
+      if (!state.production.voiceGeneration.sectionStatus[sectionId]) {
+        state.production.voiceGeneration.sectionStatus[sectionId] = {
+          status: 'idle',
+          progress: 0,
+          audioSegments: []
+        };
+      }
+      state.production.voiceGeneration.sectionStatus[sectionId].status = status;
+      if (progress !== undefined) {
+        state.production.voiceGeneration.sectionStatus[sectionId].progress = progress;
+      }
+      if (error !== undefined) {
+        state.production.voiceGeneration.sectionStatus[sectionId].error = error;
+      }
+      break;
+    }
+
+    case 'ADD_SECTION_VOICE_AUDIO': {
+      const { sectionId, audio } = action;
+      if (!state.production.voiceGeneration.sectionStatus[sectionId]) {
+        state.production.voiceGeneration.sectionStatus[sectionId] = {
+          status: 'processing',
+          progress: 0,
+          audioSegments: []
+        };
+      }
+      state.production.voiceGeneration.sectionStatus[sectionId].audioSegments.push(audio);
+      break;
+    }
+
+    case 'CLEAR_SECTION_VOICE': {
+      const { sectionId } = action;
+      if (state.production.voiceGeneration.sectionStatus[sectionId]) {
+        state.production.voiceGeneration.sectionStatus[sectionId] = {
+          status: 'idle',
+          progress: 0,
+          audioSegments: []
+        };
+      }
+      break;
+    }
+
+    case 'SET_CURRENT_SECTION':
+      state.production.voiceGeneration.currentSectionId = action.sectionId;
       break;
 
     case 'RESET_ALL':
@@ -383,6 +458,20 @@ export const actions = {
   ): Action => ({ type: 'UPDATE_PRODUCTION_PHASE', phase, status, progress, detail }),
   resetProduction: (): Action => 
     ({ type: 'RESET_PRODUCTION' }),
+  
+  // Section-level voice generation
+  updateSectionVoiceStatus: (
+    sectionId: string,
+    status: SectionVoiceStatus['status'],
+    progress?: number,
+    error?: string
+  ): Action => ({ type: 'UPDATE_SECTION_VOICE_STATUS', sectionId, status, progress, error }),
+  addSectionVoiceAudio: (sectionId: string, audio: SectionVoiceAudio): Action =>
+    ({ type: 'ADD_SECTION_VOICE_AUDIO', sectionId, audio }),
+  clearSectionVoice: (sectionId: string): Action =>
+    ({ type: 'CLEAR_SECTION_VOICE', sectionId }),
+  setCurrentSection: (sectionId: string | undefined): Action =>
+    ({ type: 'SET_CURRENT_SECTION', sectionId }),
   
   // Global
   resetAll: (): Action => 
