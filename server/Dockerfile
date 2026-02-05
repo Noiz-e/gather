@@ -9,6 +9,9 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
 
+
+COPY .env ./
+
 RUN npm run build
 
 # Production stage

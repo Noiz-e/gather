@@ -1,10 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import {
   BookOpen,
   Mic2,
-  Heart,
   GraduationCap,
   Sparkles,
   Music,
@@ -12,8 +11,53 @@ import {
   Image,
   User,
   Home,
+  Users,
+  Headphones,
+  Mic,
+  MessageSquare,
+  Newspaper,
+  Library,
+  Video,
+  FileText,
   type LucideIcon,
 } from 'lucide-react';
+import { PROJECT_TEMPLATES, type ProjectTemplate } from './ProjectCreator/templates';
+
+// Icon mapping for templates
+const TemplateIconMap: Record<string, LucideIcon> = {
+  BookOpen,
+  Mic2,
+  GraduationCap,
+  Users,
+  Headphones,
+  Mic,
+  MessageSquare,
+  Newspaper,
+  Library,
+  Video,
+};
+
+// Category mapping for templates
+const TEMPLATE_CATEGORIES: Record<string, string[]> = {
+  audiobook: ['adv-unabridged-audiobook', 'adv-multivoice-audiobook', 'adv-immersive-audiobook'],
+  podcast: ['adv-solo-podcast', 'adv-scripted-interview', 'adv-daily-briefing'],
+  educational: ['adv-learning-library', 'adv-voiceover'],
+};
+
+// Get one random template from each category
+function getRandomTemplatePerCategory(): ProjectTemplate[] {
+  const result: ProjectTemplate[] = [];
+  
+  for (const [, templateIds] of Object.entries(TEMPLATE_CATEGORIES)) {
+    const categoryTemplates = PROJECT_TEMPLATES.filter(t => templateIds.includes(t.id));
+    if (categoryTemplates.length > 0) {
+      const randomIndex = Math.floor(Math.random() * categoryTemplates.length);
+      result.push(categoryTemplates[randomIndex]);
+    }
+  }
+  
+  return result;
+}
 
 export interface LandingData {
   selectedFormat: string;
@@ -30,18 +74,14 @@ interface LandingProps {
   onEnterWorkspace: (data?: LandingData) => void;
 }
 
-const FORMAT_ICONS: { id: string; Icon: LucideIcon; label: string; labelZh: string }[] = [
-  { id: 'audiobook', Icon: BookOpen, label: 'Audiobook', labelZh: '有声书' },
-  { id: 'podcast', Icon: Mic2, label: 'Podcast', labelZh: '播客' },
-  { id: 'devotional', Icon: Heart, label: 'Devotional', labelZh: '灵修' },
-  { id: 'educational', Icon: GraduationCap, label: 'Educational', labelZh: '教育' },
-];
-
 export function Landing({ onEnterWorkspace }: LandingProps) {
   const { theme } = useTheme();
   const { t, language } = useLanguage();
   const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
   const [projectDescription, setProjectDescription] = useState('');
+  
+  // Get random templates (one per category) - memoized to avoid re-randomizing on every render
+  const displayTemplates = useMemo(() => getRandomTemplatePerCategory(), []);
   
   // Media configuration options
   const [mediaConfig, setMediaConfig] = useState({
@@ -51,23 +91,17 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
     hasVisualContent: false,
   });
 
-  // Handle format selection with default config
-  const handleFormatSelect = (formatId: string) => {
-    setSelectedFormat(formatId);
-    // Set reasonable defaults based on format
-    switch (formatId) {
-      case 'audiobook':
-        setMediaConfig({ voiceCount: 'single', addBgm: false, addSoundEffects: false, hasVisualContent: false });
-        break;
-      case 'podcast':
-        setMediaConfig({ voiceCount: 'multiple', addBgm: true, addSoundEffects: false, hasVisualContent: false });
-        break;
-      case 'devotional':
-        setMediaConfig({ voiceCount: 'single', addBgm: true, addSoundEffects: false, hasVisualContent: false });
-        break;
-      case 'educational':
-        setMediaConfig({ voiceCount: 'single', addBgm: false, addSoundEffects: true, hasVisualContent: true });
-        break;
+  // Handle template selection with default config from template
+  const handleFormatSelect = (templateId: string) => {
+    setSelectedFormat(templateId);
+    const template = PROJECT_TEMPLATES.find(t => t.id === templateId);
+    if (template) {
+      setMediaConfig({
+        voiceCount: template.suggestedDefaults.voiceCount,
+        addBgm: template.suggestedDefaults.addBgm,
+        addSoundEffects: template.suggestedDefaults.addSoundEffects,
+        hasVisualContent: template.suggestedDefaults.hasVisualContent,
+      });
     }
   };
 
@@ -87,19 +121,6 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
           style={{ background: theme.accent }}
         />
       </div>
-
-      {/* Top-right: Home navigation */}
-      <button
-        type="button"
-        onClick={() => onEnterWorkspace()}
-        className="absolute top-6 right-6 md:top-12 md:right-12 lg:top-16 lg:right-16 z-20 flex items-center gap-2 px-4 py-2 rounded-xl border border-white/10 hover:border-white/30 transition-all duration-200 hover:scale-105"
-        style={{ background: theme.bgCard }}
-      >
-        <Home size={16} style={{ color: theme.primaryLight }} />
-        <span className="text-sm font-medium" style={{ color: theme.textOnDark }}>
-          {language === 'zh' ? '工作台' : 'Home'}
-        </span>
-      </button>
 
       {/* Bottom-left: Home navigation (subtle) */}
       <button
@@ -144,12 +165,22 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
       {/* Right: Start Your Journey card */}
       <div className="flex-1 w-full max-w-lg relative z-10">
         <div
-          className="rounded-3xl border border-white/10 p-6 md:p-8"
+          className="rounded-3xl border border-white/10 p-6 md:p-8 relative"
           style={{
             background: theme.bgCard,
             boxShadow: `0 0 30px ${theme.glow}`,
           }}
         >
+          {/* Top-right: Home navigation */}
+          <button
+            type="button"
+            onClick={() => onEnterWorkspace()}
+            className="absolute top-4 right-4 md:top-6 md:right-6 z-20 flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/10 hover:border-white/30 transition-all duration-200 hover:scale-105"
+            style={{ background: theme.bgDark }}
+          >
+            <Home size={14} style={{ color: theme.primaryLight }} />
+          </button>
+
           <h2
             className="font-semibold text-xl md:text-2xl mb-4"
             style={{ color: theme.textOnDark }}
@@ -160,14 +191,15 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
           <p className="text-[10px] md:text-xs font-medium text-white/50 uppercase tracking-wider mb-3">
             {t.landing.selectFormat}
           </p>
-          <div className="grid grid-cols-4 gap-2 mb-5">
-            {FORMAT_ICONS.map(({ id, Icon, label, labelZh }) => {
-              const isSelected = selectedFormat === id;
+          <div className="grid grid-cols-3 gap-2 mb-5">
+            {displayTemplates.map((template) => {
+              const IconComponent = TemplateIconMap[template.icon] || FileText;
+              const isSelected = selectedFormat === template.id;
               return (
                 <button
-                  key={id}
+                  key={template.id}
                   type="button"
-                  onClick={() => handleFormatSelect(id)}
+                  onClick={() => handleFormatSelect(template.id)}
                   className="p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all duration-200 border border-white/10 hover:border-white/20"
                   style={
                     isSelected
@@ -178,18 +210,18 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
                         }
                       : {}
                   }
-                  aria-label={id}
+                  aria-label={template.id}
                 >
-                  <Icon 
+                  <IconComponent 
                     size={20} 
                     strokeWidth={isSelected ? 2.5 : 1.5} 
                     style={{ color: isSelected ? theme.primaryLight : 'rgba(255,255,255,0.5)' }}
                   />
                   <span 
-                    className="text-[10px] font-medium"
+                    className="text-[10px] font-medium text-center line-clamp-1"
                     style={{ color: isSelected ? theme.textOnDark : 'rgba(255,255,255,0.5)' }}
                   >
-                    {language === 'zh' ? labelZh : label}
+                    {language === 'zh' ? template.nameZh : template.name}
                   </span>
                 </button>
               );

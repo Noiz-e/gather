@@ -28,6 +28,7 @@ export interface Translations {
     workspace: string;
     projects: string;
     voice: string;
+    media: string;
     settings: string;
     switchTheme: string;
   };
@@ -199,6 +200,7 @@ export interface Translations {
       cancel: string;
       back: string;
       next: string;
+      approve: string;
       create: string;
     };
     
@@ -357,6 +359,8 @@ export interface Translations {
     selectProjectPlaceholder: string;
     episode: string;
     selectEpisodePlaceholder: string;
+    allProjects: string;
+    noProjects: string;
     status: {
       ready: string;
       recording: string;
@@ -395,12 +399,60 @@ export interface Translations {
       selectProvider: string;
       voiceId: string;
       voiceIdPlaceholder: string;
+      linkedProjects: string;
       save: string;
       cancel: string;
       edit: string;
       delete: string;
       deleteConfirm: string;
       createdAt: string;
+    };
+  };
+  
+  // Media Library
+  mediaLibrary: {
+    title: string;
+    subtitle: string;
+    upload: string;
+    generate: string;
+    generating: string;
+    allProjects: string;
+    noProjects: string;
+    searchPlaceholder: string;
+    deleteConfirm: string;
+    tabs: {
+      images: string;
+      bgm: string;
+      sfx: string;
+    };
+    empty: {
+      title: string;
+      description: string;
+    };
+    errors: {
+      generationFailed: string;
+    };
+    form: {
+      name: string;
+      type: string;
+      description: string;
+      tags: string;
+      tagsPlaceholder: string;
+      linkedProjects: string;
+    };
+    uploadModal: {
+      title: string;
+    };
+    generateModal: {
+      title: string;
+      prompt: string;
+      duration: string;
+      imagePlaceholder: string;
+      bgmPlaceholder: string;
+      sfxPlaceholder: string;
+    };
+    editModal: {
+      title: string;
     };
   };
   

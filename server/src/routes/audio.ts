@@ -1,17 +1,22 @@
 import { Router, Request, Response } from 'express';
-import { generateSpeech, TTSOptions } from '../services/gemini.js';
+import { generateBatchCustomSpeech, isCustomTTSConfigured } from '../services/tts.js';
 
 export const audioRouter = Router();
 
 interface AudioSegment {
   text: string;
-  voiceName?: string;
   speaker?: string;
+  // Custom TTS options per segment
+  refAudioDataUrl?: string;
+  refText?: string;
+  speed?: number;
 }
 
 interface BatchRequest {
   segments: AudioSegment[];
-  apiKey?: string;
+  // Default custom TTS options for all segments
+  defaultRefAudioDataUrl?: string;
+  defaultRefText?: string;
 }
 
 interface GeneratedSegment {
@@ -23,12 +28,12 @@ interface GeneratedSegment {
 
 /**
  * POST /api/audio/batch
- * Generate audio for multiple segments (e.g., different speakers in a script)
+ * Generate audio for multiple segments using custom TTS
  * Returns array of base64 audio segments
  */
 audioRouter.post('/batch', async (req: Request, res: Response) => {
   try {
-    const { segments, apiKey } = req.body as BatchRequest;
+    const { segments, defaultRefAudioDataUrl, defaultRefText } = req.body as BatchRequest;
     
     if (!segments || !Array.isArray(segments) || segments.length === 0) {
       res.status(400).json({ error: 'segments array is required' });
@@ -40,33 +45,54 @@ audioRouter.post('/batch', async (req: Request, res: Response) => {
       return;
     }
     
+    if (!isCustomTTSConfigured()) {
+      res.status(503).json({ error: 'TTS service not configured' });
+      return;
+    }
+    
     const results: GeneratedSegment[] = [];
     const errors: { index: number; error: string }[] = [];
     
-    // Process segments sequentially to avoid rate limiting
+    // Filter valid segments
+    const validSegments: { index: number; segment: AudioSegment }[] = [];
     for (let i = 0; i < segments.length; i++) {
       const segment = segments[i];
-      
       if (!segment.text) {
         errors.push({ index: i, error: 'Missing text' });
         continue;
       }
+      validSegments.push({ index: i, segment });
+    }
+    
+    // Process with batch custom TTS
+    const batchItems = validSegments.map(({ index, segment }) => ({
+      id: String(index),
+      text: segment.text,
+      refAudioDataUrl: segment.refAudioDataUrl || defaultRefAudioDataUrl,
+      refText: segment.refText || defaultRefText,
+      speed: segment.speed
+    }));
+    
+    const batchResults = await generateBatchCustomSpeech(batchItems);
+    
+    for (const result of batchResults) {
+      const index = parseInt(result.id);
+      const segment = segments[index];
       
-      try {
-        const options: TTSOptions = { voiceName: segment.voiceName, apiKey };
-        const result = await generateSpeech(segment.text, options);
-        
+      if (result.error) {
+        errors.push({ index, error: result.error });
+      } else {
         results.push({
-          index: i,
+          index,
           speaker: segment.speaker,
-          audioData: result.audioData,
-          mimeType: result.mimeType
+          audioData: result.audioData!,
+          mimeType: result.mimeType!
         });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        errors.push({ index: i, error: message });
       }
     }
+    
+    // Sort results by original index
+    results.sort((a, b) => a.index - b.index);
     
     res.json({
       segments: results,
@@ -83,14 +109,19 @@ audioRouter.post('/batch', async (req: Request, res: Response) => {
 
 /**
  * POST /api/audio/batch-stream
- * Generate audio segments with SSE progress updates
+ * Generate audio segments with SSE progress updates using custom TTS
  */
 audioRouter.post('/batch-stream', async (req: Request, res: Response) => {
   try {
-    const { segments, apiKey } = req.body as BatchRequest;
+    const { segments, defaultRefAudioDataUrl, defaultRefText } = req.body as BatchRequest;
     
     if (!segments || !Array.isArray(segments) || segments.length === 0) {
       res.status(400).json({ error: 'segments array is required' });
+      return;
+    }
+    
+    if (!isCustomTTSConfigured()) {
+      res.status(503).json({ error: 'TTS service not configured' });
       return;
     }
     
@@ -102,43 +133,34 @@ audioRouter.post('/batch-stream', async (req: Request, res: Response) => {
     // Send initial progress
     res.write(`data: ${JSON.stringify({ type: 'start', total: segments.length })}\n\n`);
     
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i];
+    // Process with batch custom TTS (concurrent)
+    const batchItems = segments.map((segment, index) => ({
+      id: String(index),
+      text: segment.text || '',
+      refAudioDataUrl: segment.refAudioDataUrl || defaultRefAudioDataUrl,
+      refText: segment.refText || defaultRefText,
+      speed: segment.speed
+    }));
+    
+    const batchResults = await generateBatchCustomSpeech(batchItems);
+    
+    for (const result of batchResults) {
+      const index = parseInt(result.id);
+      const segment = segments[index];
       
-      // Send progress update
-      res.write(`data: ${JSON.stringify({ 
-        type: 'progress', 
-        index: i, 
-        total: segments.length,
-        speaker: segment.speaker 
-      })}\n\n`);
-      
-      if (!segment.text) {
+      if (result.error) {
         res.write(`data: ${JSON.stringify({ 
           type: 'error', 
-          index: i, 
-          error: 'Missing text' 
+          index, 
+          error: result.error 
         })}\n\n`);
-        continue;
-      }
-      
-      try {
-        const options: TTSOptions = { voiceName: segment.voiceName, apiKey };
-        const result = await generateSpeech(segment.text, options);
-        
+      } else {
         res.write(`data: ${JSON.stringify({
           type: 'segment',
-          index: i,
+          index,
           speaker: segment.speaker,
           audioData: result.audioData,
           mimeType: result.mimeType
-        })}\n\n`);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        res.write(`data: ${JSON.stringify({ 
-          type: 'error', 
-          index: i, 
-          error: message 
         })}\n\n`);
       }
     }

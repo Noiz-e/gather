@@ -12,9 +12,10 @@ import { ProjectDetail } from './components/ProjectDetail';
 import { EpisodeCreator } from './components/EpisodeCreator';
 import { EpisodeEditor } from './components/EpisodeEditor';
 import { VoiceStudio } from './components/VoiceStudio';
+import { MediaLibrary } from './components/MediaLibrary';
 import { Settings } from './components/Settings';
 
-type Page = 'dashboard' | 'projects' | 'voice' | 'settings' | 'project-detail';
+type Page = 'dashboard' | 'projects' | 'voice' | 'media' | 'settings' | 'project-detail';
 
 interface AppContentProps {
   initialLandingData: LandingData | null;
@@ -91,6 +92,8 @@ function AppContent({ initialLandingData, onClearLandingData }: AppContentProps)
         return <ProjectList onCreateProject={() => setShowProjectCreator(true)} onViewProject={handleViewProject} onEditProject={handleEditProject} />;
       case 'voice':
         return <VoiceStudio />;
+      case 'media':
+        return <MediaLibrary />;
       case 'settings':
         return <Settings />;
       default:
@@ -107,7 +110,20 @@ function AppContent({ initialLandingData, onClearLandingData }: AppContentProps)
       {showProjectCreator && (
         <ProjectCreator
           onClose={() => { setShowProjectCreator(false); onClearLandingData(); }}
-          onSuccess={() => { setShowProjectCreator(false); onClearLandingData(); setCurrentPage('projects'); }}
+          onSuccess={(projectId?: string) => { 
+            setShowProjectCreator(false); 
+            onClearLandingData(); 
+            // Navigate to project detail if projectId is provided
+            if (projectId) {
+              const project = projects.find(p => p.id === projectId);
+              if (project) {
+                setCurrentProject(project);
+                setCurrentPage('project-detail');
+                return;
+              }
+            }
+            setCurrentPage('projects'); 
+          }}
           initialData={initialLandingData || undefined}
         />
       )}

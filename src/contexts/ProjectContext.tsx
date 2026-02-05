@@ -1,7 +1,9 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Project, Episode, Religion, ProjectSpec, ScriptSection, EpisodeCharacter } from '../types';
 import { storage } from '../utils/storage';
+import { loadVoiceCharactersFromCloud } from '../utils/voiceStorage';
+import { loadMediaItemsFromCloudStorage } from '../utils/mediaStorage';
 
 interface CreateProjectData {
   title: string;
@@ -31,6 +33,8 @@ interface ProjectContextType {
   deleteEpisode: (projectId: string, episodeId: string) => void;
   getProjectsByReligion: (religion: Religion) => Project[];
   getProjectSpec: (projectId: string) => ProjectSpec | undefined;
+  isCloudSynced: boolean;
+  syncFromCloud: () => Promise<void>;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -38,10 +42,50 @@ const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 export function ProjectProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
+  const [isCloudSynced, setIsCloudSynced] = useState(false);
 
+  // Load from local storage first, then try cloud
   useEffect(() => {
+    // Load from local storage immediately
     const savedProjects = storage.getProjects();
     setProjects(savedProjects);
+    
+    // Then try to load from cloud (async)
+    const loadFromCloud = async () => {
+      try {
+        const cloudProjects = await storage.loadFromCloud();
+        setProjects(cloudProjects);
+        setIsCloudSynced(true);
+        console.log('Synced projects from cloud');
+        
+        // Also pre-load voices and media from cloud in background
+        loadVoiceCharactersFromCloud().catch(console.error);
+        loadMediaItemsFromCloudStorage().catch(console.error);
+      } catch (error) {
+        console.error('Failed to sync from cloud:', error);
+        setIsCloudSynced(false);
+      }
+    };
+    
+    loadFromCloud();
+  }, []);
+
+  // Manual sync from cloud
+  const syncFromCloud = useCallback(async () => {
+    try {
+      const cloudProjects = await storage.loadFromCloud();
+      setProjects(cloudProjects);
+      setIsCloudSynced(true);
+      
+      // Also sync voices and media
+      await loadVoiceCharactersFromCloud();
+      await loadMediaItemsFromCloudStorage();
+      
+      console.log('Manual cloud sync completed');
+    } catch (error) {
+      console.error('Manual cloud sync failed:', error);
+      throw error;
+    }
   }, []);
 
   const createProject = (data: CreateProjectData): Project => {
@@ -181,6 +225,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         deleteEpisode,
         getProjectsByReligion,
         getProjectSpec,
+        isCloudSynced,
+        syncFromCloud,
       }}
     >
       {children}

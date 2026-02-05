@@ -7,8 +7,9 @@ import {
   ChevronLeft, ChevronRight, Check, X, Upload, FileText, 
   Sparkles, Plus, Trash2, Play, User, Loader2,
   Music, Volume2, Image, RefreshCw, Save,
-  BookOpen, Heart, Mic2, Wand2, Sliders, GraduationCap,
-  LucideIcon, Square
+  BookOpen, Mic2, Wand2, Sliders, GraduationCap,
+  LucideIcon, Square, Users, Headphones, Mic, MessageSquare, 
+  Newspaper, Library, Video
 } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
 import { filterValidFiles, collectAnalysisContent } from '../utils/fileUtils';
@@ -26,21 +27,29 @@ import {
   SpecData,
   SectionVoiceAudio
 } from './ProjectCreator/reducer';
-import { PROJECT_TEMPLATES } from './ProjectCreator/templates';
+import { PROJECT_TEMPLATES, getAudioMixConfig } from './ProjectCreator/templates';
 import { loadVoiceCharacters } from '../utils/voiceStorage';
 import type { LandingData } from './Landing';
 
-// Icon mapping for templates
+// Icon mapping for templates (basic + advanced)
 const TemplateIconMap: Record<string, LucideIcon> = {
+  // Basic templates
   BookOpen,
-  Heart,
   Mic2,
   GraduationCap,
+  // Advanced templates
+  Users,
+  Headphones,
+  Mic,
+  MessageSquare,
+  Newspaper,
+  Library,
+  Video,
 };
 
 interface ProjectCreatorProps {
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (projectId?: string) => void;
   initialData?: LandingData;
 }
 
@@ -477,7 +486,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     const sectionId = section.id;
     
     // Collect lines for this section
-    const segments: Array<{ text: string; speaker: string; voiceName: string; lineIndex: number }> = [];
+    const segments: Array<{ text: string; speaker: string; refAudioDataUrl?: string; lineIndex: number }> = [];
     let lineIndex = 0;
     
     for (const item of section.timeline) {
@@ -485,14 +494,15 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         if (line.line.trim()) {
           // Find assigned voice for this speaker
           const character = extractedCharacters.find(c => c.name === line.speaker);
-          // Check system voices first, then custom voices
-          const systemVoice = systemVoices.find(v => v.id === character?.assignedVoiceId);
+          // Find custom voice with reference audio
           const customVoice = availableVoices.find(v => v.id === character?.assignedVoiceId);
+          // Get reference audio from voice character (audioSampleUrl or refAudioDataUrl)
+          const refAudioDataUrl = customVoice?.refAudioDataUrl || customVoice?.audioSampleUrl;
           
           segments.push({
             text: line.line,
             speaker: line.speaker || 'Narrator',
-            voiceName: systemVoice?.id || customVoice?.voiceId || 'Kore',
+            refAudioDataUrl,
             lineIndex
           });
         }
@@ -519,8 +529,10 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         dispatch(actions.updateProductionPhase('voice-generation', 'processing', 0, segment.speaker));
         
         try {
-          // Call synthesize API for each segment
-          const result = await api.synthesizeSpeech(segment.text, { voiceName: segment.voiceName });
+          // Call synthesize API for each segment with reference audio
+          const result = await api.synthesizeSpeech(segment.text, { 
+            refAudioDataUrl: segment.refAudioDataUrl 
+          });
           
           // Add audio to section
           const audio: SectionVoiceAudio = {
@@ -586,12 +598,17 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       
       try {
         if (task.type === 'bgm') {
-          // Generate background music
-          await api.generateBGM(
+          // Generate background music and save to state
+          const bgmResult = await api.generateBGM(
             specData.toneAndExpression,
             'peaceful',
             30
           );
+          // Save BGM for mixing phase
+          dispatch(actions.setBgmAudio({
+            audioData: bgmResult.audioData,
+            mimeType: bgmResult.mimeType
+          }));
         } else if (task.type === 'sfx') {
           // Generate sound effects from script instructions
           for (const section of scriptSections) {
@@ -620,14 +637,91 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     dispatch(actions.updateProductionPhase('media-production', 'completed', 100));
   };
 
-  // Simulate mixing process (Phase 3)
-  const simulateMixing = async () => {
-    const steps = [25, 50, 75, 100];
-    for (const progress of steps) {
-      dispatch(actions.updateProductionPhase('mixing-editing', 'processing', progress));
-      await new Promise(resolve => setTimeout(resolve, 500));
+  // Real mixing process (Phase 3)
+  const performMixing = async () => {
+    try {
+      dispatch(actions.updateProductionPhase('mixing-editing', 'processing', 10));
+      
+      // Get audio mix config based on template
+      const mixConfig = getAudioMixConfig(selectedTemplateId);
+      console.log(`Using mix config for template "${selectedTemplateId || 'default'}":`, mixConfig);
+      
+      // Collect all voice audio segments from all sections with speaker info
+      const voiceTracks: api.AudioTrack[] = [];
+      
+      for (const section of scriptSections) {
+        const sectionStatus = production.voiceGeneration.sectionStatus[section.id];
+        if (sectionStatus?.audioSegments) {
+          for (const segment of sectionStatus.audioSegments) {
+            if (segment.audioData) {
+              voiceTracks.push({
+                audioData: segment.audioData,
+                mimeType: segment.mimeType || 'audio/wav',
+                speaker: segment.speaker,  // Include speaker for gap calculation
+                volume: 1
+              });
+            }
+          }
+        }
+      }
+      
+      if (voiceTracks.length === 0) {
+        dispatch(actions.setMixingError(language === 'zh' ? '没有可用的语音数据' : 'No voice data available'));
+        dispatch(actions.updateProductionPhase('mixing-editing', 'completed', 100));
+        return;
+      }
+      
+      dispatch(actions.updateProductionPhase('mixing-editing', 'processing', 30));
+      
+      // Prepare mix request with config
+      const mixRequest: api.MixRequest = {
+        voiceTracks,
+        config: {
+          silenceStartMs: mixConfig.silenceStartMs,
+          silenceEndMs: mixConfig.silenceEndMs,
+          sameSpeakerGapMs: mixConfig.sameSpeakerGapMs,
+          differentSpeakerGapMs: mixConfig.differentSpeakerGapMs,
+          sectionGapMs: mixConfig.sectionGapMs,
+          voiceVolume: mixConfig.voiceVolume,
+          bgmVolume: mixConfig.bgmVolume,
+          sfxVolume: mixConfig.sfxVolume,
+          bgmFadeInMs: mixConfig.bgmFadeInMs,
+          bgmFadeOutMs: mixConfig.bgmFadeOutMs,
+        }
+      };
+      
+      // Add BGM if available
+      if (specData.addBgm && production.mediaProduction.bgmAudio) {
+        mixRequest.bgmTrack = {
+          audioData: production.mediaProduction.bgmAudio.audioData,
+          mimeType: production.mediaProduction.bgmAudio.mimeType,
+        };
+      }
+      
+      dispatch(actions.updateProductionPhase('mixing-editing', 'processing', 50));
+      
+      // Call mixing API
+      console.log(`Mixing ${voiceTracks.length} voice tracks${mixRequest.bgmTrack ? ' with BGM' : ''}...`);
+      const result = await api.mixAudioTracks(mixRequest);
+      
+      dispatch(actions.updateProductionPhase('mixing-editing', 'processing', 90));
+      
+      // Store the mixed output
+      dispatch(actions.setMixedOutput({
+        audioData: result.audioData,
+        mimeType: result.mimeType,
+        durationMs: result.durationMs
+      }));
+      
+      console.log(`Mixing complete: ${result.durationMs}ms, ${result.trackCount} tracks`);
+      dispatch(actions.updateProductionPhase('mixing-editing', 'completed', 100));
+      
+    } catch (error) {
+      console.error('Mixing failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      dispatch(actions.setMixingError(errorMessage));
+      dispatch(actions.updateProductionPhase('mixing-editing', 'completed', 100));
     }
-    dispatch(actions.updateProductionPhase('mixing-editing', 'completed', 100));
   };
 
   // Handle create project
@@ -641,7 +735,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       assignedVoiceId: char.assignedVoiceId,
     }));
     
-    createProject({
+    const project = createProject({
       title: specData.storyTitle,
       subtitle: specData.subtitle,
       description: `${specData.targetAudience} | ${specData.formatAndDuration}`,
@@ -656,16 +750,21 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         addSoundEffects: specData.addSoundEffects,
         hasVisualContent: specData.hasVisualContent,
       },
-      // First episode with generated script
-      firstEpisode: {
+      // First episode with generated script (if any)
+      firstEpisode: scriptSections.length > 0 ? {
         title: `${t.projectCreator.episode1}: ${specData.storyTitle}`,
         subtitle: specData.subtitle,
         description: specData.toneAndExpression,
         scriptSections,
         characters: episodeCharacters,
-      },
+      } : undefined,
     });
-    onSuccess();
+    onSuccess(project.id);
+  };
+  
+  // Handle skip - save project with current progress and go to detail
+  const handleSkipAndSave = () => {
+    handleCreate();
   };
 
   // Navigation validation for 8-step workflow
@@ -761,7 +860,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       setCurrentStep(7);
       // Auto-start mixing
       setTimeout(() => {
-        simulateMixing();
+        performMixing();
       }, 100);
       return;
     }
@@ -847,51 +946,84 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   // Handle template selection - clears custom description and sets default config
   const handleTemplateSelect = (templateId: string) => {
     setCustomDescription('');
+    
+    const template = PROJECT_TEMPLATES.find(t => t.id === templateId);
+    if (!template) return;
+    
     handleSelectTemplate(templateId);
     // Set suggested defaults from template
-    const template = PROJECT_TEMPLATES.find(t => t.id === templateId);
-    if (template) {
-      setTemplateConfig({
-        voiceCount: template.suggestedDefaults.voiceCount,
-        addBgm: template.suggestedDefaults.addBgm,
-        addSoundEffects: template.suggestedDefaults.addSoundEffects,
-        hasVisualContent: template.suggestedDefaults.hasVisualContent,
-      });
-    }
+    setTemplateConfig({
+      voiceCount: template.suggestedDefaults.voiceCount,
+      addBgm: template.suggestedDefaults.addBgm,
+      addSoundEffects: template.suggestedDefaults.addSoundEffects,
+      hasVisualContent: template.suggestedDefaults.hasVisualContent,
+    });
   };
 
   // Render Step 1: Template Selection (NEW)
-  const renderTemplateStep = () => (
+  const renderTemplateStep = () => {
+    return (
     <div className="space-y-6">
-      {/* Template Grid */}
-      <div className="grid grid-cols-4 gap-3">
+      {/* Template Grid - All Templates */}
+      <div className="grid gap-3 grid-cols-4">
         {PROJECT_TEMPLATES.map((template) => {
           const IconComponent = TemplateIconMap[template.icon] || FileText;
           const isSelected = selectedTemplateId === template.id;
+          const { addBgm, addSoundEffects, hasVisualContent, voiceCount } = template.suggestedDefaults;
           
           return (
             <button
               key={template.id}
               onClick={() => handleTemplateSelect(template.id)}
-              className={`relative p-4 rounded-xl border text-center transition-all ${
+              className={`relative p-3 rounded-xl border text-left transition-all ${
                 isSelected 
                   ? 'border-white/30 bg-white/10' 
                   : 'border-white/10 hover:border-white/20 hover:bg-white/5'
               }`}
               style={isSelected ? { borderColor: theme.primary, background: `${theme.primary}15` } : {}}
             >
-              <div 
-                className="w-12 h-12 mx-auto rounded-lg flex items-center justify-center mb-3"
-                style={{ background: isSelected ? `${theme.primary}30` : 'rgba(255,255,255,0.1)' }}
-              >
-                <IconComponent size={24} className={isSelected ? '' : 'text-white/60'} style={isSelected ? { color: theme.primaryLight } : {}} />
+              {/* Header with icon and name */}
+              <div className="flex items-center gap-2 mb-2">
+                <div 
+                  className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0"
+                  style={{ background: isSelected ? `${theme.primary}30` : 'rgba(255,255,255,0.1)' }}
+                >
+                  <IconComponent size={14} className={isSelected ? '' : 'text-white/60'} style={isSelected ? { color: theme.primaryLight } : {}} />
+                </div>
+                <p className="text-sm text-white font-medium line-clamp-1 flex-1">
+                  {language === 'zh' ? template.nameZh : template.name}
+                </p>
               </div>
-              <p className="text-sm text-white font-medium line-clamp-1">
-                {language === 'zh' ? template.nameZh : template.name}
+              {/* Description */}
+              <p className="text-[11px] text-white/50 leading-relaxed">
+                {language === 'zh' ? template.descriptionZh : template.description}
               </p>
+              {/* Media option tags */}
+              <div className="flex gap-1 mt-2">
+                {voiceCount === 'multiple' && (
+                  <div className="p-1 rounded bg-white/10" title={language === 'zh' ? '多人' : 'Multi-voice'}>
+                    <Users size={10} className="text-white/40" />
+                  </div>
+                )}
+                {addBgm && (
+                  <div className="p-1 rounded bg-white/10" title="BGM">
+                    <Music size={10} className="text-white/40" />
+                  </div>
+                )}
+                {addSoundEffects && (
+                  <div className="p-1 rounded bg-white/10" title="SFX">
+                    <Volume2 size={10} className="text-white/40" />
+                  </div>
+                )}
+                {hasVisualContent && (
+                  <div className="p-1 rounded bg-white/10" title={language === 'zh' ? '图片' : 'Images'}>
+                    <Image size={10} className="text-white/40" />
+                  </div>
+                )}
+              </div>
               {isSelected && (
                 <div 
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center"
+                  className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full flex items-center justify-center"
                   style={{ background: theme.primary }}
                 >
                   <Check size={12} className="text-white" />
@@ -901,90 +1033,6 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           );
         })}
       </div>
-
-      {/* Configuration Panel - Shows when template selected */}
-      {selectedTemplateId && (
-        <div className="flex items-start gap-6">
-          {/* Voice Count Toggle */}
-          <div>
-            <label className="block text-xs text-white/40 mb-2">
-              {language === 'zh' ? '声音' : 'Voice'}
-            </label>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setTemplateConfig(prev => ({ ...prev, voiceCount: 'single' }))}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                  templateConfig.voiceCount === 'single'
-                    ? 'text-white'
-                    : 'text-white/50 border border-white/10 hover:border-white/20'
-                }`}
-                style={templateConfig.voiceCount === 'single' ? { background: theme.primary } : {}}
-              >
-                <User size={14} className="inline mr-1.5" />
-                {language === 'zh' ? '单人' : 'Single'}
-              </button>
-              <button
-                onClick={() => setTemplateConfig(prev => ({ ...prev, voiceCount: 'multiple' }))}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                  templateConfig.voiceCount === 'multiple'
-                    ? 'text-white'
-                    : 'text-white/50 border border-white/10 hover:border-white/20'
-                }`}
-                style={templateConfig.voiceCount === 'multiple' ? { background: theme.primary } : {}}
-              >
-                <User size={14} className="inline mr-1" />
-                <User size={14} className="inline -ml-2 mr-1" />
-                {language === 'zh' ? '多人' : 'Multi'}
-              </button>
-            </div>
-          </div>
-
-          {/* Media Options */}
-          <div>
-            <label className="block text-xs text-white/40 mb-2">
-              {language === 'zh' ? '媒体' : 'Media'}
-            </label>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setTemplateConfig(prev => ({ ...prev, addBgm: !prev.addBgm }))}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
-                  templateConfig.addBgm
-                    ? 'text-white'
-                    : 'text-white/40 border border-white/10 hover:border-white/20'
-                }`}
-                style={templateConfig.addBgm ? { background: theme.primary } : {}}
-              >
-                <Music size={14} />
-                BGM
-              </button>
-              <button
-                onClick={() => setTemplateConfig(prev => ({ ...prev, addSoundEffects: !prev.addSoundEffects }))}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
-                  templateConfig.addSoundEffects
-                    ? 'text-white'
-                    : 'text-white/40 border border-white/10 hover:border-white/20'
-                }`}
-                style={templateConfig.addSoundEffects ? { background: theme.primary } : {}}
-              >
-                <Volume2 size={14} />
-                SFX
-              </button>
-              <button
-                onClick={() => setTemplateConfig(prev => ({ ...prev, hasVisualContent: !prev.hasVisualContent }))}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
-                  templateConfig.hasVisualContent
-                    ? 'text-white'
-                    : 'text-white/40 border border-white/10 hover:border-white/20'
-                }`}
-                style={templateConfig.hasVisualContent ? { background: theme.primary } : {}}
-              >
-                <Image size={14} />
-                {language === 'zh' ? '图片' : 'Images'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Optional: Custom Description - always visible */}
       <div>
@@ -1003,6 +1051,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       </div>
     </div>
   );
+  };
 
   // Render Step 2: Spec Confirmation (simplified - no file upload)
   const renderSpecStep = () => (
@@ -1146,38 +1195,86 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               className="w-full px-4 py-3 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20"
             />
           </div>
-          {/* Boolean Options - all always enabled */}
-          <div className="grid grid-cols-3 gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={specData.addBgm}
-                onChange={(e) => updateSpecField('addBgm', e.target.checked)}
-                className="w-5 h-5 rounded border-white/20"
-              />
-              <Music size={16} className="text-white/50" />
-              <span className="text-base text-white/70">BGM</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={specData.addSoundEffects}
-                onChange={(e) => updateSpecField('addSoundEffects', e.target.checked)}
-                className="w-5 h-5 rounded border-white/20"
-              />
-              <Volume2 size={16} className="text-white/50" />
-              <span className="text-base text-white/70">SFX</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={specData.hasVisualContent}
-                onChange={(e) => updateSpecField('hasVisualContent', e.target.checked)}
-                className="w-5 h-5 rounded border-white/20"
-              />
-              <Image size={16} className="text-white/50" />
-              <span className="text-base text-white/70">{language === 'zh' ? '视觉' : 'Visual'}</span>
-            </label>
+          {/* Voice Count & Media Options */}
+          <div className="flex flex-wrap items-start gap-6">
+            {/* Voice Count Toggle */}
+            <div>
+              <label className="block text-sm text-white/50 mb-2">
+                {language === 'zh' ? '声音' : 'Voice'}
+              </label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setTemplateConfig(prev => ({ ...prev, voiceCount: 'single' }))}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    templateConfig.voiceCount === 'single'
+                      ? 'text-white'
+                      : 'text-white/50 border border-white/10 hover:border-white/20'
+                  }`}
+                  style={templateConfig.voiceCount === 'single' ? { background: theme.primary } : {}}
+                >
+                  <User size={14} className="inline mr-1.5" />
+                  {language === 'zh' ? '单人' : 'Single'}
+                </button>
+                <button
+                  onClick={() => setTemplateConfig(prev => ({ ...prev, voiceCount: 'multiple' }))}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    templateConfig.voiceCount === 'multiple'
+                      ? 'text-white'
+                      : 'text-white/50 border border-white/10 hover:border-white/20'
+                  }`}
+                  style={templateConfig.voiceCount === 'multiple' ? { background: theme.primary } : {}}
+                >
+                  <User size={14} className="inline mr-1" />
+                  <User size={14} className="inline -ml-2 mr-1" />
+                  {language === 'zh' ? '多人' : 'Multi'}
+                </button>
+              </div>
+            </div>
+
+            {/* Media Options */}
+            <div>
+              <label className="block text-sm text-white/50 mb-2">
+                {language === 'zh' ? '媒体' : 'Media'}
+              </label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => updateSpecField('addBgm', !specData.addBgm)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                    specData.addBgm
+                      ? 'text-white'
+                      : 'text-white/40 border border-white/10 hover:border-white/20'
+                  }`}
+                  style={specData.addBgm ? { background: theme.primary } : {}}
+                >
+                  <Music size={14} />
+                  BGM
+                </button>
+                <button
+                  onClick={() => updateSpecField('addSoundEffects', !specData.addSoundEffects)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                    specData.addSoundEffects
+                      ? 'text-white'
+                      : 'text-white/40 border border-white/10 hover:border-white/20'
+                  }`}
+                  style={specData.addSoundEffects ? { background: theme.primary } : {}}
+                >
+                  <Volume2 size={14} />
+                  SFX
+                </button>
+                <button
+                  onClick={() => updateSpecField('hasVisualContent', !specData.hasVisualContent)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                    specData.hasVisualContent
+                      ? 'text-white'
+                      : 'text-white/40 border border-white/10 hover:border-white/20'
+                  }`}
+                  style={specData.hasVisualContent ? { background: theme.primary } : {}}
+                >
+                  <Image size={14} />
+                  {language === 'zh' ? '图片' : 'Images'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -2012,9 +2109,36 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     );
   };
 
+  // Format duration from ms to mm:ss
+  const formatDuration = (ms: number): string => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
   // Render Step 7: Mixing & Editing (NEW)
   const renderMixingStep = () => {
     const { mixingEditing } = production;
+    const mixedOutput = mixingEditing.output;
+    const mixingError = mixingEditing.error;
+    
+    // Handle audio playback
+    const handlePlayMixedAudio = () => {
+      if (mixedOutput?.audioData) {
+        const audioUrl = api.audioDataToUrl(mixedOutput.audioData, mixedOutput.mimeType);
+        const audio = new Audio(audioUrl);
+        audio.play().catch(err => console.error('Playback failed:', err));
+      }
+    };
+    
+    // Handle audio download
+    const handleDownloadMixedAudio = () => {
+      if (mixedOutput?.audioData) {
+        const filename = `${specData.storyTitle || 'mixed-audio'}.wav`;
+        api.downloadAudio(mixedOutput.audioData, mixedOutput.mimeType, filename);
+      }
+    };
     
     return (
       <div className="space-y-6">
@@ -2023,8 +2147,10 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             className="w-20 h-20 mx-auto mb-5 rounded-full flex items-center justify-center"
             style={{ background: `${theme.primary}20` }}
           >
-            {mixingEditing.status === 'completed' ? (
+            {mixingEditing.status === 'completed' && mixedOutput ? (
               <Check size={40} style={{ color: theme.primaryLight }} />
+            ) : mixingError ? (
+              <X size={40} className="text-red-400" />
             ) : (
               <Sliders size={40} className={mixingEditing.status === 'processing' ? 'animate-pulse' : ''} style={{ color: theme.primaryLight }} />
             )}
@@ -2033,56 +2159,101 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             {language === 'zh' ? '混音与编辑' : 'Mixing & Editing'}
           </h3>
           <p className="text-base text-white/50">
-            {mixingEditing.status === 'completed' 
-              ? (language === 'zh' ? '混音完成！' : 'Mixing complete!')
-              : (language === 'zh' ? '正在合成音轨...' : 'Combining audio tracks...')
+            {mixingError 
+              ? (language === 'zh' ? `混音失败: ${mixingError}` : `Mixing failed: ${mixingError}`)
+              : mixingEditing.status === 'completed' && mixedOutput
+                ? (language === 'zh' ? '混音完成！' : 'Mixing complete!')
+                : (language === 'zh' ? '正在合成音轨...' : 'Combining audio tracks...')
             }
           </p>
         </div>
 
-        {/* Progress bar */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm text-white/50">
-            <span>{language === 'zh' ? '进度' : 'Progress'}</span>
-            <span>{mixingEditing.progress}%</span>
-          </div>
-          <div className="h-3 rounded-full bg-white/10 overflow-hidden">
-            <div 
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${mixingEditing.progress}%`, background: theme.primary }}
-            />
-          </div>
-        </div>
-
-        {/* Preview when complete */}
-        {mixingEditing.status === 'completed' && (
-          <div className="grid grid-cols-2 gap-4">
-            <div 
-              className="rounded-xl p-5 border border-white/10"
-              style={{ background: theme.bgCard }}
-            >
-              <div className="flex items-center gap-2 mb-4">
-                <Music size={18} style={{ color: theme.primaryLight }} />
-                <span className="text-white text-base font-medium">{language === 'zh' ? '音频预览' : 'Audio Preview'}</span>
-              </div>
-              <div className="h-14 rounded-lg flex items-center justify-center" style={{ background: `${theme.primary}10` }}>
-                <Play size={24} className="text-white/40" />
-              </div>
+        {/* Progress bar (show during processing) */}
+        {mixingEditing.status === 'processing' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm text-white/50">
+              <span>{language === 'zh' ? '进度' : 'Progress'}</span>
+              <span>{mixingEditing.progress}%</span>
             </div>
-            {specData.hasVisualContent && (
+            <div className="h-3 rounded-full bg-white/10 overflow-hidden">
               <div 
-                className="rounded-xl p-5 border border-white/10"
-                style={{ background: theme.bgCard }}
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${mixingEditing.progress}%`, background: theme.primary }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Audio Player when complete */}
+        {mixingEditing.status === 'completed' && mixedOutput && (
+          <div 
+            className="rounded-xl p-5 border border-white/10"
+            style={{ background: theme.bgCard }}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Music size={18} style={{ color: theme.primaryLight }} />
+              <span className="text-white text-base font-medium">
+                {language === 'zh' ? '最终音频' : 'Final Audio'}
+              </span>
+              <span className="text-white/40 text-sm ml-auto">
+                {formatDuration(mixedOutput.durationMs)}
+              </span>
+            </div>
+            
+            {/* Native audio player */}
+            <audio 
+              controls 
+              className="w-full mb-4"
+              src={api.audioDataToUrl(mixedOutput.audioData, mixedOutput.mimeType)}
+              style={{ height: '40px' }}
+            />
+            
+            {/* Action buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={handlePlayMixedAudio}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-white text-sm font-medium transition-all hover:opacity-90"
+                style={{ background: theme.primary }}
               >
-                <div className="flex items-center gap-2 mb-4">
-                  <Image size={18} style={{ color: theme.primaryLight }} />
-                  <span className="text-white text-base font-medium">{language === 'zh' ? '视觉预览' : 'Visual Preview'}</span>
-                </div>
-                <div className="h-14 rounded-lg flex items-center justify-center" style={{ background: `${theme.primary}10` }}>
-                  <Image size={24} className="text-white/40" />
-                </div>
-              </div>
-            )}
+                <Play size={16} />
+                {language === 'zh' ? '播放' : 'Play'}
+              </button>
+              <button
+                onClick={handleDownloadMixedAudio}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-white text-sm font-medium border border-white/20 transition-all hover:bg-white/10"
+              >
+                <Save size={16} />
+                {language === 'zh' ? '下载' : 'Download'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Retry button on error */}
+        {mixingError && (
+          <button
+            onClick={() => performMixing()}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-white text-sm font-medium transition-all hover:opacity-90"
+            style={{ background: theme.primary }}
+          >
+            <RefreshCw size={16} />
+            {language === 'zh' ? '重试混音' : 'Retry Mixing'}
+          </button>
+        )}
+
+        {/* Visual preview (if applicable) */}
+        {mixingEditing.status === 'completed' && specData.hasVisualContent && (
+          <div 
+            className="rounded-xl p-5 border border-white/10"
+            style={{ background: theme.bgCard }}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Image size={18} style={{ color: theme.primaryLight }} />
+              <span className="text-white text-base font-medium">{language === 'zh' ? '视觉预览' : 'Visual Preview'}</span>
+            </div>
+            <div className="h-14 rounded-lg flex items-center justify-center text-white/40 text-sm" style={{ background: `${theme.primary}10` }}>
+              {language === 'zh' ? '即将推出' : 'Coming soon'}
+            </div>
           </div>
         )}
       </div>
@@ -2495,43 +2666,55 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             {currentStep === 1 ? t.projectCreator.buttons.cancel : t.projectCreator.buttons.back}
           </button>
 
-          {currentStep < STEPS.length ? (
-            // Only show Next button when canProceed() is true
-            canProceed() && (
+          <div className="flex items-center gap-3">
+            {/* Skip for now - available from step 3 onwards when title is set */}
+            {currentStep >= 3 && specData.storyTitle.trim().length > 0 && (
               <button
-                onClick={handleNext}
-                disabled={isProcessingNext}
-                className={`flex items-center gap-2 px-8 py-2.5 rounded-lg text-base text-white font-medium transition-all hover:scale-105 ${
-                  isProcessingNext ? 'animate-pulse' : ''
-                }`}
-                style={{ 
-                  background: theme.primary,
-                  boxShadow: isProcessingNext ? `0 0 20px ${theme.glow}, 0 0 40px ${theme.glow}` : 'none'
-                }}
+                onClick={handleSkipAndSave}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-base text-white/50 hover:text-white hover:bg-white/10 transition-colors border border-white/10"
               >
-                {isProcessingNext ? (
-                  <>
-                    <Loader2 size={22} className="animate-spin" />
-                    {t.projectCreator.processing}
-                  </>
-                ) : (
-                  <>
-                    {t.projectCreator.buttons.next}
-                    <ChevronRight size={22} />
-                  </>
-                )}
+                {language === 'zh' ? '跳过，稍后继续' : 'Skip for now'}
               </button>
-            )
-          ) : (
-            <button
-              onClick={handleCreate}
-              className="flex items-center gap-2 px-8 py-2.5 rounded-lg text-base font-medium transition-all hover:scale-105"
-              style={{ background: theme.accent, color: theme.primaryDark }}
-            >
-              <Save size={22} />
-              {t.projectCreator.save}
-            </button>
-          )}
+            )}
+
+            {currentStep < STEPS.length ? (
+              // Only show Next button when canProceed() is true
+              canProceed() && (
+                <button
+                  onClick={handleNext}
+                  disabled={isProcessingNext}
+                  className={`flex items-center gap-2 px-8 py-2.5 rounded-lg text-base text-white font-medium transition-all hover:scale-105 ${
+                    isProcessingNext ? 'animate-pulse' : ''
+                  }`}
+                  style={{ 
+                    background: theme.primary,
+                    boxShadow: isProcessingNext ? `0 0 20px ${theme.glow}, 0 0 40px ${theme.glow}` : 'none'
+                  }}
+                >
+                  {isProcessingNext ? (
+                    <>
+                      <Loader2 size={22} className="animate-spin" />
+                      {t.projectCreator.processing}
+                    </>
+                  ) : (
+                    <>
+                      {currentStep >= 3 ? t.projectCreator.buttons.approve : t.projectCreator.buttons.next}
+                      <ChevronRight size={22} />
+                    </>
+                  )}
+                </button>
+              )
+            ) : (
+              <button
+                onClick={handleCreate}
+                className="flex items-center gap-2 px-8 py-2.5 rounded-lg text-base font-medium transition-all hover:scale-105"
+                style={{ background: theme.accent, color: theme.primaryDark }}
+              >
+                <Save size={22} />
+                {t.projectCreator.save}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

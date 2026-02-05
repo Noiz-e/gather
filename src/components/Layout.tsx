@@ -2,7 +2,7 @@ import { ReactNode, useState, useEffect, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { Language, LANGUAGE_OPTIONS } from '../i18n/types';
-import { LayoutDashboard, FolderOpen, Settings, AudioWaveform, Globe, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Menu, X } from 'lucide-react';
+import { LayoutDashboard, FolderOpen, Settings, AudioWaveform, Globe, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Menu, X, Image } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
 
 interface LayoutProps {
@@ -73,6 +73,7 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
     { id: 'dashboard', label: t.nav.workspace, icon: LayoutDashboard },
     { id: 'projects', label: t.nav.projects, icon: FolderOpen },
     { id: 'voice', label: t.nav.voice, icon: AudioWaveform },
+    { id: 'media', label: t.nav.media || 'Media', icon: Image },
     { id: 'settings', label: t.nav.settings, icon: Settings },
   ];
 

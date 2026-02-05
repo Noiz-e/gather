@@ -37,6 +37,12 @@ export interface SectionVoiceStatus {
   error?: string;
 }
 
+export interface MixedAudioOutput {
+  audioData: string;
+  mimeType: string;
+  durationMs: number;
+}
+
 export interface ProductionProgress {
   voiceGeneration: {
     status: 'idle' | 'processing' | 'completed';
@@ -50,10 +56,18 @@ export interface ProductionProgress {
     status: 'idle' | 'processing' | 'completed';
     progress: number;
     currentTask?: string;
+    // Generated BGM (if any)
+    bgmAudio?: {
+      audioData: string;
+      mimeType: string;
+    };
   };
   mixingEditing: {
     status: 'idle' | 'processing' | 'completed';
     progress: number;
+    // Final mixed audio output
+    output?: MixedAudioOutput;
+    error?: string;
   };
 }
 
@@ -140,6 +154,10 @@ type Action =
   // Production progress
   | { type: 'UPDATE_PRODUCTION_PHASE'; phase: ProductionPhase; status: 'idle' | 'processing' | 'completed'; progress: number; detail?: string }
   | { type: 'RESET_PRODUCTION' }
+  // Mixing output
+  | { type: 'SET_MIXED_OUTPUT'; output: MixedAudioOutput }
+  | { type: 'SET_MIXING_ERROR'; error: string }
+  | { type: 'SET_BGM_AUDIO'; audio: { audioData: string; mimeType: string } }
   // Section-level voice generation
   | { type: 'UPDATE_SECTION_VOICE_STATUS'; sectionId: string; status: SectionVoiceStatus['status']; progress?: number; error?: string }
   | { type: 'ADD_SECTION_VOICE_AUDIO'; sectionId: string; audio: SectionVoiceAudio }
@@ -344,6 +362,19 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
       state.production = initialProductionProgress;
       break;
 
+    case 'SET_MIXED_OUTPUT':
+      state.production.mixingEditing.output = action.output;
+      state.production.mixingEditing.error = undefined;
+      break;
+
+    case 'SET_MIXING_ERROR':
+      state.production.mixingEditing.error = action.error;
+      break;
+
+    case 'SET_BGM_AUDIO':
+      state.production.mediaProduction.bgmAudio = action.audio;
+      break;
+
     // Section-level voice generation
     case 'UPDATE_SECTION_VOICE_STATUS': {
       const { sectionId, status, progress, error } = action;
@@ -458,6 +489,12 @@ export const actions = {
   ): Action => ({ type: 'UPDATE_PRODUCTION_PHASE', phase, status, progress, detail }),
   resetProduction: (): Action => 
     ({ type: 'RESET_PRODUCTION' }),
+  setMixedOutput: (output: MixedAudioOutput): Action =>
+    ({ type: 'SET_MIXED_OUTPUT', output }),
+  setMixingError: (error: string): Action =>
+    ({ type: 'SET_MIXING_ERROR', error }),
+  setBgmAudio: (audio: { audioData: string; mimeType: string }): Action =>
+    ({ type: 'SET_BGM_AUDIO', audio }),
   
   // Section-level voice generation
   updateSectionVoiceStatus: (

@@ -19,6 +19,7 @@
     "workspace": "Espacio de trabajo",
     "projects": "Proyectos",
     "voice": "Voz",
+    "media": "Medios",
     "settings": "Configuración",
     "switchTheme": "Cambiar Tema"
   },
@@ -218,6 +219,7 @@
       "cancel": "Cancelar",
       "back": "Atrás",
       "next": "Siguiente",
+      "approve": "Aprobar",
       "create": "Crear Proyecto"
     },
     "files": "archivos",
@@ -412,7 +414,55 @@
       "edit": "Editar",
       "delete": "Eliminar",
       "deleteConfirm": "¿Estás seguro de que deseas eliminar este personaje?",
-      "createdAt": "Creado"
+      "createdAt": "Creado",
+      "linkedProjects": "Proyectos Vinculados"
+    },
+    "allProjects": "Todos los Proyectos",
+    "noProjects": "Sin proyectos"
+  },
+  "mediaLibrary": {
+    "title": "Biblioteca de Medios",
+    "subtitle": "Gestiona tus imágenes, música y efectos de sonido",
+    "upload": "Subir",
+    "generate": "Generar",
+    "generating": "Generando...",
+    "searchPlaceholder": "Buscar...",
+    "deleteConfirm": "¿Eliminar este elemento multimedia?",
+    "tabs": {
+      "images": "Imágenes",
+      "bgm": "Música de Fondo",
+      "sfx": "Efectos de Sonido"
+    },
+    "empty": {
+      "title": "Sin medios aún",
+      "description": "Sube o genera tu primer medio"
+    },
+    "uploadModal": {
+      "title": "Subir Medio"
+    },
+    "generateModal": {
+      "title": "Generar con IA",
+      "prompt": "Describe lo que quieres",
+      "duration": "Duración (segundos)",
+      "imagePlaceholder": "Un paisaje de montaña sereno al atardecer...",
+      "bgmPlaceholder": "Música de meditación tranquila con piano suave...",
+      "sfxPlaceholder": "Sonido suave de campana..."
+    },
+    "editModal": {
+      "title": "Editar Medio"
+    },
+    "form": {
+      "name": "Nombre",
+      "type": "Tipo",
+      "description": "Descripción",
+      "tags": "Etiquetas",
+      "tagsPlaceholder": "Separar con comas",
+      "linkedProjects": "Proyectos Vinculados"
+    },
+    "allProjects": "Todos los Proyectos",
+    "noProjects": "Sin proyectos",
+    "errors": {
+      "generationFailed": "Falló la generación: "
     }
   },
   "settings": {

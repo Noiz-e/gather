@@ -1,12 +1,16 @@
 import { Router, Request, Response } from 'express';
-import { generateSpeech, AVAILABLE_VOICES, TTSOptions, getVoiceSample, preGenerateVoiceSamples, hasCachedSamples, recommendVoicesForCharacters } from '../services/gemini.js';
+import { AVAILABLE_VOICES, getVoiceSample, preGenerateVoiceSamples, hasCachedSamples, recommendVoicesForCharacters } from '../services/gemini.js';
+import { generateCustomSpeech, isCustomTTSConfigured, CustomTTSOptions } from '../services/tts.js';
 
 export const voiceRouter = Router();
 
 interface SpeechRequest {
   text: string;
-  voiceName?: string;
-  apiKey?: string;
+  // Custom TTS options
+  refAudioDataUrl?: string;
+  refText?: string;
+  speed?: number;
+  targetLanguage?: string;
 }
 
 interface RecommendRequest {
@@ -115,13 +119,23 @@ voiceRouter.get('/samples/status', (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/voice/tts-status
+ * Check TTS service availability
+ */
+voiceRouter.get('/tts-status', (_req: Request, res: Response) => {
+  res.json({
+    configured: isCustomTTSConfigured()
+  });
+});
+
+/**
  * POST /api/voice/synthesize
- * Generate speech from text
+ * Generate speech from text using custom TTS endpoint
  * Returns base64 audio data
  */
 voiceRouter.post('/synthesize', async (req: Request, res: Response) => {
   try {
-    const { text, voiceName, apiKey } = req.body as SpeechRequest;
+    const { text, refAudioDataUrl, refText, speed, targetLanguage } = req.body as SpeechRequest;
     
     if (!text) {
       res.status(400).json({ error: 'text is required' });
@@ -133,8 +147,19 @@ voiceRouter.post('/synthesize', async (req: Request, res: Response) => {
       return;
     }
     
-    const options: TTSOptions = { voiceName, apiKey };
-    const result = await generateSpeech(text, options);
+    if (!isCustomTTSConfigured()) {
+      res.status(503).json({ error: 'TTS service not configured' });
+      return;
+    }
+    
+    const options: CustomTTSOptions = {
+      refAudioDataUrl,
+      refText,
+      speed,
+      targetLanguage
+    };
+    
+    const result = await generateCustomSpeech(text, options);
     
     res.json({
       audioData: result.audioData,
@@ -144,12 +169,6 @@ voiceRouter.post('/synthesize', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Voice synthesis error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
-    
-    if (message.includes('API_KEY')) {
-      res.status(401).json({ error: 'Invalid or missing API key', code: 'API_KEY_INVALID' });
-      return;
-    }
-    
     res.status(500).json({ error: message });
   }
 });
@@ -160,12 +179,17 @@ voiceRouter.post('/synthesize', async (req: Request, res: Response) => {
  */
 voiceRouter.post('/preview', async (req: Request, res: Response) => {
   try {
-    const { text, voiceName, apiKey } = req.body as SpeechRequest;
+    const { text, refAudioDataUrl, refText } = req.body as SpeechRequest;
     
     const previewText = text?.slice(0, 100) || 'Hello, this is a voice preview sample.';
     
-    const options: TTSOptions = { voiceName, apiKey };
-    const result = await generateSpeech(previewText, options);
+    if (!isCustomTTSConfigured()) {
+      res.status(503).json({ error: 'TTS service not configured' });
+      return;
+    }
+    
+    const options: CustomTTSOptions = { refAudioDataUrl, refText };
+    const result = await generateCustomSpeech(previewText, options);
     
     res.json({
       audioData: result.audioData,

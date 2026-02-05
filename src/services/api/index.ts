@@ -124,13 +124,21 @@ export interface VoiceSampleResult {
 }
 
 export interface SynthesizeOptions extends RequestOptions {
-  voiceName?: string;
+  // Custom TTS options for voice cloning
+  refAudioDataUrl?: string;
+  refText?: string;
+  speed?: number;
+  targetLanguage?: string;
 }
 
 export interface SynthesizeResult {
   audioData: string;  // base64
   mimeType: string;
   format: string;
+}
+
+export interface TTSStatusResult {
+  configured: boolean;
 }
 
 /**
@@ -228,7 +236,22 @@ export async function playVoiceSample(voiceId: string, language: 'en' | 'zh' = '
 }
 
 /**
- * Synthesize speech from text
+ * Check TTS service status
+ */
+export async function getTTSStatus(): Promise<TTSStatusResult> {
+  try {
+    const response = await fetch(`${API_BASE}/voice/tts-status`);
+    if (!response.ok) {
+      return { configured: false };
+    }
+    return response.json();
+  } catch {
+    return { configured: false };
+  }
+}
+
+/**
+ * Synthesize speech from text using custom TTS
  */
 export async function synthesizeSpeech(
   text: string, 
@@ -239,8 +262,10 @@ export async function synthesizeSpeech(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       text,
-      voiceName: options.voiceName,
-      apiKey: options.apiKey
+      refAudioDataUrl: options.refAudioDataUrl,
+      refText: options.refText,
+      speed: options.speed,
+      targetLanguage: options.targetLanguage
     })
   });
   
@@ -282,8 +307,17 @@ export async function previewVoice(
 
 export interface AudioSegment {
   text: string;
-  voiceName?: string;
   speaker?: string;
+  // Custom TTS options per segment
+  refAudioDataUrl?: string;
+  refText?: string;
+  speed?: number;
+}
+
+export interface BatchOptions {
+  // Default custom TTS options for all segments
+  defaultRefAudioDataUrl?: string;
+  defaultRefText?: string;
 }
 
 export interface GeneratedSegment {
@@ -311,16 +345,20 @@ export interface BatchProgressEvent {
 }
 
 /**
- * Generate audio for multiple segments
+ * Generate audio for multiple segments using custom TTS
  */
 export async function generateAudioBatch(
   segments: AudioSegment[],
-  apiKey?: string
+  options: BatchOptions = {}
 ): Promise<BatchResult> {
   const response = await fetch(`${API_BASE}/audio/batch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ segments, apiKey })
+    body: JSON.stringify({ 
+      segments, 
+      defaultRefAudioDataUrl: options.defaultRefAudioDataUrl,
+      defaultRefText: options.defaultRefText
+    })
   });
   
   if (!response.ok) {
@@ -332,17 +370,21 @@ export async function generateAudioBatch(
 }
 
 /**
- * Generate audio batch with progress streaming
+ * Generate audio batch with progress streaming using custom TTS
  */
 export async function generateAudioBatchStream(
   segments: AudioSegment[],
   onProgress: (event: BatchProgressEvent) => void,
-  apiKey?: string
+  options: BatchOptions = {}
 ): Promise<void> {
   const response = await fetch(`${API_BASE}/audio/batch-stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ segments, apiKey })
+    body: JSON.stringify({ 
+      segments, 
+      defaultRefAudioDataUrl: options.defaultRefAudioDataUrl,
+      defaultRefText: options.defaultRefText
+    })
   });
   
   if (!response.ok) {
@@ -664,4 +706,365 @@ export function downloadImage(imageData: string, mimeType: string, filename: str
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// ============ Storage API (Persistence) ============
+
+export interface StorageStatus {
+  configured: boolean;
+  message: string;
+}
+
+/**
+ * Check if cloud storage is configured
+ */
+export async function checkStorageStatus(): Promise<StorageStatus> {
+  try {
+    const response = await fetch(`${API_BASE}/storage/status`);
+    if (!response.ok) {
+      return { configured: false, message: 'Storage API unavailable' };
+    }
+    return response.json();
+  } catch {
+    return { configured: false, message: 'Storage API unavailable' };
+  }
+}
+
+// ============ Projects Persistence ============
+
+export interface ProjectData {
+  id: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Load all projects from cloud storage
+ */
+export async function loadProjectsFromCloud(): Promise<ProjectData[]> {
+  const response = await fetch(`${API_BASE}/storage/projects`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to load projects');
+  }
+  
+  const data = await response.json();
+  return data.projects || [];
+}
+
+/**
+ * Save all projects to cloud storage
+ */
+export async function saveProjectsToCloud(projects: ProjectData[]): Promise<void> {
+  const response = await fetch(`${API_BASE}/storage/projects`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ projects })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to save projects');
+  }
+}
+
+// ============ Voice Characters Persistence ============
+
+export interface VoiceCharacterData {
+  id: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Load all voice characters from cloud storage
+ */
+export async function loadVoicesFromCloud(): Promise<VoiceCharacterData[]> {
+  const response = await fetch(`${API_BASE}/storage/voices`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to load voice characters');
+  }
+  
+  const data = await response.json();
+  return data.voices || [];
+}
+
+/**
+ * Save all voice characters to cloud storage
+ */
+export async function saveVoicesToCloud(voices: VoiceCharacterData[]): Promise<void> {
+  const response = await fetch(`${API_BASE}/storage/voices`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ voices })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to save voice characters');
+  }
+}
+
+/**
+ * Upload voice sample audio to cloud storage
+ */
+export async function uploadVoiceSampleToCloud(voiceId: string, dataUrl: string): Promise<string> {
+  const response = await fetch(`${API_BASE}/storage/voices/${voiceId}/sample`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dataUrl })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to upload voice sample');
+  }
+  
+  const data = await response.json();
+  return data.url;
+}
+
+// ============ Media Items Persistence ============
+
+export interface MediaItemData {
+  id: string;
+  type: 'image' | 'bgm' | 'sfx';
+  [key: string]: unknown;
+}
+
+/**
+ * Load all media items from cloud storage
+ */
+export async function loadMediaItemsFromCloud(): Promise<MediaItemData[]> {
+  const response = await fetch(`${API_BASE}/storage/media`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to load media items');
+  }
+  
+  const data = await response.json();
+  return data.items || [];
+}
+
+/**
+ * Save all media items to cloud storage
+ */
+export async function saveMediaItemsToCloud(items: MediaItemData[]): Promise<void> {
+  const response = await fetch(`${API_BASE}/storage/media`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to save media items');
+  }
+}
+
+/**
+ * Upload media file to cloud storage
+ */
+export async function uploadMediaFileToCloud(
+  mediaId: string, 
+  dataUrl: string, 
+  type: 'image' | 'bgm' | 'sfx'
+): Promise<string> {
+  const response = await fetch(`${API_BASE}/storage/media/${mediaId}/file`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dataUrl, type })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to upload media file');
+  }
+  
+  const data = await response.json();
+  return data.url;
+}
+
+/**
+ * Delete media file from cloud storage
+ */
+export async function deleteMediaFileFromCloud(
+  mediaId: string,
+  type: 'image' | 'bgm' | 'sfx',
+  fileUrl?: string
+): Promise<boolean> {
+  const response = await fetch(`${API_BASE}/storage/media/${mediaId}/file`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type, fileUrl })
+  });
+  
+  if (!response.ok) {
+    return false;
+  }
+  
+  const data = await response.json();
+  return data.success;
+}
+
+// ============ Audio Mixing API ============
+
+export interface AudioTrack {
+  audioData: string;   // base64
+  mimeType: string;
+  speaker?: string;    // Speaker identifier for gap calculation
+  startMs?: number;    // Start time offset (for future timeline editing)
+  volume?: number;     // 0-1, default 1
+}
+
+/**
+ * Audio mix configuration for professional output
+ */
+export interface AudioMixConfig {
+  // Silence padding (in milliseconds)
+  silenceStartMs?: number;      // Silence at the beginning
+  silenceEndMs?: number;        // Silence at the end
+  
+  // Inter-segment gaps (in milliseconds)
+  sameSpeakerGapMs?: number;    // Gap between same speaker's lines
+  differentSpeakerGapMs?: number; // Gap between different speakers
+  sectionGapMs?: number;        // Gap between sections
+  
+  // Volume levels (0-1)
+  voiceVolume?: number;         // Main voice volume
+  bgmVolume?: number;           // Background music volume
+  sfxVolume?: number;           // Sound effects volume
+  
+  // Fade effects (in milliseconds)
+  bgmFadeInMs?: number;         // BGM fade in duration
+  bgmFadeOutMs?: number;        // BGM fade out duration
+  
+  // Advanced options
+  normalizeAudio?: boolean;
+  compressAudio?: boolean;
+}
+
+export interface MixRequest {
+  voiceTracks: AudioTrack[];           // Voice segments to concatenate
+  bgmTrack?: AudioTrack;               // Background music (optional)
+  sfxTracks?: AudioTrack[];            // Sound effects (optional)
+  config?: AudioMixConfig;             // Mix configuration
+}
+
+export interface MixResult {
+  audioData: string;    // base64 of final mixed audio
+  mimeType: string;
+  durationMs: number;
+  trackCount: number;
+}
+
+/**
+ * Mix multiple audio tracks into a single output
+ * - Voice tracks are concatenated with configurable gaps
+ * - Silence padding at start/end
+ * - Different gaps for same vs different speakers
+ * - BGM overlaid with fade in/out (looping if shorter)
+ */
+export async function mixAudioTracks(request: MixRequest): Promise<MixResult> {
+  const response = await fetch(`${API_BASE}/mix`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request)
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to mix audio');
+  }
+  
+  return response.json();
+}
+
+/**
+ * Quick preview mix - concatenate voice tracks with minimal gaps
+ * Faster for preview during editing
+ */
+export async function previewMix(
+  voiceTracks: AudioTrack[], 
+  config?: AudioMixConfig
+): Promise<MixResult> {
+  const response = await fetch(`${API_BASE}/mix/preview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ voiceTracks, config })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to preview mix');
+  }
+  
+  return response.json();
+}
+
+/**
+ * Get available mix configuration presets
+ */
+export async function getMixPresets(): Promise<{
+  presets: Record<string, { name: string; description: string; config: AudioMixConfig }>;
+  default: AudioMixConfig;
+}> {
+  const response = await fetch(`${API_BASE}/mix/presets`);
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch mix presets');
+  }
+  
+  return response.json();
+}
+
+// ============ Bulk Sync Operations ============
+
+export interface SyncData {
+  projects?: ProjectData[];
+  voices?: VoiceCharacterData[];
+  mediaItems?: MediaItemData[];
+}
+
+export interface SyncResult {
+  projects: ProjectData[];
+  voices: VoiceCharacterData[];
+  mediaItems: MediaItemData[];
+  counts: {
+    projects: number;
+    voices: number;
+    mediaItems: number;
+  };
+}
+
+/**
+ * Load all data from cloud storage at once
+ */
+export async function loadAllFromCloud(): Promise<SyncResult> {
+  const response = await fetch(`${API_BASE}/storage/sync`);
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to load data');
+  }
+  
+  return response.json();
+}
+
+/**
+ * Save all data to cloud storage at once
+ */
+export async function saveAllToCloud(data: SyncData): Promise<void> {
+  const response = await fetch(`${API_BASE}/storage/sync`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to save data');
+  }
 }

@@ -1,8 +1,7 @@
-import { useState, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useProjects } from '../contexts/ProjectContext';
 import { useLanguage } from '../i18n/LanguageContext';
-import { Mic2, TrendingUp, ArrowRight, FileText, Upload, Sparkles } from 'lucide-react';
+import { Mic2, TrendingUp, ArrowRight, FileText, Plus } from 'lucide-react';
 
 interface DashboardProps {
   onCreateProject: () => void;
@@ -13,43 +12,9 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
   const { theme, religion } = useTheme();
   const { getProjectsByReligion } = useProjects();
   const { t } = useLanguage();
-  const [inputValue, setInputValue] = useState('');
-  const [isDragging, setIsDragging] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const myProjects = getProjectsByReligion(religion);
   const totalEpisodes = myProjects.reduce((acc, p) => acc + p.episodes.length, 0);
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const files = Array.from(e.dataTransfer.files);
-    setUploadedFiles(prev => [...prev, ...files]);
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const files = Array.from(e.target.files);
-      setUploadedFiles(prev => [...prev, ...files]);
-    }
-  };
-
-  const handleStartCreating = () => {
-    // Pass data to project creator
-    onCreateProject();
-  };
-
-  const canStartCreating = inputValue.trim() || uploadedFiles.length > 0;
 
   const recentProjects = [...myProjects]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -105,94 +70,22 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
         })}
       </div>
 
-      {/* New Production Section */}
-      <div 
-        className="rounded-xl md:rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10"
-        style={{ background: theme.bgCard }}
+      {/* Quick Action */}
+      <button
+        onClick={onCreateProject}
+        className="w-full flex items-center justify-center gap-3 px-5 py-4 md:py-5 rounded-xl md:rounded-2xl font-medium transition-all duration-300 hover:scale-[1.02] border border-white/10"
+        style={{ 
+          background: theme.bgCard,
+        }}
       >
-        <h2 className="text-lg md:text-xl font-serif text-white mb-4 md:mb-6 tracking-wide">
-          {t.dashboard.newProduction}
-        </h2>
-        
-        {/* Input Area */}
-        <div className="space-y-4">
-          {/* Text Input with File Drop */}
-          <div
-            className={`relative rounded-xl border-2 border-dashed transition-all duration-300 ${
-              isDragging 
-                ? 'border-white/40 bg-white/10' 
-                : 'border-white/10 hover:border-white/20'
-            }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <textarea
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              placeholder={t.dashboard.inputPlaceholder}
-              className="w-full min-h-[120px] md:min-h-[140px] p-4 bg-transparent text-white placeholder-white/30 focus:outline-none resize-none text-sm md:text-base"
-            />
-            
-            {/* Drop Overlay */}
-            {isDragging && (
-              <div className="absolute inset-0 flex items-center justify-center bg-white/5 rounded-xl backdrop-blur-sm">
-                <div className="flex flex-col items-center gap-2 text-white/60">
-                  <Upload size={24} />
-                  <span className="text-sm">{t.dashboard.dropToUpload}</span>
-                </div>
-              </div>
-            )}
-            
-            {/* Bottom Bar */}
-            <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
-              <div className="flex items-center gap-3">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept=".txt,.pdf,.doc,.docx"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-1.5 text-xs md:text-sm text-white/50 hover:text-white/80 transition-colors"
-                >
-                  <Upload size={14} />
-                  {t.dashboard.uploadFile}
-                </button>
-                {uploadedFiles.length > 0 && (
-                  <span className="text-xs text-white/40">
-                    {uploadedFiles.length} {t.dashboard.filesSelected}
-                  </span>
-                )}
-              </div>
-              <span className="text-xs text-white/30 hidden sm:block">
-                {t.dashboard.orDragDrop}
-              </span>
-            </div>
-          </div>
-          
-          {/* Start Creating Button */}
-          <button
-            onClick={handleStartCreating}
-            disabled={!canStartCreating}
-            className={`w-full flex items-center justify-center gap-2 px-5 py-3 md:py-4 rounded-xl font-medium transition-all duration-300 text-sm md:text-base ${
-              canStartCreating 
-                ? 'hover:scale-[1.02]' 
-                : 'opacity-50 cursor-not-allowed'
-            }`}
-            style={{ 
-              background: canStartCreating ? theme.accent : `${theme.accent}50`,
-              color: theme.primaryDark,
-            }}
-          >
-            <Sparkles size={18} />
-            {t.dashboard.startCreating}
-          </button>
+        <div 
+          className="w-10 h-10 rounded-lg flex items-center justify-center"
+          style={{ background: `${theme.primary}20` }}
+        >
+          <Plus size={20} color={theme.primaryLight} />
         </div>
-      </div>
+        <span className="text-white text-sm md:text-base">{t.dashboard.newProduction}</span>
+      </button>
 
       {/* Recent Projects */}
       <div 

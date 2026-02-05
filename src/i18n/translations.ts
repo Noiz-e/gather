@@ -11,6 +11,7 @@ export interface Translations {
     home: string;
     projects: string;
     voice: string;
+    media: string;
     settings: string;
     switchTheme: string;
   };
@@ -146,6 +147,7 @@ export interface Translations {
       cancel: string;
       back: string;
       next: string;
+      approve: string;
       create: string;
     };
     confirmInfo: string;
@@ -215,6 +217,8 @@ export interface Translations {
     selectProjectPlaceholder: string;
     episode: string;
     selectEpisodePlaceholder: string;
+    allProjects: string;
+    noProjects: string;
     status: {
       ready: string;
       recording: string;
@@ -256,12 +260,60 @@ export interface Translations {
       selectProvider: string;
       voiceId: string;
       voiceIdPlaceholder: string;
+      linkedProjects: string;
       save: string;
       cancel: string;
       edit: string;
       delete: string;
       deleteConfirm: string;
       createdAt: string;
+    };
+  };
+  
+  // Media Library
+  mediaLibrary: {
+    title: string;
+    subtitle: string;
+    upload: string;
+    generate: string;
+    generating: string;
+    allProjects: string;
+    noProjects: string;
+    searchPlaceholder: string;
+    deleteConfirm: string;
+    tabs: {
+      images: string;
+      bgm: string;
+      sfx: string;
+    };
+    empty: {
+      title: string;
+      description: string;
+    };
+    errors: {
+      generationFailed: string;
+    };
+    form: {
+      name: string;
+      type: string;
+      description: string;
+      tags: string;
+      tagsPlaceholder: string;
+      linkedProjects: string;
+    };
+    uploadModal: {
+      title: string;
+    };
+    generateModal: {
+      title: string;
+      prompt: string;
+      duration: string;
+      imagePlaceholder: string;
+      bgmPlaceholder: string;
+      sfxPlaceholder: string;
+    };
+    editModal: {
+      title: string;
     };
   };
   
@@ -320,6 +372,7 @@ export const translations: Record<Language, Translations> = {
       home: 'Home',
       projects: 'Projects',
       voice: 'Voice',
+      media: 'Media',
       settings: 'Settings',
       switchTheme: 'Switch Theme',
     },
@@ -473,6 +526,7 @@ export const translations: Record<Language, Translations> = {
         cancel: 'Cancel',
         back: 'Back',
         next: 'Next',
+        approve: 'Approve',
         create: 'Create Project',
       },
       confirmInfo: 'Please confirm the information above before creating your project',
@@ -557,6 +611,8 @@ Examples:
       selectProjectPlaceholder: 'Select a project...',
       episode: 'Episode',
       selectEpisodePlaceholder: 'Select an episode...',
+      allProjects: 'All Projects',
+      noProjects: 'No projects',
       status: {
         ready: 'Ready',
         recording: 'Recording...',
@@ -603,12 +659,59 @@ Examples:
         selectProvider: 'Select provider...',
         voiceId: 'Voice ID',
         voiceIdPlaceholder: 'Enter voice ID from provider',
+        linkedProjects: 'Linked Projects',
         save: 'Save',
         cancel: 'Cancel',
         edit: 'Edit',
         delete: 'Delete',
         deleteConfirm: 'Are you sure you want to delete this character?',
         createdAt: 'Created',
+      },
+    },
+    
+    mediaLibrary: {
+      title: 'Media Library',
+      subtitle: 'Manage your images, music, and sound effects',
+      upload: 'Upload',
+      generate: 'Generate',
+      generating: 'Generating...',
+      allProjects: 'All Projects',
+      noProjects: 'No projects',
+      searchPlaceholder: 'Search...',
+      deleteConfirm: 'Delete this media item?',
+      tabs: {
+        images: 'Images',
+        bgm: 'BGM',
+        sfx: 'Sound Effects',
+      },
+      empty: {
+        title: 'No media yet',
+        description: 'Upload or generate your first media',
+      },
+      errors: {
+        generationFailed: 'Generation failed: ',
+      },
+      form: {
+        name: 'Name',
+        type: 'Type',
+        description: 'Description',
+        tags: 'Tags',
+        tagsPlaceholder: 'Separate with commas',
+        linkedProjects: 'Linked Projects',
+      },
+      uploadModal: {
+        title: 'Upload Media',
+      },
+      generateModal: {
+        title: 'Generate with AI',
+        prompt: 'Describe what you want',
+        duration: 'Duration (seconds)',
+        imagePlaceholder: 'A serene mountain landscape at sunset...',
+        bgmPlaceholder: 'Calm meditation music with soft piano...',
+        sfxPlaceholder: 'Gentle bell chime sound...',
+      },
+      editModal: {
+        title: 'Edit Media',
       },
     },
     
@@ -664,6 +767,7 @@ Examples:
       home: '首页',
       projects: '项目',
       voice: '音色',
+      media: '素材库',
       settings: '设置',
       switchTheme: '切换宗教主题',
     },
@@ -815,8 +919,9 @@ Examples:
       },
       buttons: {
         cancel: '取消',
-        back: '上一步',
-        next: '下一步',
+          back: '上一步',
+          next: '下一步',
+          approve: '确认',
         create: '创建项目',
       },
       confirmInfo: '确认以上信息无误后，点击下方按钮创建项目',
@@ -901,6 +1006,8 @@ Examples:
       selectProjectPlaceholder: '选择项目...',
       episode: '节目集数',
       selectEpisodePlaceholder: '选择节目...',
+      allProjects: '全部项目',
+      noProjects: '暂无项目',
       status: {
         ready: '准备就绪',
         recording: '录制中...',
@@ -947,12 +1054,59 @@ Examples:
         selectProvider: '选择服务商...',
         voiceId: '音色 ID',
         voiceIdPlaceholder: '输入服务商的音色 ID',
+        linkedProjects: '关联项目',
         save: '保存',
         cancel: '取消',
         edit: '编辑',
         delete: '删除',
         deleteConfirm: '确定要删除这个角色吗？',
         createdAt: '创建于',
+      },
+    },
+    
+    mediaLibrary: {
+      title: '素材库',
+      subtitle: '管理您的图片、音乐和音效素材',
+      upload: '上传',
+      generate: '生成',
+      generating: '生成中...',
+      allProjects: '全部项目',
+      noProjects: '暂无项目',
+      searchPlaceholder: '搜索...',
+      deleteConfirm: '确定删除此素材吗？',
+      tabs: {
+        images: '图片',
+        bgm: '背景音乐',
+        sfx: '音效',
+      },
+      empty: {
+        title: '暂无素材',
+        description: '上传或生成您的第一个素材',
+      },
+      errors: {
+        generationFailed: '生成失败：',
+      },
+      form: {
+        name: '名称',
+        type: '类型',
+        description: '描述',
+        tags: '标签',
+        tagsPlaceholder: '用逗号分隔',
+        linkedProjects: '关联项目',
+      },
+      uploadModal: {
+        title: '上传素材',
+      },
+      generateModal: {
+        title: 'AI 生成',
+        prompt: '描述您想要的内容',
+        duration: '时长（秒）',
+        imagePlaceholder: '日落时分宁静的山景...',
+        bgmPlaceholder: '带有柔和钢琴的冥想音乐...',
+        sfxPlaceholder: '轻柔的铃声...',
+      },
+      editModal: {
+        title: '编辑素材',
       },
     },
     
@@ -1008,6 +1162,7 @@ Examples:
       home: 'Inicio',
       projects: 'Proyectos',
       voice: 'Voz',
+      media: 'Medios',
       settings: 'Configuración',
       switchTheme: 'Cambiar Tema',
     },
@@ -1161,6 +1316,7 @@ Examples:
         cancel: 'Cancelar',
         back: 'Atrás',
         next: 'Siguiente',
+        approve: 'Aprobar',
         create: 'Crear Proyecto',
       },
       confirmInfo: 'Por favor confirma la información anterior antes de crear tu proyecto',
@@ -1245,6 +1401,8 @@ Ejemplos:
       selectProjectPlaceholder: 'Selecciona un proyecto...',
       episode: 'Episodio',
       selectEpisodePlaceholder: 'Selecciona un episodio...',
+      allProjects: 'Todos los Proyectos',
+      noProjects: 'Sin proyectos',
       status: {
         ready: 'Listo',
         recording: 'Grabando...',
@@ -1291,12 +1449,59 @@ Ejemplos:
         selectProvider: 'Seleccionar proveedor...',
         voiceId: 'ID de Voz',
         voiceIdPlaceholder: 'Ingresa el ID de voz del proveedor',
+        linkedProjects: 'Proyectos Vinculados',
         save: 'Guardar',
         cancel: 'Cancelar',
         edit: 'Editar',
         delete: 'Eliminar',
         deleteConfirm: '¿Estás seguro de que deseas eliminar este personaje?',
         createdAt: 'Creado',
+      },
+    },
+    
+    mediaLibrary: {
+      title: 'Biblioteca de Medios',
+      subtitle: 'Gestiona tus imágenes, música y efectos de sonido',
+      upload: 'Subir',
+      generate: 'Generar',
+      generating: 'Generando...',
+      allProjects: 'Todos los Proyectos',
+      noProjects: 'Sin proyectos',
+      searchPlaceholder: 'Buscar...',
+      deleteConfirm: '¿Eliminar este elemento multimedia?',
+      tabs: {
+        images: 'Imágenes',
+        bgm: 'BGM',
+        sfx: 'Efectos de Sonido',
+      },
+      empty: {
+        title: 'Sin medios aún',
+        description: 'Sube o genera tu primer medio',
+      },
+      errors: {
+        generationFailed: 'Generación fallida: ',
+      },
+      form: {
+        name: 'Nombre',
+        type: 'Tipo',
+        description: 'Descripción',
+        tags: 'Etiquetas',
+        tagsPlaceholder: 'Separar con comas',
+        linkedProjects: 'Proyectos Vinculados',
+      },
+      uploadModal: {
+        title: 'Subir Medios',
+      },
+      generateModal: {
+        title: 'Generar con IA',
+        prompt: 'Describe lo que quieres',
+        duration: 'Duración (segundos)',
+        imagePlaceholder: 'Un sereno paisaje de montaña al atardecer...',
+        bgmPlaceholder: 'Música de meditación tranquila con piano suave...',
+        sfxPlaceholder: 'Sonido suave de campana...',
+      },
+      editModal: {
+        title: 'Editar Medios',
       },
     },
     

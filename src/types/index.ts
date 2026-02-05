@@ -158,10 +158,33 @@ export interface VoiceCharacter {
   name: string;
   description: string;
   avatarUrl?: string;
-  audioSampleUrl?: string;  // 音色样本
-  voiceProvider?: string;   // 语音服务提供商 (e.g., 'elevenlabs', 'azure', 'custom')
-  voiceId?: string;         // 第三方服务的voice ID
+  audioSampleUrl?: string;  // 音色样本 (also used as reference audio for TTS)
+  // Reference audio for voice cloning
+  refAudioDataUrl?: string; // Reference audio as base64 data URL
+  refText?: string;         // Reference text for the audio sample
   tags: string[];
+  projectIds?: string[];    // 关联的项目 (可多个或为空)
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Media Library Types
+export type MediaType = 'image' | 'bgm' | 'sfx';
+
+export interface MediaItem {
+  id: string;
+  name: string;
+  description: string;
+  type: MediaType;
+  mimeType: string;
+  dataUrl: string;        // base64 data URL or blob URL
+  thumbnailUrl?: string;  // for images
+  duration?: number;      // for audio (seconds)
+  size?: number;          // file size in bytes
+  tags: string[];
+  projectIds?: string[];  // 关联的项目 (可多个或为空)
+  source: 'generated' | 'uploaded';  // how the media was added
+  prompt?: string;        // generation prompt if AI-generated
   createdAt: string;
   updatedAt: string;
 }

@@ -19,6 +19,7 @@
     "workspace": "Workspace",
     "projects": "Projects",
     "voice": "Voice",
+    "media": "Media",
     "settings": "Settings",
     "switchTheme": "Switch Theme"
   },
@@ -218,6 +219,7 @@
       "cancel": "Cancel",
       "back": "Back",
       "next": "Next",
+      "approve": "Approve",
       "create": "Create Project"
     },
     "files": "files",
@@ -412,7 +414,55 @@
       "edit": "Edit",
       "delete": "Delete",
       "deleteConfirm": "Are you sure you want to delete this character?",
-      "createdAt": "Created"
+      "createdAt": "Created",
+      "linkedProjects": "Linked Projects"
+    },
+    "allProjects": "All Projects",
+    "noProjects": "No projects"
+  },
+  "mediaLibrary": {
+    "title": "Media Library",
+    "subtitle": "Manage your images, music, and sound effects",
+    "upload": "Upload",
+    "generate": "Generate",
+    "generating": "Generating...",
+    "searchPlaceholder": "Search...",
+    "deleteConfirm": "Delete this media item?",
+    "tabs": {
+      "images": "Images",
+      "bgm": "BGM",
+      "sfx": "Sound Effects"
+    },
+    "empty": {
+      "title": "No media yet",
+      "description": "Upload or generate your first media"
+    },
+    "uploadModal": {
+      "title": "Upload Media"
+    },
+    "generateModal": {
+      "title": "Generate with AI",
+      "prompt": "Describe what you want",
+      "duration": "Duration (seconds)",
+      "imagePlaceholder": "A serene mountain landscape at sunset...",
+      "bgmPlaceholder": "Calm meditation music with soft piano...",
+      "sfxPlaceholder": "Gentle bell chime sound..."
+    },
+    "editModal": {
+      "title": "Edit Media"
+    },
+    "form": {
+      "name": "Name",
+      "type": "Type",
+      "description": "Description",
+      "tags": "Tags",
+      "tagsPlaceholder": "Separate with commas",
+      "linkedProjects": "Linked Projects"
+    },
+    "allProjects": "All Projects",
+    "noProjects": "No projects",
+    "errors": {
+      "generationFailed": "Generation failed: "
     }
   },
   "settings": {

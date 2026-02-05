@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useProjects } from '../contexts/ProjectContext';
 import { VoiceCharacter } from '../types';
-import { Mic, Square, Play, Pause, Download, Trash2, Plus, User, Volume2, Edit2, X, Upload, AudioWaveform } from 'lucide-react';
+import { Mic, Square, Play, Pause, Download, Trash2, Plus, User, Volume2, Edit2, X, Upload, AudioWaveform, FolderOpen, Link2 } from 'lucide-react';
 
 // Storage key for voice characters
 const VOICE_CHARACTERS_KEY = 'gather-voice-characters';
@@ -24,6 +25,7 @@ const saveVoiceCharacters = (characters: VoiceCharacter[]) => {
 export function VoiceStudio() {
   const { theme } = useTheme();
   const { t } = useLanguage();
+  const { projects } = useProjects();
   
   // Characters states - load first to determine default tab
   const [characters, setCharacters] = useState<VoiceCharacter[]>(() => loadVoiceCharacters());
@@ -46,10 +48,12 @@ export function VoiceStudio() {
     name: '',
     description: '',
     tags: '',
-    voiceProvider: '',
-    voiceId: '',
     audioSampleUrl: '',
+    projectIds: [] as string[],
   });
+  
+  // Project filter
+  const [filterProjectId, setFilterProjectId] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [audioUploaded, setAudioUploaded] = useState(false);
   const [playingCharacterId, setPlayingCharacterId] = useState<string | null>(null);
@@ -146,9 +150,8 @@ export function VoiceStudio() {
         name: character.name,
         description: character.description,
         tags: character.tags.join(', '),
-        voiceProvider: character.voiceProvider || '',
-        voiceId: character.voiceId || '',
         audioSampleUrl: character.audioSampleUrl || '',
+        projectIds: character.projectIds || [],
       });
       setAudioUploaded(true); // Already has audio
     } else {
@@ -158,9 +161,8 @@ export function VoiceStudio() {
         name: '',
         description: '',
         tags: '',
-        voiceProvider: '',
-        voiceId: '',
         audioSampleUrl: '',
+        projectIds: [],
       });
       setAudioUploaded(false);
     }
@@ -249,8 +251,7 @@ export function VoiceStudio() {
               description: characterForm.description,
               tags: tagsArray,
               audioSampleUrl: characterForm.audioSampleUrl || undefined,
-              voiceProvider: characterForm.voiceProvider || undefined,
-              voiceId: characterForm.voiceId || undefined,
+              projectIds: characterForm.projectIds,
               updatedAt: now,
             }
           : c
@@ -265,8 +266,7 @@ export function VoiceStudio() {
         description: characterForm.description,
         tags: tagsArray,
         audioSampleUrl: characterForm.audioSampleUrl || undefined,
-        voiceProvider: characterForm.voiceProvider || undefined,
-        voiceId: characterForm.voiceId || undefined,
+        projectIds: characterForm.projectIds,
         createdAt: now,
         updatedAt: now,
       };
@@ -278,6 +278,11 @@ export function VoiceStudio() {
     setShowCharacterEditor(false);
     setAudioUploaded(false);
   };
+  
+  // Filter characters by project
+  const filteredCharacters = filterProjectId 
+    ? characters.filter(c => c.projectIds?.includes(filterProjectId))
+    : characters;
 
   const deleteCharacter = (id: string) => {
     if (confirm(t.voiceStudio.characters.deleteConfirm)) {
@@ -302,26 +307,6 @@ export function VoiceStudio() {
     }
   };
 
-  const voiceProviders = [
-    { id: 'gemini', name: 'Gemini TTS' },
-    { id: 'elevenlabs', name: 'ElevenLabs' },
-    { id: 'azure', name: 'Azure Speech' },
-    { id: 'google', name: 'Google Cloud TTS' },
-    { id: 'amazon', name: 'Amazon Polly' },
-    { id: 'custom', name: 'Custom' },
-  ];
-
-  // Gemini TTS voice options
-  const geminiVoices = [
-    { id: 'Puck', name: 'Puck - 活力年轻' },
-    { id: 'Charon', name: 'Charon - 深沉权威' },
-    { id: 'Kore', name: 'Kore - 温暖友好' },
-    { id: 'Fenrir', name: 'Fenrir - 强劲戏剧' },
-    { id: 'Aoede', name: 'Aoede - 旋律感强' },
-    { id: 'Leda', name: 'Leda - 温柔舒缓' },
-    { id: 'Orus', name: 'Orus - 清晰专业' },
-    { id: 'Zephyr', name: 'Zephyr - 轻柔飘逸' },
-  ];
 
   return (
     <div className="space-y-4 md:space-y-8 animate-fade-in">
@@ -467,23 +452,39 @@ export function VoiceStudio() {
       {activeTab === 'characters' && (
         <>
           {/* Characters Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h2 className="text-lg md:text-xl font-serif text-white">{t.voiceStudio.characters.title}</h2>
               <p className="text-white/50 text-sm">{t.voiceStudio.characters.subtitle}</p>
             </div>
-            <button
-              onClick={() => openCharacterEditor()}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-medium transition-all duration-300 hover:scale-105"
-              style={{ background: theme.primary, boxShadow: `0 0 20px ${theme.glow}` }}
-            >
-              <Plus size={16} />
-              {t.voiceStudio.characters.addNew}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Project filter */}
+              <div className="relative">
+                <FolderOpen size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+                <select
+                  value={filterProjectId}
+                  onChange={(e) => setFilterProjectId(e.target.value)}
+                  className="pl-9 pr-8 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-white/20 appearance-none cursor-pointer"
+                >
+                  <option value="" className="bg-gray-900">{t.voiceStudio?.allProjects || 'All Projects'}</option>
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id} className="bg-gray-900">{p.title}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={() => openCharacterEditor()}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-medium transition-all duration-300 hover:scale-105"
+                style={{ background: theme.primary, boxShadow: `0 0 20px ${theme.glow}` }}
+              >
+                <Plus size={16} />
+                {t.voiceStudio.characters.addNew}
+              </button>
+            </div>
           </div>
 
           {/* Characters Grid */}
-          {characters.length === 0 ? (
+          {filteredCharacters.length === 0 ? (
             <div className="rounded-xl md:rounded-2xl p-8 md:p-12 border border-white/10 text-center" style={{ background: theme.bgCard }}>
               <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ background: `${theme.primary}20` }}>
                 <User size={32} className="text-white/40" />
@@ -501,7 +502,7 @@ export function VoiceStudio() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {characters.map((character) => (
+              {filteredCharacters.map((character) => (
                 <div
                   key={character.id}
                   className="rounded-xl p-4 border border-white/10 transition-all duration-300 hover:border-white/20"
@@ -537,9 +538,21 @@ export function VoiceStudio() {
                     </div>
                   )}
 
-                  {character.voiceProvider && (
-                    <div className="mt-3 text-xs text-white/40">
-                      {voiceProviders.find(p => p.id === character.voiceProvider)?.name || character.voiceProvider}
+
+                  {/* Linked projects */}
+                  {character.projectIds && character.projectIds.length > 0 && (
+                    <div className="flex items-center gap-1 mt-2 text-xs text-white/40">
+                      <Link2 size={12} />
+                      {character.projectIds.slice(0, 2).map((pid, i) => {
+                        const proj = projects.find(p => p.id === pid);
+                        return proj ? (
+                          <span key={pid}>
+                            {i > 0 && ', '}
+                            <span className="truncate max-w-[80px] inline-block align-bottom">{proj.title}</span>
+                          </span>
+                        ) : null;
+                      })}
+                      {character.projectIds.length > 2 && <span>+{character.projectIds.length - 2}</span>}
                     </div>
                   )}
 
@@ -738,47 +751,44 @@ export function VoiceStudio() {
                     </button>
                   </div>
 
-                  {/* Voice Provider */}
+                  {/* Linked Projects */}
                   <div>
-                    <label className="block text-sm font-medium text-white/50 mb-2">{t.voiceStudio.characters.voiceProvider}</label>
-                    <select
-                      value={characterForm.voiceProvider}
-                      onChange={(e) => setCharacterForm({ ...characterForm, voiceProvider: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20"
-                    >
-                      <option value="" className="bg-gray-900">{t.voiceStudio.characters.selectProvider}</option>
-                      {voiceProviders.map((provider) => (
-                        <option key={provider.id} value={provider.id} className="bg-gray-900">{provider.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Voice ID - Show dropdown for Gemini, text input for others */}
-                  {characterForm.voiceProvider && (
-                    <div>
-                      <label className="block text-sm font-medium text-white/50 mb-2">{t.voiceStudio.characters.voiceId}</label>
-                      {characterForm.voiceProvider === 'gemini' ? (
-                        <select
-                          value={characterForm.voiceId}
-                          onChange={(e) => setCharacterForm({ ...characterForm, voiceId: e.target.value })}
-                          className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20"
-                        >
-                          <option value="" className="bg-gray-900">{t.voiceStudio.characters.selectProvider}</option>
-                          {geminiVoices.map((voice) => (
-                            <option key={voice.id} value={voice.id} className="bg-gray-900">{voice.name}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type="text"
-                          value={characterForm.voiceId}
-                          onChange={(e) => setCharacterForm({ ...characterForm, voiceId: e.target.value })}
-                          placeholder={t.voiceStudio.characters.voiceIdPlaceholder}
-                          className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20"
-                        />
+                    <label className="block text-sm font-medium text-white/50 mb-2">
+                      <Link2 size={14} className="inline mr-1" />
+                      {t.voiceStudio?.characters?.linkedProjects || 'Linked Projects'}
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {projects.map(p => {
+                        const isLinked = characterForm.projectIds.includes(p.id);
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setCharacterForm(prev => ({
+                                ...prev,
+                                projectIds: isLinked 
+                                  ? prev.projectIds.filter(id => id !== p.id)
+                                  : [...prev.projectIds, p.id]
+                              }));
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                              isLinked 
+                                ? 'text-white' 
+                                : 'text-white/50 hover:text-white/70 border border-white/10 hover:border-white/20'
+                            }`}
+                            style={isLinked ? { background: theme.primary } : {}}
+                          >
+                            <FolderOpen size={12} className="inline mr-1" />
+                            {p.title}
+                          </button>
+                        );
+                      })}
+                      {projects.length === 0 && (
+                        <span className="text-white/30 text-sm">{t.voiceStudio?.noProjects || 'No projects'}</span>
                       )}
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 {/* Actions */}
