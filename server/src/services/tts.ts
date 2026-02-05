@@ -9,10 +9,16 @@ import fs from 'fs';
 import path from 'path';
 
 const TTS_ENDPOINT = process.env.TTS_ENDPOINT || '';
+const TTS_CONCURRENCY = parseInt(process.env.TTS_CONCURRENCY || '10', 10);
 
 // Check if custom TTS is configured
 export function isCustomTTSConfigured(): boolean {
   return !!TTS_ENDPOINT;
+}
+
+// Get configured concurrency
+export function getTTSConcurrency(): number {
+  return TTS_CONCURRENCY;
 }
 
 export interface CustomTTSOptions {
@@ -224,7 +230,7 @@ export async function generateBatchCustomSpeech(
   items: BatchTTSItem[],
   defaultRefAudioDataUrl?: string,
   defaultRefText?: string,
-  maxConcurrent: number = 5
+  maxConcurrent: number = TTS_CONCURRENCY
 ): Promise<BatchTTSResult[]> {
   const results: BatchTTSResult[] = [];
   

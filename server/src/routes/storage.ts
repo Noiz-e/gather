@@ -1,25 +1,49 @@
 /**
  * Storage API routes for persistent data
  * Handles projects, voice characters, and media items
+ * 
+ * NOTE: This is a legacy API for backward compatibility.
+ * New authenticated APIs should use /api/projects, /api/voices, /api/media
+ * 
+ * Currently uses GCS for storage until frontend implements authentication.
  */
 
 import { Router, Request, Response } from 'express';
 import * as gcs from '../services/gcs.js';
+import { checkConnection } from '../db/index.js';
 
 export const storageRouter = Router();
 
+// Track if database is available
+let dbAvailable: boolean | null = null;
+
+async function isDbAvailable(): Promise<boolean> {
+  if (dbAvailable === null) {
+    dbAvailable = await checkConnection();
+    console.log(`Database status: ${dbAvailable ? 'connected' : 'not available'}`);
+  }
+  return dbAvailable;
+}
+
 // ============ Health Check ============
 
-storageRouter.get('/status', (_req: Request, res: Response) => {
+storageRouter.get('/status', async (_req: Request, res: Response) => {
+  const dbConnected = await isDbAvailable();
+  const gcsConfigured = gcs.isGCSConfigured();
+  
   res.json({
-    configured: gcs.isGCSConfigured(),
-    message: gcs.isGCSConfigured() 
-      ? 'GCS storage is configured and ready' 
-      : 'GCS storage is not configured - data will not be persisted'
+    configured: dbConnected || gcsConfigured,
+    database: dbConnected ? 'connected' : 'not available',
+    gcs: gcsConfigured ? 'configured' : 'not configured',
+    storage: gcsConfigured ? 'gcs' : (dbConnected ? 'postgresql' : 'none'),
+    message: gcsConfigured 
+      ? 'Using GCS storage' 
+      : (dbConnected ? 'PostgreSQL database connected' : 'No storage configured'),
+    note: 'Legacy API - use authenticated endpoints for user-specific data'
   });
 });
 
-// ============ Projects API ============
+// ============ Projects API (Legacy - No Auth) ============
 
 /**
  * GET /api/storage/projects
@@ -28,7 +52,7 @@ storageRouter.get('/status', (_req: Request, res: Response) => {
 storageRouter.get('/projects', async (_req: Request, res: Response) => {
   try {
     const projects = await gcs.loadProjects();
-    res.json({ projects, count: projects.length });
+    res.json({ projects, count: projects.length, storage: 'gcs' });
   } catch (error) {
     console.error('Failed to load projects:', error);
     res.status(500).json({ 
@@ -51,7 +75,7 @@ storageRouter.post('/projects', async (req: Request, res: Response) => {
     }
     
     await gcs.saveProjects(projects);
-    res.json({ success: true, count: projects.length });
+    res.json({ success: true, count: projects.length, storage: 'gcs' });
   } catch (error) {
     console.error('Failed to save projects:', error);
     res.status(500).json({ 
@@ -61,7 +85,7 @@ storageRouter.post('/projects', async (req: Request, res: Response) => {
   }
 });
 
-// ============ Voice Characters API ============
+// ============ Voice Characters API (Legacy - No Auth) ============
 
 /**
  * GET /api/storage/voices
@@ -70,7 +94,7 @@ storageRouter.post('/projects', async (req: Request, res: Response) => {
 storageRouter.get('/voices', async (_req: Request, res: Response) => {
   try {
     const voices = await gcs.loadVoiceCharacters();
-    res.json({ voices, count: voices.length });
+    res.json({ voices, count: voices.length, storage: 'gcs' });
   } catch (error) {
     console.error('Failed to load voice characters:', error);
     res.status(500).json({ 
@@ -93,7 +117,7 @@ storageRouter.post('/voices', async (req: Request, res: Response) => {
     }
     
     await gcs.saveVoiceCharacters(voices);
-    res.json({ success: true, count: voices.length });
+    res.json({ success: true, count: voices.length, storage: 'gcs' });
   } catch (error) {
     console.error('Failed to save voice characters:', error);
     res.status(500).json({ 
@@ -127,7 +151,7 @@ storageRouter.post('/voices/:id/sample', async (req: Request, res: Response) => 
   }
 });
 
-// ============ Media Items API ============
+// ============ Media Items API (Legacy - No Auth) ============
 
 /**
  * GET /api/storage/media
@@ -136,7 +160,7 @@ storageRouter.post('/voices/:id/sample', async (req: Request, res: Response) => 
 storageRouter.get('/media', async (_req: Request, res: Response) => {
   try {
     const items = await gcs.loadMediaItems();
-    res.json({ items, count: items.length });
+    res.json({ items, count: items.length, storage: 'gcs' });
   } catch (error) {
     console.error('Failed to load media items:', error);
     res.status(500).json({ 
@@ -159,7 +183,7 @@ storageRouter.post('/media', async (req: Request, res: Response) => {
     }
     
     await gcs.saveMediaItems(items);
-    res.json({ success: true, count: items.length });
+    res.json({ success: true, count: items.length, storage: 'gcs' });
   } catch (error) {
     console.error('Failed to save media items:', error);
     res.status(500).json({ 
@@ -226,7 +250,6 @@ storageRouter.delete('/media/:id/file', async (req: Request, res: Response) => {
 /**
  * POST /api/storage/sync
  * Sync all data at once (projects, voices, media items)
- * Useful for initial load or full backup
  */
 storageRouter.post('/sync', async (req: Request, res: Response) => {
   try {
@@ -261,7 +284,7 @@ storageRouter.post('/sync', async (req: Request, res: Response) => {
       }
     }
     
-    res.json({ results });
+    res.json({ results, storage: 'gcs' });
   } catch (error) {
     console.error('Failed to sync data:', error);
     res.status(500).json({ 
@@ -291,7 +314,8 @@ storageRouter.get('/sync', async (_req: Request, res: Response) => {
         projects: projects.length,
         voices: voices.length,
         mediaItems: mediaItems.length,
-      }
+      },
+      storage: 'gcs',
     });
   } catch (error) {
     console.error('Failed to load all data:', error);

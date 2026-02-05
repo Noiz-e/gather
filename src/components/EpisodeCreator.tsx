@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useProjects } from '../contexts/ProjectContext';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -6,9 +6,12 @@ import { Project, VoiceCharacter, ScriptSection, EpisodeCharacter, ScriptTimelin
 import { 
   ChevronLeft, ChevronRight, Check, X, FileText, 
   Plus, Trash2, Play, User, Loader2,
-  Music, Volume2, Image, Save
+  Music, Volume2, Image, Save, Upload, Sparkles
 } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
+import { filterValidFiles, collectAnalysisContent } from '../utils/fileUtils';
+import { buildScriptGenerationPrompt } from '../services/llm/prompts';
+import * as api from '../services/api';
 
 // Storage key for voice characters (same as VoiceStudio)
 const VOICE_CHARACTERS_KEY = 'gather-voice-characters';
@@ -54,6 +57,14 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
   const [generationStatus, setGenerationStatus] = useState('');
   const [isProcessingNext, setIsProcessingNext] = useState(false);
   
+  // Script upload and analysis state
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [textContent, setTextContent] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const [isGeneratingScript, setIsGeneratingScript] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const ReligionIcon = ReligionIconMap[religion];
   const spec = project.spec;
 
@@ -68,6 +79,114 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
   useEffect(() => {
     setAvailableVoices(loadVoiceCharacters());
   }, []);
+
+  // File upload handler
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      const validFiles = filterValidFiles(files);
+      if (validFiles.length > 0) {
+        setUploadedFiles(prev => [...prev, ...validFiles]);
+      } else {
+        alert(t.projectCreator?.errors?.uploadFileType || 'Invalid file type');
+      }
+    }
+  };
+
+  // Remove uploaded file
+  const removeUploadedFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Drag and drop handlers
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const validFiles = filterValidFiles(files);
+      if (validFiles.length > 0) {
+        setUploadedFiles(prev => [...prev, ...validFiles]);
+      } else {
+        alert(t.projectCreator?.errors?.uploadFileType || 'Invalid file type');
+      }
+    }
+  };
+
+  // Generate script from uploaded content using LLM
+  const generateScriptFromContent = async () => {
+    setIsGeneratingScript(true);
+    setStreamingText('');
+
+    try {
+      // Collect content from text input and files
+      const content = await collectAnalysisContent(textContent, uploadedFiles, { includeLabels: false });
+
+      if (!content.trim()) {
+        alert(t.projectCreator?.errors?.inputOrUpload || 'Please input or upload content');
+        setIsGeneratingScript(false);
+        return;
+      }
+
+      const prompt = buildScriptGenerationPrompt(content, {
+        title: title || 'Episode',
+        targetAudience: spec?.targetAudience || '',
+        formatAndDuration: spec?.formatAndDuration || '',
+        toneAndExpression: spec?.toneAndExpression || '',
+        addBgm: spec?.addBgm || false,
+        addSoundEffects: spec?.addSoundEffects || false,
+        hasVisualContent: spec?.hasVisualContent || false,
+      });
+
+      // Use backend streaming API for progressive generation
+      const finalText = await api.generateTextStream(
+        prompt,
+        (chunk) => {
+          setStreamingText(chunk.accumulated);
+        }
+      );
+
+      // Parse JSON from final response
+      const jsonMatch = finalText.match(/```(?:json)?\s*([\s\S]*?)```/) || 
+                        finalText.match(/\[[\s\S]*\]/);
+      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]).trim() : finalText;
+      const sections = JSON.parse(jsonStr) as ScriptSection[];
+
+      if (sections && sections.length > 0) {
+        setScriptSections(sections);
+        // Auto-expand the first section
+        setEditingSection(sections[0].id);
+      }
+    } catch (error) {
+      console.error('Script generation error:', error);
+      alert(t.projectCreator?.errors?.unknownError || 'An error occurred');
+    } finally {
+      setIsGeneratingScript(false);
+      setStreamingText('');
+    }
+  };
+
+  // Check if there's content to analyze
+  const hasContentToAnalyze = textContent.trim().length > 0 || uploadedFiles.length > 0;
 
   // Script editing functions
   const addSection = () => {
@@ -342,6 +461,116 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
           rows={3}
           className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-white/30 focus:outline-none focus:border-white/20 transition-all resize-none"
         />
+      </div>
+
+      {/* Script Upload Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h4 className="text-white font-medium">{t.projectCreator.spec.fileUpload}</h4>
+          {hasContentToAnalyze && (
+            <button
+              onClick={generateScriptFromContent}
+              disabled={isGeneratingScript}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm transition-all hover:scale-105"
+              style={{ background: theme.primary }}
+            >
+              {isGeneratingScript ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  {t.common.loading}
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} />
+                  {t.projectCreator.script.generateScript}
+                </>
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* File Upload Area */}
+        <div
+          className={`border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${
+            isDragging ? 'border-white/40 bg-white/10' : 'border-white/10 hover:border-white/20'
+          }`}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.pdf,.doc,.docx"
+            multiple
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          <Upload size={32} className="mx-auto mb-3 text-white/30" />
+          <p className="text-white/60 text-sm mb-1">
+            {t.projectCreator.spec.uploadHint}
+          </p>
+          <p className="text-white/40 text-xs">
+            .txt, .pdf, .doc, .docx
+          </p>
+        </div>
+
+        {/* Uploaded Files List */}
+        {uploadedFiles.length > 0 && (
+          <div className="space-y-2">
+            {uploadedFiles.map((file, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between px-4 py-2 rounded-lg border border-white/10"
+                style={{ background: theme.bgCard }}
+              >
+                <div className="flex items-center gap-3">
+                  <FileText size={16} className="text-white/50" />
+                  <span className="text-white/80 text-sm">{file.name}</span>
+                  <span className="text-white/40 text-xs">({(file.size / 1024).toFixed(1)} KB)</span>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); removeUploadedFile(index); }}
+                  className="p-1.5 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Text Input */}
+        <div>
+          <label className="block text-xs text-white/50 mb-2">
+            {t.projectCreator.spec.textInput}
+          </label>
+          <textarea
+            value={textContent}
+            onChange={(e) => setTextContent(e.target.value)}
+            placeholder={t.projectCreator.spec.contentPlaceholder}
+            rows={6}
+            className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-white/30 focus:outline-none focus:border-white/20 transition-all resize-none text-sm"
+          />
+        </div>
+
+        {/* Streaming Preview */}
+        {isGeneratingScript && streamingText && (
+          <div 
+            className="rounded-xl p-4 border border-white/10 max-h-64 overflow-auto"
+            style={{ background: theme.bgCard }}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Loader2 size={14} className="animate-spin text-white/50" />
+              <span className="text-xs text-white/50">{t.projectCreator.script.generating}</span>
+            </div>
+            <pre className="text-xs text-white/70 whitespace-pre-wrap font-mono">
+              {streamingText.slice(0, 500)}{streamingText.length > 500 ? '...' : ''}
+            </pre>
+          </div>
+        )}
       </div>
 
       {/* Script Sections */}

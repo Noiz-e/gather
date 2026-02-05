@@ -481,7 +481,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     []
   );
 
-  // Voice generation for a single section
+  // Voice generation for a single section (concurrent batch processing)
   const generateVoiceForSection = async (section: ScriptSection) => {
     const sectionId = section.id;
     
@@ -520,33 +520,35 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     dispatch(actions.setCurrentSection(sectionId));
     
     try {
-      // Generate voice for each segment in this section
-      for (let i = 0; i < segments.length; i++) {
-        const segment = segments[i];
-        const progress = Math.round(((i + 1) / segments.length) * 100);
-        
-        dispatch(actions.updateSectionVoiceStatus(sectionId, 'processing', progress));
-        dispatch(actions.updateProductionPhase('voice-generation', 'processing', 0, segment.speaker));
-        
-        try {
-          // Call synthesize API for each segment with reference audio
-          const result = await api.synthesizeSpeech(segment.text, { 
-            refAudioDataUrl: segment.refAudioDataUrl 
-          });
-          
-          // Add audio to section
+      // Use batch API for concurrent TTS generation
+      const batchSegments: api.AudioSegment[] = segments.map(seg => ({
+        text: seg.text,
+        speaker: seg.speaker,
+        refAudioDataUrl: seg.refAudioDataUrl
+      }));
+      
+      dispatch(actions.updateProductionPhase('voice-generation', 'processing', 0, `Generating ${segments.length} segments...`));
+      
+      const result = await api.generateAudioBatch(batchSegments);
+      
+      // Process results
+      for (const generated of result.segments) {
+        const segment = segments[generated.index];
+        if (segment) {
           const audio: SectionVoiceAudio = {
             lineIndex: segment.lineIndex,
             speaker: segment.speaker,
             text: segment.text,
-            audioData: result.audioData,
-            mimeType: result.mimeType
+            audioData: generated.audioData,
+            mimeType: generated.mimeType
           };
           dispatch(actions.addSectionVoiceAudio(sectionId, audio));
-        } catch (error) {
-          console.error(`Failed to generate voice for line ${i}:`, error);
-          // Continue with other segments even if one fails
         }
+      }
+      
+      // Log errors if any
+      if (result.errors && result.errors.length > 0) {
+        console.warn('Some segments failed:', result.errors);
       }
       
       dispatch(actions.updateSectionVoiceStatus(sectionId, 'completed', 100));

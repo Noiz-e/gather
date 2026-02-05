@@ -1,0 +1,8 @@
+# Exclude from Cloud Build upload
+node_modules/
+dist/
+*.log
+.git
+.gitignore
+
+# Note: .env is NOT excluded here so it gets uploaded for the build
