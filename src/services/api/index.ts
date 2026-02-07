@@ -4,6 +4,11 @@
 // In dev mode with Vite proxy, use relative path. In production, use env var.
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
+// Common fetch options for all requests (includes credentials for cookie auth)
+const fetchOptions: RequestInit = {
+  credentials: 'include',
+};
+
 interface RequestOptions {
   apiKey?: string;
 }
@@ -29,6 +34,7 @@ export interface StreamChunk {
  */
 export async function generateText(prompt: string, options: LLMGenerateOptions = {}): Promise<string> {
   const response = await fetch(`${API_BASE}/llm/generate`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -57,6 +63,7 @@ export async function generateTextStream(
   options: LLMGenerateOptions = {}
 ): Promise<string> {
   const response = await fetch(`${API_BASE}/llm/stream`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -145,7 +152,7 @@ export interface TTSStatusResult {
  * Get available voices
  */
 export async function getVoices(): Promise<Voice[]> {
-  const response = await fetch(`${API_BASE}/voice/voices`);
+  const response = await fetch(`${API_BASE}/voice/voices`, fetchOptions);
   
   if (!response.ok) {
     throw new Error('Failed to fetch voices');
@@ -167,6 +174,7 @@ export interface RecommendVoicesParams {
  */
 export async function recommendVoices(params: RecommendVoicesParams): Promise<string[]> {
   const response = await fetch(`${API_BASE}/voice/recommend`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -187,7 +195,7 @@ export async function recommendVoices(params: RecommendVoicesParams): Promise<st
  * Get voice sample for preview (pre-generated)
  */
 export async function getVoiceSample(voiceId: string, language: 'en' | 'zh' = 'en'): Promise<VoiceSampleResult> {
-  const response = await fetch(`${API_BASE}/voice/sample/${voiceId}?lang=${language}`);
+  const response = await fetch(`${API_BASE}/voice/sample/${voiceId}?lang=${language}`, fetchOptions);
   
   if (!response.ok) {
     const error = await response.json();
@@ -240,7 +248,7 @@ export async function playVoiceSample(voiceId: string, language: 'en' | 'zh' = '
  */
 export async function getTTSStatus(): Promise<TTSStatusResult> {
   try {
-    const response = await fetch(`${API_BASE}/voice/tts-status`);
+    const response = await fetch(`${API_BASE}/voice/tts-status`, fetchOptions);
     if (!response.ok) {
       return { configured: false };
     }
@@ -258,6 +266,7 @@ export async function synthesizeSpeech(
   options: SynthesizeOptions = {}
 ): Promise<SynthesizeResult> {
   const response = await fetch(`${API_BASE}/voice/synthesize`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -286,6 +295,7 @@ export async function previewVoice(
   apiKey?: string
 ): Promise<SynthesizeResult> {
   const response = await fetch(`${API_BASE}/voice/preview`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -352,6 +362,7 @@ export async function generateAudioBatch(
   options: BatchOptions = {}
 ): Promise<BatchResult> {
   const response = await fetch(`${API_BASE}/audio/batch`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ 
@@ -378,6 +389,7 @@ export async function generateAudioBatchStream(
   options: BatchOptions = {}
 ): Promise<void> {
   const response = await fetch(`${API_BASE}/audio/batch-stream`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ 
@@ -483,7 +495,7 @@ export function downloadAudio(audioData: string, mimeType: string, filename: str
  */
 export async function checkHealth(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE}/health`);
+    const response = await fetch(`${API_BASE}/health`, fetchOptions);
     return response.ok;
   } catch {
     return false;
@@ -511,6 +523,7 @@ export async function generateImage(
   options: ImageGenerateOptions = {}
 ): Promise<GeneratedImage[]> {
   const response = await fetch(`${API_BASE}/image/generate`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -539,6 +552,7 @@ export async function generateCoverImage(
   apiKey?: string
 ): Promise<{ imageData: string; mimeType: string }> {
   const response = await fetch(`${API_BASE}/image/cover`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt, aspectRatio, apiKey })
@@ -580,7 +594,7 @@ export interface SfxSuggestion {
  * Get available music generation options
  */
 export async function getMusicOptions(): Promise<MusicOptionsData> {
-  const response = await fetch(`${API_BASE}/music/options`);
+  const response = await fetch(`${API_BASE}/music/options`, fetchOptions);
   
   if (!response.ok) {
     throw new Error('Failed to fetch music options');
@@ -597,6 +611,7 @@ export async function generateMusic(
   options: MusicOptions = {}
 ): Promise<MusicResult> {
   const response = await fetch(`${API_BASE}/music/generate`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -626,6 +641,7 @@ export async function generateBGM(
   apiKey?: string
 ): Promise<MusicResult> {
   const response = await fetch(`${API_BASE}/music/bgm`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ description, mood, durationSeconds, apiKey })
@@ -648,6 +664,7 @@ export async function generateSoundEffect(
   apiKey?: string
 ): Promise<MusicResult> {
   const response = await fetch(`${API_BASE}/music/sfx`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ description, durationSeconds, apiKey })
@@ -665,7 +682,7 @@ export async function generateSoundEffect(
  * Get common sound effect suggestions
  */
 export async function getSfxSuggestions(): Promise<SfxSuggestion[]> {
-  const response = await fetch(`${API_BASE}/music/sfx-suggestions`);
+  const response = await fetch(`${API_BASE}/music/sfx-suggestions`, fetchOptions);
   
   if (!response.ok) {
     throw new Error('Failed to fetch SFX suggestions');
@@ -720,7 +737,7 @@ export interface StorageStatus {
  */
 export async function checkStorageStatus(): Promise<StorageStatus> {
   try {
-    const response = await fetch(`${API_BASE}/storage/status`);
+    const response = await fetch(`${API_BASE}/storage/status`, fetchOptions);
     if (!response.ok) {
       return { configured: false, message: 'Storage API unavailable' };
     }
@@ -741,7 +758,7 @@ export interface ProjectData {
  * Load all projects from cloud storage
  */
 export async function loadProjectsFromCloud(): Promise<ProjectData[]> {
-  const response = await fetch(`${API_BASE}/storage/projects`);
+  const response = await fetch(`${API_BASE}/storage/projects`, fetchOptions);
   
   if (!response.ok) {
     const error = await response.json();
@@ -757,6 +774,7 @@ export async function loadProjectsFromCloud(): Promise<ProjectData[]> {
  */
 export async function saveProjectsToCloud(projects: ProjectData[]): Promise<void> {
   const response = await fetch(`${API_BASE}/storage/projects`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ projects })
@@ -779,7 +797,7 @@ export interface VoiceCharacterData {
  * Load all voice characters from cloud storage
  */
 export async function loadVoicesFromCloud(): Promise<VoiceCharacterData[]> {
-  const response = await fetch(`${API_BASE}/storage/voices`);
+  const response = await fetch(`${API_BASE}/storage/voices`, fetchOptions);
   
   if (!response.ok) {
     const error = await response.json();
@@ -795,6 +813,7 @@ export async function loadVoicesFromCloud(): Promise<VoiceCharacterData[]> {
  */
 export async function saveVoicesToCloud(voices: VoiceCharacterData[]): Promise<void> {
   const response = await fetch(`${API_BASE}/storage/voices`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ voices })
@@ -811,6 +830,7 @@ export async function saveVoicesToCloud(voices: VoiceCharacterData[]): Promise<v
  */
 export async function uploadVoiceSampleToCloud(voiceId: string, dataUrl: string): Promise<string> {
   const response = await fetch(`${API_BASE}/storage/voices/${voiceId}/sample`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ dataUrl })
@@ -837,7 +857,7 @@ export interface MediaItemData {
  * Load all media items from cloud storage
  */
 export async function loadMediaItemsFromCloud(): Promise<MediaItemData[]> {
-  const response = await fetch(`${API_BASE}/storage/media`);
+  const response = await fetch(`${API_BASE}/storage/media`, fetchOptions);
   
   if (!response.ok) {
     const error = await response.json();
@@ -853,6 +873,7 @@ export async function loadMediaItemsFromCloud(): Promise<MediaItemData[]> {
  */
 export async function saveMediaItemsToCloud(items: MediaItemData[]): Promise<void> {
   const response = await fetch(`${API_BASE}/storage/media`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items })
@@ -873,6 +894,7 @@ export async function uploadMediaFileToCloud(
   type: 'image' | 'bgm' | 'sfx'
 ): Promise<string> {
   const response = await fetch(`${API_BASE}/storage/media/${mediaId}/file`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ dataUrl, type })
@@ -896,6 +918,7 @@ export async function deleteMediaFileFromCloud(
   fileUrl?: string
 ): Promise<boolean> {
   const response = await fetch(`${API_BASE}/storage/media/${mediaId}/file`, {
+    ...fetchOptions,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ type, fileUrl })
@@ -969,6 +992,7 @@ export interface MixResult {
  */
 export async function mixAudioTracks(request: MixRequest): Promise<MixResult> {
   const response = await fetch(`${API_BASE}/mix`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request)
@@ -991,6 +1015,7 @@ export async function previewMix(
   config?: AudioMixConfig
 ): Promise<MixResult> {
   const response = await fetch(`${API_BASE}/mix/preview`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ voiceTracks, config })
@@ -1011,7 +1036,7 @@ export async function getMixPresets(): Promise<{
   presets: Record<string, { name: string; description: string; config: AudioMixConfig }>;
   default: AudioMixConfig;
 }> {
-  const response = await fetch(`${API_BASE}/mix/presets`);
+  const response = await fetch(`${API_BASE}/mix/presets`, fetchOptions);
   
   if (!response.ok) {
     throw new Error('Failed to fetch mix presets');
@@ -1043,7 +1068,7 @@ export interface SyncResult {
  * Load all data from cloud storage at once
  */
 export async function loadAllFromCloud(): Promise<SyncResult> {
-  const response = await fetch(`${API_BASE}/storage/sync`);
+  const response = await fetch(`${API_BASE}/storage/sync`, fetchOptions);
   
   if (!response.ok) {
     const error = await response.json();
@@ -1058,6 +1083,7 @@ export async function loadAllFromCloud(): Promise<SyncResult> {
  */
 export async function saveAllToCloud(data: SyncData): Promise<void> {
   const response = await fetch(`${API_BASE}/storage/sync`, {
+    ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)

@@ -1,58 +1,58 @@
 /**
- * Storage API routes for persistent data
- * Handles projects, voice characters, and media items
+ * Storage API routes
  * 
- * NOTE: This is a legacy API for backward compatibility.
- * New authenticated APIs should use /api/projects, /api/voices, /api/media
- * 
- * Currently uses GCS for storage until frontend implements authentication.
+ * Structured data (projects, voices, media items) is stored in PostgreSQL.
+ * GCS only stores static resources (images, audio files), each with a
+ * corresponding record in the `files` table.
  */
 
 import { Router, Request, Response } from 'express';
-import * as gcs from '../services/gcs.js';
+import { isGCSConfigured } from '../services/gcs.js';
 import { checkConnection } from '../db/index.js';
+import * as projectsRepo from '../db/repositories/projects.js';
+import * as voicesRepo from '../db/repositories/voices.js';
+import * as mediaRepo from '../db/repositories/media.js';
+import * as filesRepo from '../db/repositories/files.js';
 
 export const storageRouter = Router();
 
-// Track if database is available
-let dbAvailable: boolean | null = null;
-
-async function isDbAvailable(): Promise<boolean> {
-  if (dbAvailable === null) {
-    dbAvailable = await checkConnection();
-    console.log(`Database status: ${dbAvailable ? 'connected' : 'not available'}`);
-  }
-  return dbAvailable;
+// Extend Request to include auth info
+interface AuthenticatedRequest extends Request {
+  userId?: string;
 }
 
 // ============ Health Check ============
 
 storageRouter.get('/status', async (_req: Request, res: Response) => {
-  const dbConnected = await isDbAvailable();
-  const gcsConfigured = gcs.isGCSConfigured();
+  const dbConnected = await checkConnection();
+  const gcsConfigured = isGCSConfigured();
   
   res.json({
-    configured: dbConnected || gcsConfigured,
+    configured: dbConnected,
     database: dbConnected ? 'connected' : 'not available',
     gcs: gcsConfigured ? 'configured' : 'not configured',
-    storage: gcsConfigured ? 'gcs' : (dbConnected ? 'postgresql' : 'none'),
-    message: gcsConfigured 
-      ? 'Using GCS storage' 
-      : (dbConnected ? 'PostgreSQL database connected' : 'No storage configured'),
-    note: 'Legacy API - use authenticated endpoints for user-specific data'
+    storage: dbConnected ? 'postgresql' : 'none',
+    gcsNote: 'GCS is used only for static file storage (images, audio)',
+    message: dbConnected 
+      ? 'PostgreSQL database connected' 
+      : 'No storage configured',
   });
 });
 
-// ============ Projects API (Legacy - No Auth) ============
+// ============ Projects API ============
 
 /**
  * GET /api/storage/projects
- * Load all projects from GCS
+ * Load all projects for the authenticated user
  */
-storageRouter.get('/projects', async (_req: Request, res: Response) => {
+storageRouter.get('/projects', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const projects = await gcs.loadProjects();
-    res.json({ projects, count: projects.length, storage: 'gcs' });
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
+    const projects = await projectsRepo.getProjectsByUserId(req.userId);
+    res.json({ projects, count: projects.length, storage: 'postgresql' });
   } catch (error) {
     console.error('Failed to load projects:', error);
     res.status(500).json({ 
@@ -64,18 +64,22 @@ storageRouter.get('/projects', async (_req: Request, res: Response) => {
 
 /**
  * POST /api/storage/projects
- * Save all projects to GCS
+ * Save all projects for the authenticated user
  */
-storageRouter.post('/projects', async (req: Request, res: Response) => {
+storageRouter.post('/projects', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
     const { projects } = req.body;
     
     if (!Array.isArray(projects)) {
       return res.status(400).json({ error: 'Projects must be an array' });
     }
     
-    await gcs.saveProjects(projects);
-    res.json({ success: true, count: projects.length, storage: 'gcs' });
+    await projectsRepo.saveAllProjectsForUser(req.userId, projects);
+    res.json({ success: true, count: projects.length, storage: 'postgresql' });
   } catch (error) {
     console.error('Failed to save projects:', error);
     res.status(500).json({ 
@@ -85,16 +89,20 @@ storageRouter.post('/projects', async (req: Request, res: Response) => {
   }
 });
 
-// ============ Voice Characters API (Legacy - No Auth) ============
+// ============ Voice Characters API ============
 
 /**
  * GET /api/storage/voices
- * Load all voice characters from GCS
+ * Load all voice characters for the authenticated user
  */
-storageRouter.get('/voices', async (_req: Request, res: Response) => {
+storageRouter.get('/voices', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const voices = await gcs.loadVoiceCharacters();
-    res.json({ voices, count: voices.length, storage: 'gcs' });
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
+    const voices = await voicesRepo.getVoiceCharactersByUserId(req.userId);
+    res.json({ voices, count: voices.length, storage: 'postgresql' });
   } catch (error) {
     console.error('Failed to load voice characters:', error);
     res.status(500).json({ 
@@ -106,18 +114,22 @@ storageRouter.get('/voices', async (_req: Request, res: Response) => {
 
 /**
  * POST /api/storage/voices
- * Save all voice characters to GCS
+ * Save all voice characters for the authenticated user
  */
-storageRouter.post('/voices', async (req: Request, res: Response) => {
+storageRouter.post('/voices', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
     const { voices } = req.body;
     
     if (!Array.isArray(voices)) {
       return res.status(400).json({ error: 'Voices must be an array' });
     }
     
-    await gcs.saveVoiceCharacters(voices);
-    res.json({ success: true, count: voices.length, storage: 'gcs' });
+    await voicesRepo.saveAllVoiceCharactersForUser(req.userId, voices);
+    res.json({ success: true, count: voices.length, storage: 'postgresql' });
   } catch (error) {
     console.error('Failed to save voice characters:', error);
     res.status(500).json({ 
@@ -129,10 +141,14 @@ storageRouter.post('/voices', async (req: Request, res: Response) => {
 
 /**
  * POST /api/storage/voices/:id/sample
- * Upload a voice sample audio file
+ * Upload a voice sample audio file (stored in GCS with a files record)
  */
-storageRouter.post('/voices/:id/sample', async (req: Request, res: Response) => {
+storageRouter.post('/voices/:id/sample', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
     const { id } = req.params;
     const { dataUrl } = req.body;
     
@@ -140,8 +156,12 @@ storageRouter.post('/voices/:id/sample', async (req: Request, res: Response) => 
       return res.status(400).json({ error: 'dataUrl is required' });
     }
     
-    const url = await gcs.uploadVoiceSample(id, dataUrl);
-    res.json({ success: true, url });
+    const voice = await voicesRepo.uploadVoiceSample(id, req.userId, dataUrl);
+    if (!voice) {
+      return res.status(404).json({ error: 'Voice character not found or not owned by user' });
+    }
+    
+    res.json({ success: true, url: voice.audioSampleUrl });
   } catch (error) {
     console.error('Failed to upload voice sample:', error);
     res.status(500).json({ 
@@ -151,16 +171,20 @@ storageRouter.post('/voices/:id/sample', async (req: Request, res: Response) => 
   }
 });
 
-// ============ Media Items API (Legacy - No Auth) ============
+// ============ Media Items API ============
 
 /**
  * GET /api/storage/media
- * Load all media items from GCS
+ * Load all media items for the authenticated user
  */
-storageRouter.get('/media', async (_req: Request, res: Response) => {
+storageRouter.get('/media', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const items = await gcs.loadMediaItems();
-    res.json({ items, count: items.length, storage: 'gcs' });
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
+    const items = await mediaRepo.getMediaItemsByUserId(req.userId);
+    res.json({ items, count: items.length, storage: 'postgresql' });
   } catch (error) {
     console.error('Failed to load media items:', error);
     res.status(500).json({ 
@@ -171,36 +195,16 @@ storageRouter.get('/media', async (_req: Request, res: Response) => {
 });
 
 /**
- * POST /api/storage/media
- * Save all media items to GCS
+ * POST /api/storage/media/:id/file
+ * Upload a media file (stored in GCS with a files record)
  */
-storageRouter.post('/media', async (req: Request, res: Response) => {
+storageRouter.post('/media/:id/file', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { items } = req.body;
-    
-    if (!Array.isArray(items)) {
-      return res.status(400).json({ error: 'Items must be an array' });
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
     }
     
-    await gcs.saveMediaItems(items);
-    res.json({ success: true, count: items.length, storage: 'gcs' });
-  } catch (error) {
-    console.error('Failed to save media items:', error);
-    res.status(500).json({ 
-      error: 'Failed to save media items',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-/**
- * POST /api/storage/media/:id/file
- * Upload a media file (image, bgm, sfx)
- */
-storageRouter.post('/media/:id/file', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { dataUrl, type } = req.body;
+    const { dataUrl, type, name } = req.body;
     
     if (!dataUrl) {
       return res.status(400).json({ error: 'dataUrl is required' });
@@ -210,8 +214,13 @@ storageRouter.post('/media/:id/file', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'type must be one of: image, bgm, sfx' });
     }
     
-    const url = await gcs.uploadMediaFile(id, dataUrl, type);
-    res.json({ success: true, url });
+    const mediaItem = await mediaRepo.uploadMediaItem(req.userId, dataUrl, {
+      name: name || `${type}-${Date.now()}`,
+      type,
+      source: 'uploaded',
+    });
+    
+    res.json({ success: true, url: mediaItem.url, item: mediaItem });
   } catch (error) {
     console.error('Failed to upload media file:', error);
     res.status(500).json({ 
@@ -223,19 +232,34 @@ storageRouter.post('/media/:id/file', async (req: Request, res: Response) => {
 
 /**
  * DELETE /api/storage/media/:id/file
- * Delete a media file from GCS
+ * Delete a media file (removes from both GCS and database)
  */
-storageRouter.delete('/media/:id/file', async (req: Request, res: Response) => {
+storageRouter.delete('/media/:id/file', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
-    const { type, fileUrl } = req.body;
-    
-    if (!type || !['image', 'bgm', 'sfx'].includes(type)) {
-      return res.status(400).json({ error: 'type must be one of: image, bgm, sfx' });
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
     }
     
-    const deleted = await gcs.deleteMediaFile(id, type, fileUrl || '');
-    res.json({ success: deleted });
+    const { id } = req.params;
+    
+    // Get the media item to find its file ID
+    const mediaItem = await mediaRepo.getMediaItemById(id, req.userId);
+    if (!mediaItem) {
+      return res.status(404).json({ error: 'Media item not found' });
+    }
+    
+    // Delete the media item record
+    await mediaRepo.deleteMediaItem(id, req.userId);
+    
+    // Hard delete the associated file (removes from GCS + files table)
+    if (mediaItem.fileId) {
+      await filesRepo.hardDeleteFile(mediaItem.fileId);
+    }
+    if (mediaItem.thumbnailFileId) {
+      await filesRepo.hardDeleteFile(mediaItem.thumbnailFileId);
+    }
+    
+    res.json({ success: true });
   } catch (error) {
     console.error('Failed to delete media file:', error);
     res.status(500).json({ 
@@ -249,17 +273,21 @@ storageRouter.delete('/media/:id/file', async (req: Request, res: Response) => {
 
 /**
  * POST /api/storage/sync
- * Sync all data at once (projects, voices, media items)
+ * Sync all data at once (projects, voices)
  */
-storageRouter.post('/sync', async (req: Request, res: Response) => {
+storageRouter.post('/sync', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { projects, voices, mediaItems } = req.body;
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
+    const { projects, voices } = req.body;
     
     const results: Record<string, { success: boolean; count?: number; error?: string }> = {};
     
     if (projects !== undefined) {
       try {
-        await gcs.saveProjects(projects);
+        await projectsRepo.saveAllProjectsForUser(req.userId, projects);
         results.projects = { success: true, count: projects.length };
       } catch (e) {
         results.projects = { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
@@ -268,23 +296,14 @@ storageRouter.post('/sync', async (req: Request, res: Response) => {
     
     if (voices !== undefined) {
       try {
-        await gcs.saveVoiceCharacters(voices);
+        await voicesRepo.saveAllVoiceCharactersForUser(req.userId, voices);
         results.voices = { success: true, count: voices.length };
       } catch (e) {
         results.voices = { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
       }
     }
     
-    if (mediaItems !== undefined) {
-      try {
-        await gcs.saveMediaItems(mediaItems);
-        results.mediaItems = { success: true, count: mediaItems.length };
-      } catch (e) {
-        results.mediaItems = { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
-      }
-    }
-    
-    res.json({ results, storage: 'gcs' });
+    res.json({ results, storage: 'postgresql' });
   } catch (error) {
     console.error('Failed to sync data:', error);
     res.status(500).json({ 
@@ -298,12 +317,16 @@ storageRouter.post('/sync', async (req: Request, res: Response) => {
  * GET /api/storage/sync
  * Load all data at once (projects, voices, media items)
  */
-storageRouter.get('/sync', async (_req: Request, res: Response) => {
+storageRouter.get('/sync', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
     const [projects, voices, mediaItems] = await Promise.all([
-      gcs.loadProjects(),
-      gcs.loadVoiceCharacters(),
-      gcs.loadMediaItems(),
+      projectsRepo.getProjectsByUserId(req.userId),
+      voicesRepo.getVoiceCharactersByUserId(req.userId),
+      mediaRepo.getMediaItemsByUserId(req.userId),
     ]);
     
     res.json({
@@ -315,7 +338,7 @@ storageRouter.get('/sync', async (_req: Request, res: Response) => {
         voices: voices.length,
         mediaItems: mediaItems.length,
       },
-      storage: 'gcs',
+      storage: 'postgresql',
     });
   } catch (error) {
     console.error('Failed to load all data:', error);

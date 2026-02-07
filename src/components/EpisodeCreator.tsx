@@ -4,26 +4,18 @@ import { useProjects } from '../contexts/ProjectContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { Project, VoiceCharacter, ScriptSection, EpisodeCharacter, ScriptTimelineItem } from '../types';
 import { 
-  ChevronLeft, ChevronRight, Check, X, FileText, 
-  Plus, Trash2, Play, User, Loader2,
-  Music, Volume2, Image, Save, Upload, Sparkles
+  ChevronLeft, ChevronRight, ChevronDown, Check, X, FileText, 
+  Plus, Trash2, Play, Pause, User, Loader2,
+  Music, Volume2, Image, Save, Upload, Sparkles,
+  Mic2, Wand2, Sliders, RefreshCw, Square
 } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
 import { filterValidFiles, collectAnalysisContent } from '../utils/fileUtils';
 import { buildScriptGenerationPrompt } from '../services/llm/prompts';
 import * as api from '../services/api';
-
-// Storage key for voice characters (same as VoiceStudio)
-const VOICE_CHARACTERS_KEY = 'gather-voice-characters';
-
-const loadVoiceCharacters = (): VoiceCharacter[] => {
-  try {
-    const data = localStorage.getItem(VOICE_CHARACTERS_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
-};
+import { loadVoiceCharacters } from '../utils/voiceStorage';
+import { getAudioMixConfig } from './ProjectCreator/templates';
+import type { SectionVoiceAudio, SectionVoiceStatus, ProductionProgress, MixedAudioOutput } from './ProjectCreator/reducer';
 
 interface EpisodeCreatorProps {
   project: Project;
@@ -38,26 +30,33 @@ interface ExtractedCharacter {
   assignedVoiceId?: string;
 }
 
+const initialProductionProgress: ProductionProgress = {
+  voiceGeneration: { status: 'idle', progress: 0, sectionStatus: {} },
+  mediaProduction: { status: 'idle', progress: 0 },
+  mixingEditing: { status: 'idle', progress: 0 },
+};
+
 export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorProps) {
   const { theme, religion } = useTheme();
   const { addEpisode } = useProjects();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [currentStep, setCurrentStep] = useState(1);
   
-  // Episode data
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const ReligionIcon = ReligionIconMap[religion];
+  const spec = project.spec;
+  
+  // Episode data - auto-generate default title
+  const defaultTitle = `${t.projectCreator.episode1?.replace('1', '') || 'Episode '}${project.episodes.length + 1}: ${project.title}`;
+  const [title] = useState(defaultTitle);
+  const [description] = useState(spec?.toneAndExpression || '');
   const [scriptSections, setScriptSections] = useState<ScriptSection[]>([]);
   const [characters, setCharacters] = useState<ExtractedCharacter[]>([]);
   
   // UI state
   const [editingSection, setEditingSection] = useState<string | null>(null);
-  const [availableVoices, setAvailableVoices] = useState<VoiceCharacter[]>([]);
-  const [generationProgress, setGenerationProgress] = useState(0);
-  const [generationStatus, setGenerationStatus] = useState('');
   const [isProcessingNext, setIsProcessingNext] = useState(false);
   
-  // Script upload and analysis state
+  // Content input state
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [textContent, setTextContent] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -65,22 +64,181 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
   const [streamingText, setStreamingText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const ReligionIcon = ReligionIconMap[religion];
-  const spec = project.spec;
+  // Voice state - matching ProjectCreator
+  const [availableVoices, setAvailableVoices] = useState<VoiceCharacter[]>([]);
+  const [systemVoices, setSystemVoices] = useState<api.Voice[]>([]);
+  const [voicesConfirmed, setVoicesConfirmed] = useState(false);
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
+  const [isRecommendingVoices, setIsRecommendingVoices] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Voice generation UI
+  const [expandedVoiceSections, setExpandedVoiceSections] = useState<Set<string>>(new Set());
+  const [playingSegmentId, setPlayingSegmentId] = useState<string | null>(null);
+  const segmentAudioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Production state - matching ProjectCreator
+  const [production, setProduction] = useState<ProductionProgress>(initialProductionProgress);
 
+  // 6-step workflow matching ProjectCreator Steps 3-8
   const STEPS = [
-    { id: 1, title: t.projectCreator.steps.scriptGeneration.title, description: t.projectCreator.steps.scriptGeneration.description },
-    { id: 2, title: t.projectCreator.steps.characterVoices.title, description: t.projectCreator.steps.characterVoices.description },
-    { id: 3, title: t.projectCreator.steps.generation.title, description: t.projectCreator.steps.generation.description },
-    { id: 4, title: t.projectCreator.steps.postProcessing.title, description: t.projectCreator.steps.postProcessing.description },
+    { 
+      id: 1, 
+      title: language === 'zh' ? '内容输入' : 'Content Input',
+      description: language === 'zh' ? '上传或输入您的内容' : 'Upload or enter your content'
+    },
+    { 
+      id: 2, 
+      title: language === 'zh' ? '脚本生成' : 'Script Generation',
+      description: language === 'zh' ? '生成时间轴脚本' : 'Generate timeline scripts'
+    },
+    { 
+      id: 3, 
+      title: language === 'zh' ? '语音生成' : 'Voice Generation',
+      description: language === 'zh' ? '逐段生成语音' : 'Chunk-by-chunk voice generation'
+    },
+    { 
+      id: 4, 
+      title: language === 'zh' ? '媒体制作' : 'Media Production',
+      description: language === 'zh' ? '音乐、音效和图片' : 'Music, sound effects, and images'
+    },
+    { 
+      id: 5, 
+      title: language === 'zh' ? '混音编辑' : 'Mixing & Editing',
+      description: language === 'zh' ? '混音和时间轴编辑' : 'Mixing and timeline editing'
+    },
+    { 
+      id: 6, 
+      title: language === 'zh' ? '保存' : 'Save',
+      description: language === 'zh' ? '确认并保存' : 'Confirm and save'
+    },
   ];
 
-  // Load available voices on mount
-  useEffect(() => {
-    setAvailableVoices(loadVoiceCharacters());
+  // ============================================================
+  // Production state helpers (replicate reducer actions via setState)
+  // ============================================================
+  const updateProductionPhase = useCallback((
+    phase: 'voice-generation' | 'media-production' | 'mixing-editing',
+    status: 'idle' | 'processing' | 'completed' | 'error',
+    progress: number,
+    detail?: string
+  ) => {
+    setProduction(prev => {
+      const next = { ...prev };
+      if (phase === 'voice-generation') {
+        next.voiceGeneration = { ...prev.voiceGeneration, status, progress, currentChunk: detail };
+      } else if (phase === 'media-production') {
+        next.mediaProduction = { ...prev.mediaProduction, status, progress, currentTask: detail };
+      } else if (phase === 'mixing-editing') {
+        next.mixingEditing = { ...prev.mixingEditing, status, progress };
+      }
+      return next;
+    });
   }, []);
 
-  // File upload handler
+  const updateSectionVoiceStatus = useCallback((
+    sectionId: string,
+    status: SectionVoiceStatus['status'],
+    progress?: number,
+    error?: string
+  ) => {
+    setProduction(prev => {
+      const sectionStatus = { ...prev.voiceGeneration.sectionStatus };
+      if (!sectionStatus[sectionId]) {
+        sectionStatus[sectionId] = { status: 'idle', progress: 0, audioSegments: [] };
+      }
+      sectionStatus[sectionId] = {
+        ...sectionStatus[sectionId],
+        status,
+        ...(progress !== undefined && { progress }),
+        ...(error !== undefined && { error }),
+      };
+      return {
+        ...prev,
+        voiceGeneration: { ...prev.voiceGeneration, sectionStatus },
+      };
+    });
+  }, []);
+
+  const addSectionVoiceAudio = useCallback((sectionId: string, audio: SectionVoiceAudio) => {
+    setProduction(prev => {
+      const sectionStatus = { ...prev.voiceGeneration.sectionStatus };
+      if (!sectionStatus[sectionId]) {
+        sectionStatus[sectionId] = { status: 'processing', progress: 0, audioSegments: [] };
+      }
+      sectionStatus[sectionId] = {
+        ...sectionStatus[sectionId],
+        audioSegments: [...sectionStatus[sectionId].audioSegments, audio],
+      };
+      return {
+        ...prev,
+        voiceGeneration: { ...prev.voiceGeneration, sectionStatus },
+      };
+    });
+  }, []);
+
+  const clearSectionVoice = useCallback((sectionId: string) => {
+    setProduction(prev => {
+      const sectionStatus = { ...prev.voiceGeneration.sectionStatus };
+      sectionStatus[sectionId] = { status: 'idle', progress: 0, audioSegments: [] };
+      return {
+        ...prev,
+        voiceGeneration: { ...prev.voiceGeneration, sectionStatus },
+      };
+    });
+  }, []);
+
+  const setCurrentSection = useCallback((sectionId: string | undefined) => {
+    setProduction(prev => ({
+      ...prev,
+      voiceGeneration: { ...prev.voiceGeneration, currentSectionId: sectionId },
+    }));
+  }, []);
+
+  const setBgmAudio = useCallback((audio: { audioData: string; mimeType: string }) => {
+    setProduction(prev => ({
+      ...prev,
+      mediaProduction: { ...prev.mediaProduction, bgmAudio: audio },
+    }));
+  }, []);
+
+  const setMixedOutput = useCallback((output: MixedAudioOutput) => {
+    setProduction(prev => ({
+      ...prev,
+      mixingEditing: { ...prev.mixingEditing, output, error: undefined },
+    }));
+  }, []);
+
+  const setMixingError = useCallback((error: string) => {
+    setProduction(prev => ({
+      ...prev,
+      mixingEditing: { ...prev.mixingEditing, error },
+    }));
+  }, []);
+
+  // ============================================================
+  // Load voices on mount
+  // ============================================================
+  useEffect(() => {
+    setAvailableVoices(loadVoiceCharacters());
+    api.getVoices()
+      .then(voices => setSystemVoices(voices))
+      .catch(err => console.error('Failed to load system voices:', err));
+  }, []);
+
+  // Stop voice preview when leaving voice generation step
+  useEffect(() => {
+    if (currentStep !== 3 && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+      setPlayingVoiceId(null);
+    }
+  }, [currentStep]);
+
+  // ============================================================
+  // File upload handlers
+  // ============================================================
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0) {
@@ -93,12 +251,10 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     }
   };
 
-  // Remove uploaded file
   const removeUploadedFile = (index: number) => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Drag and drop handlers
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -132,13 +288,14 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     }
   };
 
-  // Generate script from uploaded content using LLM
-  const generateScriptFromContent = async () => {
+  // ============================================================
+  // Script generation (streaming) - matching ProjectCreator
+  // ============================================================
+  const generateScript = async () => {
     setIsGeneratingScript(true);
     setStreamingText('');
 
     try {
-      // Collect content from text input and files
       const content = await collectAnalysisContent(textContent, uploadedFiles, { includeLabels: false });
 
       if (!content.trim()) {
@@ -157,7 +314,6 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         hasVisualContent: spec?.hasVisualContent || false,
       });
 
-      // Use backend streaming API for progressive generation
       const finalText = await api.generateTextStream(
         prompt,
         (chunk) => {
@@ -165,7 +321,6 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         }
       );
 
-      // Parse JSON from final response
       const jsonMatch = finalText.match(/```(?:json)?\s*([\s\S]*?)```/) || 
                         finalText.match(/\[[\s\S]*\]/);
       const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]).trim() : finalText;
@@ -173,7 +328,6 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
 
       if (sections && sections.length > 0) {
         setScriptSections(sections);
-        // Auto-expand the first section
         setEditingSection(sections[0].id);
       }
     } catch (error) {
@@ -185,28 +339,9 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     }
   };
 
-  // Check if there's content to analyze
-  const hasContentToAnalyze = textContent.trim().length > 0 || uploadedFiles.length > 0;
-
+  // ============================================================
   // Script editing functions
-  const addSection = () => {
-    const newSection: ScriptSection = {
-      id: `section-${Date.now()}`,
-      name: `${t.episodeEditor.script.defaultSectionName} ${scriptSections.length + 1}`,
-      description: '',
-      timeline: [{ id: `item-${Date.now()}`, timeStart: '', timeEnd: '', lines: [{ speaker: '', line: '' }], soundMusic: '' }]
-    };
-    setScriptSections([...scriptSections, newSection]);
-    setEditingSection(newSection.id);
-  };
-
-  const removeSection = (sectionId: string) => {
-    setScriptSections(sections => sections.filter(s => s.id !== sectionId));
-    if (editingSection === sectionId) {
-      setEditingSection(scriptSections[0]?.id || null);
-    }
-  };
-
+  // ============================================================
   const updateSectionInfo = (sectionId: string, field: 'name' | 'description' | 'coverImageDescription', value: string) => {
     setScriptSections(sections =>
       sections.map(section =>
@@ -325,7 +460,9 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     []
   );
 
-  // Extract characters from script
+  // ============================================================
+  // Character extraction & voice assignment
+  // ============================================================
   const extractCharacters = useCallback(() => {
     const speakerSet = new Set<string>();
     scriptSections.forEach(section => {
@@ -343,6 +480,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       assignedVoiceId: undefined,
     }));
     setCharacters(extractedChars);
+    setAvailableVoices(loadVoiceCharacters());
   }, [scriptSections]);
 
   const assignVoiceToCharacter = useCallback(
@@ -358,25 +496,345 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     []
   );
 
-  // Simulate generation process
-  const simulateGeneration = async () => {
-    const steps = [
-      { progress: 10, status: t.projectCreator.generation.preparingAudio },
-      { progress: 25, status: t.projectCreator.generation.synthesizingVoice },
-      { progress: 50, status: t.projectCreator.generation.addingBgm },
-      { progress: 75, status: t.projectCreator.generation.processingSoundEffects },
-      { progress: 90, status: t.projectCreator.generation.finalProcessing },
-      { progress: 100, status: t.projectCreator.generation.complete },
+  // AI recommend voices for all characters
+  const recommendVoicesForAll = useCallback(async () => {
+    const allVoices = [
+      ...systemVoices.map((v) => ({ id: v.id, name: v.name, description: v.description, descriptionZh: v.descriptionZh })),
+      ...availableVoices.map((v) => ({ id: v.id, name: v.name, description: v.description }))
     ];
+    if (characters.length === 0 || allVoices.length === 0) return;
+    setIsRecommendingVoices(true);
+    try {
+      const assignments = await api.recommendVoices({
+        characters: characters.map((c) => ({ name: c.name, description: c.description })),
+        voices: allVoices,
+        language: language === 'zh' ? 'zh' : 'en'
+      });
+      assignments.forEach((voiceId, index) => {
+        if (index < characters.length && voiceId) {
+          setCharacters(chars =>
+            chars.map((char, idx) =>
+              idx === index ? { ...char, assignedVoiceId: voiceId } : char
+            )
+          );
+        }
+      });
+    } catch (err) {
+      console.error('Recommend voices failed:', err);
+    } finally {
+      setIsRecommendingVoices(false);
+    }
+  }, [characters, systemVoices, availableVoices, language]);
 
-    for (const step of steps) {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setGenerationProgress(step.progress);
-      setGenerationStatus(step.status);
+  // Play voice sample preview
+  const playVoiceSample = async (voiceId: string) => {
+    if (playingVoiceId === voiceId) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      setPlayingVoiceId(null);
+      return;
+    }
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+
+    try {
+      setLoadingVoiceId(voiceId);
+      setPlayingVoiceId(null);
+      
+      const audio = await api.playVoiceSample(voiceId, language === 'zh' ? 'zh' : 'en');
+      audioRef.current = audio;
+      setPlayingVoiceId(voiceId);
+      setLoadingVoiceId(null);
+      
+      audio.onended = () => {
+        setPlayingVoiceId(null);
+        audioRef.current = null;
+      };
+      
+      audio.onerror = () => {
+        setPlayingVoiceId(null);
+        setLoadingVoiceId(null);
+        audioRef.current = null;
+      };
+    } catch (error) {
+      console.error('Failed to play voice sample:', error);
+      setLoadingVoiceId(null);
+      setPlayingVoiceId(null);
     }
   };
 
-  // Handle save episode
+  // Start voice generation after confirming voice assignments
+  const startVoiceGeneration = () => {
+    setVoicesConfirmed(true);
+    performVoiceGeneration();
+  };
+
+  // ============================================================
+  // Voice generation (real TTS) - ported from ProjectCreator
+  // ============================================================
+  const generateVoiceForSection = async (section: ScriptSection): Promise<boolean> => {
+    const sectionId = section.id;
+    
+    const segments: Array<{ text: string; speaker: string; refAudioDataUrl?: string; lineIndex: number }> = [];
+    let lineIndex = 0;
+    
+    for (const item of section.timeline) {
+      for (const line of item.lines) {
+        if (line.line.trim()) {
+          const character = characters.find(c => c.name === line.speaker);
+          const customVoice = availableVoices.find(v => v.id === character?.assignedVoiceId);
+          const refAudioDataUrl = customVoice?.refAudioDataUrl || customVoice?.audioSampleUrl;
+          
+          segments.push({
+            text: line.line,
+            speaker: line.speaker || 'Narrator',
+            refAudioDataUrl,
+            lineIndex
+          });
+        }
+        lineIndex++;
+      }
+    }
+    
+    if (segments.length === 0) {
+      updateSectionVoiceStatus(sectionId, 'completed', 100);
+      return true;
+    }
+    
+    updateSectionVoiceStatus(sectionId, 'processing', 0);
+    setCurrentSection(sectionId);
+    
+    let success = false;
+    try {
+      const batchSegments: api.AudioSegment[] = segments.map(seg => ({
+        text: seg.text,
+        speaker: seg.speaker,
+        refAudioDataUrl: seg.refAudioDataUrl
+      }));
+      
+      updateProductionPhase('voice-generation', 'processing', 0, `Generating ${segments.length} segments...`);
+      
+      const result = await api.generateAudioBatch(batchSegments);
+      
+      for (const generated of result.segments) {
+        const segment = segments[generated.index];
+        if (segment) {
+          const audio: SectionVoiceAudio = {
+            lineIndex: segment.lineIndex,
+            speaker: segment.speaker,
+            text: segment.text,
+            audioData: generated.audioData,
+            mimeType: generated.mimeType
+          };
+          addSectionVoiceAudio(sectionId, audio);
+        }
+      }
+      
+      if (result.errors && result.errors.length > 0) {
+        console.warn('Some segments failed:', result.errors);
+      }
+      
+      if (result.totalGenerated === 0 || (result.segments && result.segments.length === 0)) {
+        const errorMessages = result.errors?.map(e => e.error).filter(Boolean) || [];
+        const errorMsg = errorMessages.length > 0 
+          ? errorMessages[0] 
+          : (language === 'zh' ? '所有音频生成失败' : 'All audio segments failed to generate');
+        updateSectionVoiceStatus(sectionId, 'error', 0, errorMsg);
+        success = false;
+      } else if (result.errors && result.errors.length > 0) {
+        const failedCount = result.errors.length;
+        const totalCount = segments.length;
+        console.warn(`${failedCount}/${totalCount} segments failed`);
+        updateSectionVoiceStatus(sectionId, 'completed', 100);
+        success = true;
+      } else {
+        updateSectionVoiceStatus(sectionId, 'completed', 100);
+        success = true;
+      }
+    } catch (error) {
+      console.error('Section voice generation failed:', error);
+      updateSectionVoiceStatus(sectionId, 'error', 0, 
+        error instanceof Error ? error.message : 'Generation failed');
+      success = false;
+    }
+    
+    setCurrentSection(undefined);
+    return success;
+  };
+  
+  const performVoiceGeneration = async () => {
+    if (scriptSections.length === 0) {
+      updateProductionPhase('voice-generation', 'completed', 100);
+      return;
+    }
+    
+    updateProductionPhase('voice-generation', 'processing', 0);
+    
+    let failedSections = 0;
+    for (let i = 0; i < scriptSections.length; i++) {
+      const section = scriptSections[i];
+      const success = await generateVoiceForSection(section);
+      if (!success) failedSections++;
+      
+      const overallProgress = Math.round(((i + 1) / scriptSections.length) * 100);
+      updateProductionPhase('voice-generation', 'processing', overallProgress, section.name);
+    }
+    
+    if (failedSections === scriptSections.length) {
+      updateProductionPhase('voice-generation', 'error', 0, 
+        language === 'zh' ? '所有段落生成失败' : 'All sections failed');
+    } else if (failedSections > 0) {
+      updateProductionPhase('voice-generation', 'completed', 100, 
+        language === 'zh' ? `${failedSections} 个段落失败` : `${failedSections} section(s) failed`);
+    } else {
+      updateProductionPhase('voice-generation', 'completed', 100);
+    }
+  };
+
+  // ============================================================
+  // Media production (BGM, SFX, Images) - ported from ProjectCreator
+  // ============================================================
+  const performMediaProduction = async () => {
+    const tasks: { type: string; label: string }[] = [];
+    if (spec?.addBgm) tasks.push({ type: 'bgm', label: language === 'zh' ? '生成背景音乐' : 'Generating BGM' });
+    if (spec?.addSoundEffects) tasks.push({ type: 'sfx', label: language === 'zh' ? '添加音效' : 'Adding SFX' });
+    if (spec?.hasVisualContent) tasks.push({ type: 'images', label: language === 'zh' ? '生成图片' : 'Generating Images' });
+    
+    if (tasks.length === 0) {
+      updateProductionPhase('media-production', 'completed', 100);
+      return;
+    }
+    
+    for (let i = 0; i < tasks.length; i++) {
+      const task = tasks[i];
+      updateProductionPhase('media-production', 'processing', Math.round((i / tasks.length) * 100), task.label);
+      
+      try {
+        if (task.type === 'bgm') {
+          const bgmResult = await api.generateBGM(
+            spec?.toneAndExpression || '',
+            'peaceful',
+            30
+          );
+          setBgmAudio({
+            audioData: bgmResult.audioData,
+            mimeType: bgmResult.mimeType
+          });
+        } else if (task.type === 'sfx') {
+          for (const section of scriptSections) {
+            for (const item of section.timeline) {
+              if (item.soundMusic?.trim()) {
+                await api.generateSoundEffect(item.soundMusic, 5);
+              }
+            }
+          }
+        } else if (task.type === 'images') {
+          for (const section of scriptSections) {
+            if (section.coverImageDescription?.trim()) {
+              await api.generateCoverImage(section.coverImageDescription);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`${task.type} generation failed:`, error);
+      }
+      
+      updateProductionPhase('media-production', 'processing', Math.round(((i + 1) / tasks.length) * 100), task.label);
+    }
+    
+    updateProductionPhase('media-production', 'completed', 100);
+  };
+
+  // ============================================================
+  // Mixing - ported from ProjectCreator
+  // ============================================================
+  const performMixing = async () => {
+    try {
+      updateProductionPhase('mixing-editing', 'processing', 10);
+      
+      const mixConfig = getAudioMixConfig(null); // No template for episodes
+      
+      const voiceTracks: api.AudioTrack[] = [];
+      
+      for (const section of scriptSections) {
+        const sectionStatus = production.voiceGeneration.sectionStatus[section.id];
+        if (sectionStatus?.audioSegments) {
+          for (const segment of sectionStatus.audioSegments) {
+            if (segment.audioData) {
+              voiceTracks.push({
+                audioData: segment.audioData,
+                mimeType: segment.mimeType || 'audio/wav',
+                speaker: segment.speaker,
+                volume: 1
+              });
+            }
+          }
+        }
+      }
+      
+      if (voiceTracks.length === 0) {
+        setMixingError(language === 'zh' ? '没有可用的语音数据' : 'No voice data available');
+        updateProductionPhase('mixing-editing', 'completed', 100);
+        return;
+      }
+      
+      updateProductionPhase('mixing-editing', 'processing', 30);
+      
+      const mixRequest: api.MixRequest = {
+        voiceTracks,
+        config: {
+          silenceStartMs: mixConfig.silenceStartMs,
+          silenceEndMs: mixConfig.silenceEndMs,
+          sameSpeakerGapMs: mixConfig.sameSpeakerGapMs,
+          differentSpeakerGapMs: mixConfig.differentSpeakerGapMs,
+          sectionGapMs: mixConfig.sectionGapMs,
+          voiceVolume: mixConfig.voiceVolume,
+          bgmVolume: mixConfig.bgmVolume,
+          sfxVolume: mixConfig.sfxVolume,
+          bgmFadeInMs: mixConfig.bgmFadeInMs,
+          bgmFadeOutMs: mixConfig.bgmFadeOutMs,
+        }
+      };
+      
+      if (spec?.addBgm && production.mediaProduction.bgmAudio) {
+        mixRequest.bgmTrack = {
+          audioData: production.mediaProduction.bgmAudio.audioData,
+          mimeType: production.mediaProduction.bgmAudio.mimeType,
+        };
+      }
+      
+      updateProductionPhase('mixing-editing', 'processing', 50);
+      
+      console.log(`Mixing ${voiceTracks.length} voice tracks${mixRequest.bgmTrack ? ' with BGM' : ''}...`);
+      const result = await api.mixAudioTracks(mixRequest);
+      
+      updateProductionPhase('mixing-editing', 'processing', 90);
+      
+      setMixedOutput({
+        audioData: result.audioData,
+        mimeType: result.mimeType,
+        durationMs: result.durationMs
+      });
+      
+      console.log(`Mixing complete: ${result.durationMs}ms, ${result.trackCount} tracks`);
+      updateProductionPhase('mixing-editing', 'completed', 100);
+      
+    } catch (error) {
+      console.error('Mixing failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setMixingError(errorMessage);
+      updateProductionPhase('mixing-editing', 'completed', 100);
+    }
+  };
+
+  // ============================================================
+  // Save episode
+  // ============================================================
   const handleSave = () => {
     if (!title.trim()) {
       alert(t.episodeEditor.validation.titleRequired);
@@ -402,29 +860,65 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     onSuccess();
   };
 
-  // Navigation validation
+  // ============================================================
+  // Navigation
+  // ============================================================
   const canProceed = () => {
     switch (currentStep) {
-      case 1: return scriptSections.length > 0 && title.trim().length > 0;
-      case 2: return true;
-      case 3: return generationProgress === 100;
+      case 1: return textContent.trim().length > 0 || uploadedFiles.length > 0; // Content provided
+      case 2: return scriptSections.length > 0; // Script generated
+      case 3: return voicesConfirmed && production.voiceGeneration.status === 'completed'; // Voice done
+      case 4: return production.mediaProduction.status === 'completed'; // Media done
+      case 5: return production.mixingEditing.status === 'completed'; // Mixing done
       default: return true;
     }
   };
 
   const handleNext = async () => {
-    if (currentStep === 1 && scriptSections.length > 0) {
+    // Step 1 -> 2: Content provided, go to script generation (auto-trigger)
+    if (currentStep === 1) {
+      setCurrentStep(2);
+      setTimeout(() => {
+        generateScript();
+      }, 100);
+      return;
+    }
+    
+    // Step 2 -> 3: Script generated, extract characters and go to voice generation
+    if (currentStep === 2 && scriptSections.length > 0) {
       setIsProcessingNext(true);
-      await new Promise(resolve => setTimeout(resolve, 300));
       extractCharacters();
-      setIsProcessingNext(false);
-    }
-    if (currentStep === 2) {
-      setIsProcessingNext(true);
       await new Promise(resolve => setTimeout(resolve, 300));
-      simulateGeneration();
       setIsProcessingNext(false);
+      setCurrentStep(3);
+      setVoicesConfirmed(false);
+      return;
     }
+    
+    // Step 3 -> 4: Voice generation done, go to media production
+    if (currentStep === 3 && production.voiceGeneration.status === 'completed') {
+      setCurrentStep(4);
+      setTimeout(() => {
+        performMediaProduction();
+      }, 100);
+      return;
+    }
+    
+    // Step 4 -> 5: Media production done, go to mixing
+    if (currentStep === 4 && production.mediaProduction.status === 'completed') {
+      setCurrentStep(5);
+      setTimeout(() => {
+        performMixing();
+      }, 100);
+      return;
+    }
+    
+    // Step 5 -> 6: Mixing done, go to save
+    if (currentStep === 5 && production.mixingEditing.status === 'completed') {
+      setCurrentStep(6);
+      return;
+    }
+    
     if (currentStep < STEPS.length) setCurrentStep(currentStep + 1);
   };
 
@@ -432,469 +926,1037 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
-  // Render Step 1: Script Creation
-  const renderScriptStep = () => (
+  // Handle skip - save episode with current progress
+  const handleSkipAndSave = () => {
+    handleSave();
+  };
+
+  // Format duration from ms to mm:ss
+  const formatDuration = (ms: number): string => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // ============================================================
+  // Render Step 1: Content Input - matching ProjectCreator Step 3
+  // ============================================================
+  const renderContentInputStep = () => (
     <div className="space-y-6">
-      {/* Episode Title */}
+      {/* Text Input with File Attachment - same layout as ProjectCreator */}
       <div>
-        <label className="block text-sm font-medium text-white/70 mb-2">
-          {t.episodeEditor.form.title} <span className="text-red-400">*</span>
-        </label>
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder={t.episodeEditor.form.titlePlaceholder}
-          className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-white/30 focus:outline-none focus:border-white/20 transition-all"
-        />
-      </div>
-
-      {/* Episode Description */}
-      <div>
-        <label className="block text-sm font-medium text-white/70 mb-2">
-          {t.episodeEditor.form.description}
-        </label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder={t.episodeEditor.form.descriptionPlaceholder}
-          rows={3}
-          className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-white/30 focus:outline-none focus:border-white/20 transition-all resize-none"
-        />
-      </div>
-
-      {/* Script Upload Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h4 className="text-white font-medium">{t.projectCreator.spec.fileUpload}</h4>
-          {hasContentToAnalyze && (
-            <button
-              onClick={generateScriptFromContent}
-              disabled={isGeneratingScript}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm transition-all hover:scale-105"
-              style={{ background: theme.primary }}
-            >
-              {isGeneratingScript ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  {t.common.loading}
-                </>
-              ) : (
-                <>
-                  <Sparkles size={16} />
-                  {t.projectCreator.script.generateScript}
-                </>
-              )}
-            </button>
-          )}
-        </div>
-
-        {/* File Upload Area */}
-        <div
-          className={`border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${
-            isDragging ? 'border-white/40 bg-white/10' : 'border-white/10 hover:border-white/20'
+        <div 
+          className={`relative rounded-xl border transition-all ${
+            isDragging 
+              ? 'border-white/40 bg-white/10' 
+              : 'border-white/10 bg-white/5'
           }`}
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
         >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".txt,.pdf,.doc,.docx"
-            multiple
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-          <Upload size={32} className="mx-auto mb-3 text-white/30" />
-          <p className="text-white/60 text-sm mb-1">
-            {t.projectCreator.spec.uploadHint}
-          </p>
-          <p className="text-white/40 text-xs">
-            .txt, .pdf, .doc, .docx
-          </p>
-        </div>
-
-        {/* Uploaded Files List */}
-        {uploadedFiles.length > 0 && (
-          <div className="space-y-2">
-            {uploadedFiles.map((file, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between px-4 py-2 rounded-lg border border-white/10"
-                style={{ background: theme.bgCard }}
-              >
-                <div className="flex items-center gap-3">
-                  <FileText size={16} className="text-white/50" />
-                  <span className="text-white/80 text-sm">{file.name}</span>
-                  <span className="text-white/40 text-xs">({(file.size / 1024).toFixed(1)} KB)</span>
-                </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); removeUploadedFile(index); }}
-                  className="p-1.5 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Text Input */}
-        <div>
-          <label className="block text-xs text-white/50 mb-2">
-            {t.projectCreator.spec.textInput}
-          </label>
           <textarea
             value={textContent}
             onChange={(e) => setTextContent(e.target.value)}
-            placeholder={t.projectCreator.spec.contentPlaceholder}
-            rows={6}
-            className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-white/30 focus:outline-none focus:border-white/20 transition-all resize-none text-sm"
+            placeholder={language === 'zh' 
+              ? '粘贴或输入您的内容...\n\n例如：书籍章节、故事文本、播客脚本等' 
+              : 'Paste or enter your content...\n\nExample: Book chapter, story text, podcast script, etc.'}
+            rows={8}
+            className="w-full px-5 pt-4 pb-3 bg-transparent text-base text-white placeholder-white/30 focus:outline-none resize-none"
           />
-        </div>
-
-        {/* Streaming Preview */}
-        {isGeneratingScript && streamingText && (
-          <div 
-            className="rounded-xl p-4 border border-white/10 max-h-64 overflow-auto"
-            style={{ background: theme.bgCard }}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <Loader2 size={14} className="animate-spin text-white/50" />
-              <span className="text-xs text-white/50">{t.projectCreator.script.generating}</span>
-            </div>
-            <pre className="text-xs text-white/70 whitespace-pre-wrap font-mono">
-              {streamingText.slice(0, 500)}{streamingText.length > 500 ? '...' : ''}
-            </pre>
-          </div>
-        )}
-      </div>
-
-      {/* Script Sections */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h4 className="text-white font-medium">{t.episodeEditor.tabs.script}</h4>
-        </div>
-
-        {scriptSections.length === 0 ? (
-          <div className="text-center py-12">
-            <FileText size={48} className="mx-auto mb-4 text-white/20" />
-            <p className="text-white/50 mb-4">{t.episodeEditor.script.noScriptContent}</p>
+          
+          {/* Attachment Area */}
+          <div className="px-5 pb-4 pt-2 border-t border-white/5">
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileUpload}
+              accept=".txt,.pdf,.doc,.docx"
+              multiple
+              className="hidden"
+            />
+            
+            {/* Uploaded Files List */}
+            {uploadedFiles.length > 0 && (
+              <div className="mb-3 space-y-2">
+                {uploadedFiles.map((file, index) => (
+                  <div 
+                    key={index}
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg border border-white/10"
+                    style={{ background: `${theme.primary}10` }}
+                  >
+                    <FileText size={16} style={{ color: theme.primaryLight }} />
+                    <span className="flex-1 text-sm text-white truncate">{file.name}</span>
+                    <span className="text-xs text-white/40">{(file.size / 1024).toFixed(1)}KB</span>
+                    <button
+                      onClick={() => removeUploadedFile(index)}
+                      className="p-1 rounded hover:bg-white/10 text-white/40 hover:text-red-400 transition-all"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Add Attachment Button */}
             <button
-              onClick={addSection}
-              className="px-4 py-2 rounded-xl text-white text-sm"
-              style={{ background: theme.primary }}
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-white/50 hover:text-white/70 hover:bg-white/5 transition-all"
             >
-              <Plus size={16} className="inline mr-2" />
-              {t.episodeEditor.script.addSection}
+              <Upload size={16} />
+              <span>
+                {isDragging 
+                  ? (language === 'zh' ? '放开以上传' : 'Drop to upload')
+                  : (language === 'zh' ? '点击上传 TXT、PDF 或 Word 文件' : 'Click to upload TXT, PDF or Word file')}
+              </span>
             </button>
           </div>
-        ) : (
-          <>
-            {scriptSections.map((section) => (
-              <div 
-                key={section.id} 
-                className="rounded-xl border border-white/10 overflow-hidden"
-                style={{ background: theme.bgCard }}
-              >
-                <div 
-                  className="px-4 py-3 border-b border-white/10 cursor-pointer flex items-center justify-between"
-                  onClick={() => setEditingSection(editingSection === section.id ? null : section.id)}
-                >
-                  <div className="flex-1">
-                    <input
-                      type="text"
-                      value={section.name}
-                      onChange={(e) => { e.stopPropagation(); updateSectionInfo(section.id, 'name', e.target.value); }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="font-medium text-white bg-transparent border-none focus:outline-none w-full"
-                      placeholder={t.episodeEditor.script.sectionName}
-                    />
-                    <input
-                      type="text"
-                      value={section.description}
-                      onChange={(e) => { e.stopPropagation(); updateSectionInfo(section.id, 'description', e.target.value); }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-xs text-white/50 bg-transparent border-none focus:outline-none w-full mt-1"
-                      placeholder={t.episodeEditor.script.sectionDescription}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); removeSection(section.id); }}
-                      className="p-1.5 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                    <ChevronRight 
-                      size={20} 
-                      className={`text-white/50 transition-transform ${editingSection === section.id ? 'rotate-90' : ''}`} 
-                    />
-                  </div>
-                </div>
-                
-                {editingSection === section.id && (
-                  <div className="p-4 space-y-3">
-                    {/* Cover Image Description */}
-                    {spec?.hasVisualContent && (
-                      <div className="mb-4">
-                        <label className="block text-xs text-white/50 mb-1">{t.episodeEditor.script.coverDescription}</label>
-                        <input
-                          type="text"
-                          value={section.coverImageDescription || ''}
-                          onChange={(e) => updateSectionInfo(section.id, 'coverImageDescription', e.target.value)}
-                          placeholder={t.episodeEditor.script.describeCoverImage}
-                          className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20 text-sm"
-                        />
-                      </div>
-                    )}
-
-                    {section.timeline.map((item: ScriptTimelineItem, itemIndex: number) => (
-                      <div key={item.id} className="rounded-lg border border-white/10 p-3 space-y-3" style={{ background: 'rgba(255,255,255,0.02)' }}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] text-white/40 w-4">{itemIndex + 1}</span>
-                            <input type="text" value={item.timeStart} onChange={(e) => updateTimelineItem(section.id, item.id, 'timeStart', e.target.value)} placeholder="00:00" className="w-14 px-2 py-1 rounded border border-white/10 bg-white/5 text-white text-xs focus:outline-none" />
-                            <span className="text-white/30 text-xs">-</span>
-                            <input type="text" value={item.timeEnd} onChange={(e) => updateTimelineItem(section.id, item.id, 'timeEnd', e.target.value)} placeholder="00:15" className="w-14 px-2 py-1 rounded border border-white/10 bg-white/5 text-white text-xs focus:outline-none" />
-                          </div>
-                          <button onClick={() => removeTimelineItem(section.id, item.id)} className="p-1.5 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400"><Trash2 size={14} /></button>
-                        </div>
-                        
-                        {/* Lines */}
-                        <div className="space-y-2">
-                          <label className="block text-[10px] text-white/40">{t.episodeEditor.script.lines}</label>
-                          {(item.lines || []).map((scriptLine, lineIndex) => (
-                            <div key={lineIndex} className="flex items-start gap-2">
-                              <input 
-                                type="text" 
-                                value={scriptLine.speaker} 
-                                onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
-                                placeholder={t.episodeEditor.script.speaker}
-                                className="w-24 px-2 py-1.5 rounded border border-white/10 bg-white/5 text-white text-xs focus:outline-none flex-shrink-0" 
-                              />
-                              <textarea 
-                                value={scriptLine.line} 
-                                onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
-                                placeholder={t.episodeEditor.script.lineContent}
-                                rows={2}
-                                className="flex-1 px-2 py-1.5 rounded border border-white/10 bg-white/5 text-white text-xs focus:outline-none resize-none" 
-                              />
-                              <button 
-                                onClick={() => removeScriptLine(section.id, item.id, lineIndex)} 
-                                className="p-1.5 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 flex-shrink-0"
-                              >
-                                <X size={12} />
-                              </button>
-                            </div>
-                          ))}
-                          <button 
-                            onClick={() => addScriptLine(section.id, item.id)} 
-                            className="flex items-center gap-1 text-[10px] text-white/40 hover:text-white/60"
-                          >
-                            <Plus size={10} />{t.episodeEditor.script.addLine}
-                          </button>
-                        </div>
-
-                        {/* Sound/Music */}
-                        {(spec?.addBgm || spec?.addSoundEffects) && (
-                          <div>
-                            <label className="block text-[10px] text-white/40 mb-1">{t.episodeEditor.script.soundMusic}</label>
-                            <input type="text" value={item.soundMusic} onChange={(e) => updateTimelineItem(section.id, item.id, 'soundMusic', e.target.value)} placeholder={t.episodeEditor.script.bgmSoundEffects} className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white text-sm focus:outline-none" />
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    <button onClick={() => addTimelineItem(section.id)} className="flex items-center gap-2 text-xs text-white/50 hover:text-white">
-                      <Plus size={14} />{t.episodeEditor.script.addSegment}
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {/* Add Section Button */}
-            <button
-              onClick={addSection}
-              className="w-full py-3 rounded-xl border border-dashed border-white/20 text-white/50 hover:text-white hover:border-white/40 transition-all flex items-center justify-center gap-2"
-            >
-              <Plus size={16} />
-              {t.episodeEditor.script.addSection}
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-
-  // Render Step 2: Character Extraction
-  const renderCharacterStep = () => (
-    <div className="space-y-6">
-      {characters.length === 0 ? (
-        <div className="text-center py-8">
-          <User size={48} className="mx-auto mb-4 text-white/30" />
-          <p className="text-white/50">{t.episodeEditor.characters.noCharacters}</p>
-          <p className="text-xs text-white/40 mt-2">{t.episodeEditor.characters.charactersExtracted}</p>
-        </div>
-      ) : (
-        <>
-          <p className="text-sm text-white/50">
-            {t.episodeEditor.characters.assignVoices}
-          </p>
-
-          {characters.map((char, index) => (
-            <div 
-              key={index}
-              className="rounded-xl p-4 border border-white/10"
-              style={{ background: theme.bgCard }}
-            >
-              <div className="flex items-center gap-4 mb-3">
-                <div 
-                  className="w-10 h-10 rounded-xl flex items-center justify-center"
-                  style={{ background: `${theme.primary}20` }}
-                >
-                  <User size={20} style={{ color: theme.primaryLight }} />
-                </div>
-                <div>
-                  <h4 className="text-white font-medium">{char.name}</h4>
-                  <p className="text-xs text-white/50">{char.description || t.episodeEditor.characters.selectVoice}</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {availableVoices.length > 0 ? (
-                  availableVoices.map((voice) => (
-                    <button
-                      key={voice.id}
-                      onClick={() => assignVoiceToCharacter(index, voice.id)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
-                        char.assignedVoiceId === voice.id ? 'text-white' : 'text-white/60 border border-white/10'
-                      }`}
-                      style={char.assignedVoiceId === voice.id ? { background: theme.primary } : {}}
-                    >
-                      <Volume2 size={14} />{voice.name}
-                    </button>
-                  ))
-                ) : (
-                  <p className="text-sm text-white/40">{t.episodeEditor.characters.noVoicesAvailable}</p>
-                )}
-              </div>
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  );
-
-  // Render Step 3: Generation
-  const renderGenerationStep = () => (
-    <div className="space-y-6">
-      <div className="text-center py-8">
-        {generationProgress < 100 ? (
-          <>
-            <div className="w-24 h-24 mx-auto mb-6 relative">
-              <div className="absolute inset-0 rounded-full border-4 border-white/10" />
-              <div 
-                className="absolute inset-0 rounded-full border-4 border-transparent transition-all duration-500"
-                style={{ 
-                  borderTopColor: theme.primary,
-                  borderRightColor: generationProgress > 25 ? theme.primary : 'transparent',
-                  borderBottomColor: generationProgress > 50 ? theme.primary : 'transparent',
-                  borderLeftColor: generationProgress > 75 ? theme.primary : 'transparent',
-                  transform: `rotate(${generationProgress * 3.6}deg)`
-                }}
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-2xl font-light text-white">{generationProgress}%</span>
-              </div>
-            </div>
-            <p className="text-white/70">{generationStatus}</p>
-          </>
-        ) : (
-          <>
-            <div 
-              className="w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center"
-              style={{ background: `${theme.primary}30` }}
-            >
-              <Check size={48} style={{ color: theme.primaryLight }} />
-            </div>
-            <h3 className="text-xl font-serif text-white mb-2">
-              {t.projectCreator.generation.complete}
-            </h3>
-            <p className="text-white/50 text-sm">
-              {t.projectCreator.generation.audioReady}
-            </p>
-          </>
-        )}
-      </div>
-
-      {/* Preview Cards */}
-      {generationProgress === 100 && (
-        <div className="grid grid-cols-2 gap-4">
-          <div 
-            className="rounded-xl p-3 border border-white/10"
-            style={{ background: theme.bgCard }}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <Music size={16} style={{ color: theme.primaryLight }} />
-              <span className="text-white text-sm font-medium">{t.projectCreator.generation.audioPreview}</span>
-            </div>
-            <div className="h-12 rounded-lg flex items-center justify-center" style={{ background: `${theme.primary}10` }}>
-              <Play size={20} className="text-white/40" />
-            </div>
-          </div>
-          {spec?.hasVisualContent && (
-            <div 
-              className="rounded-xl p-3 border border-white/10"
-              style={{ background: theme.bgCard }}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <Image size={16} style={{ color: theme.primaryLight }} />
-                <span className="text-white text-sm font-medium">{t.projectCreator.generation.visualPreview}</span>
-              </div>
-              <div className="h-12 rounded-lg flex items-center justify-center" style={{ background: `${theme.primary}10` }}>
-                <Image size={20} className="text-white/40" />
+          
+          {/* Drag Overlay */}
+          {isDragging && (
+            <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/5 backdrop-blur-sm pointer-events-none">
+              <div className="flex flex-col items-center gap-2 text-white/70">
+                <Upload size={36} />
+                <span className="text-base font-medium">
+                  {language === 'zh' ? '放开以上传' : 'Drop to upload'}
+                </span>
               </div>
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 
-  // Render Step 4: Post-processing
-  const renderPostProcessingStep = () => (
+  // ============================================================
+  // Render Step 2: Script Generation - matching ProjectCreator Step 4
+  // ============================================================
+  const renderScriptStep = () => (
     <div className="space-y-6">
+      {/* Generate Script Button - shown when no sections and not generating */}
+      {scriptSections.length === 0 && !isGeneratingScript && (
+        <button
+          onClick={generateScript}
+          disabled={isGeneratingScript}
+          className="w-full flex items-center justify-center gap-3 px-5 py-5 rounded-xl text-base text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ background: theme.primary }}
+        >
+          <Sparkles size={22} />
+          {t.projectCreator.generateScript}
+        </button>
+      )}
+
+      {/* Streaming Text Display - Shows during generation */}
+      {isGeneratingScript && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div 
+              className="w-10 h-10 rounded-lg flex items-center justify-center"
+              style={{ background: `${theme.primary}30` }}
+            >
+              <Loader2 size={20} className="animate-spin" style={{ color: theme.primaryLight }} />
+            </div>
+            <div>
+              <p className="text-base text-white font-medium">{t.projectCreator.generating}</p>
+              <p className="text-sm text-white/50">
+                {language === 'zh' 
+                  ? 'AI 正在编写脚本...'
+                  : 'AI is writing the script...'
+                }
+              </p>
+            </div>
+          </div>
+          
+          {/* Streaming content preview */}
+          {streamingText && (
+            <div 
+              className="rounded-xl border border-white/10 p-5 max-h-[400px] overflow-auto"
+              style={{ background: theme.bgCard }}
+            >
+              <pre className="text-sm text-white/70 whitespace-pre-wrap font-mono">
+                {streamingText.slice(0, 1000)}{streamingText.length > 1000 ? '...' : ''}
+              </pre>
+            </div>
+          )}
+
+          {/* Waiting state */}
+          {!streamingText && (
+            <div className="flex items-center justify-center py-8 text-white/40">
+              <Loader2 size={20} className="animate-spin mr-2" />
+              <span className="text-sm">{language === 'zh' ? '正在解析脚本结构...' : 'Parsing script structure...'}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Regenerate Button - shown when sections exist */}
+      {scriptSections.length > 0 && (
+        <div className="flex items-center justify-between">
+          <h4 className="text-base text-white font-medium">{t.projectCreator.scriptLabel}</h4>
+          <button
+            onClick={generateScript}
+            disabled={isGeneratingScript}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-base text-white/70 hover:text-white transition-all"
+            style={{ background: `${theme.primary}30` }}
+          >
+            <RefreshCw size={16} className={isGeneratingScript ? 'animate-spin' : ''} />
+            {t.projectCreator.regen}
+          </button>
+        </div>
+      )}
+
+      {/* Script Sections - matching ProjectCreator layout */}
+      {scriptSections.map((section) => (
+        <div 
+          key={section.id} 
+          className="rounded-xl border border-white/10 overflow-hidden"
+          style={{ background: theme.bgCard }}
+        >
+          <div 
+            className="px-5 py-4 border-b border-white/10 cursor-pointer flex items-center justify-between"
+            onClick={() => setEditingSection(editingSection === section.id ? null : section.id)}
+          >
+            <div>
+              <h4 className="text-base font-medium text-white">{section.name}</h4>
+              <p className="text-sm text-white/50">{section.description}</p>
+            </div>
+            <ChevronRight 
+              size={22} 
+              className={`text-white/50 transition-transform ${editingSection === section.id ? 'rotate-90' : ''}`} 
+            />
+          </div>
+          
+          {editingSection === section.id && (
+            <div className="p-5 space-y-5">
+              {/* Cover Image Description */}
+              {spec?.hasVisualContent && (
+                <div>
+                  <label className="block text-sm text-white/50 mb-2">{t.projectCreator.cover}</label>
+                  <input
+                    type="text"
+                    value={section.coverImageDescription || ''}
+                    onChange={(e) => updateSectionInfo(section.id, 'coverImageDescription', e.target.value)}
+                    placeholder={t.projectCreator.describeCover}
+                    className="w-full px-4 py-3 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20"
+                  />
+                </div>
+              )}
+
+              {/* Timeline */}
+              <div className="space-y-4">
+                {section.timeline.map((item: ScriptTimelineItem, itemIndex: number) => (
+                  <div 
+                    key={item.id} 
+                    className="rounded-lg border border-white/10 p-4 space-y-4"
+                    style={{ background: 'rgba(255,255,255,0.02)' }}
+                  >
+                    {/* Header: Time + Delete */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-white/40 w-5">{itemIndex + 1}</span>
+                        <input
+                          type="text"
+                          value={item.timeStart}
+                          onChange={(e) => updateTimelineItem(section.id, item.id, 'timeStart', e.target.value)}
+                          placeholder="00:00"
+                          className="w-16 px-3 py-2 rounded border border-white/10 bg-white/5 text-white text-sm focus:outline-none"
+                        />
+                        <span className="text-white/30 text-sm">-</span>
+                        <input
+                          type="text"
+                          value={item.timeEnd}
+                          onChange={(e) => updateTimelineItem(section.id, item.id, 'timeEnd', e.target.value)}
+                          placeholder="00:15"
+                          className="w-16 px-3 py-2 rounded border border-white/10 bg-white/5 text-white text-sm focus:outline-none"
+                        />
+                      </div>
+                      <button
+                        onClick={() => removeTimelineItem(section.id, item.id)}
+                        className="p-2 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-all"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                    
+                    {/* Lines (Speaker + Line pairs) */}
+                    <div className="space-y-3">
+                      <label className="block text-xs text-white/40">{t.projectCreator.lines}</label>
+                      {(item.lines || []).map((scriptLine, lineIndex) => (
+                        <div key={lineIndex} className="flex items-start gap-3">
+                          <input 
+                            type="text" 
+                            value={scriptLine.speaker} 
+                            onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
+                            placeholder={t.projectCreator.speaker}
+                            className="w-28 px-3 py-2 rounded border border-white/10 bg-white/5 text-white text-sm focus:outline-none flex-shrink-0" 
+                          />
+                          <textarea 
+                            value={scriptLine.line} 
+                            onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
+                            placeholder={t.projectCreator.lineContent}
+                            rows={2}
+                            className="flex-1 px-3 py-2 rounded border border-white/10 bg-white/5 text-white text-sm focus:outline-none resize-none" 
+                          />
+                          <button 
+                            onClick={() => removeScriptLine(section.id, item.id, lineIndex)} 
+                            className="p-2 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 flex-shrink-0"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
+                      <button 
+                        onClick={() => addScriptLine(section.id, item.id)} 
+                        className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/60"
+                      >
+                        <Plus size={12} />{t.projectCreator.addLine}
+                      </button>
+                    </div>
+                    
+                    {/* Sound/Music */}
+                    {(spec?.addBgm || spec?.addSoundEffects) && (
+                      <div>
+                        <label className="block text-xs text-white/40 mb-2">{t.projectCreator.soundMusic}</label>
+                        <input
+                          type="text"
+                          value={item.soundMusic}
+                          onChange={(e) => updateTimelineItem(section.id, item.id, 'soundMusic', e.target.value)}
+                          placeholder={t.projectCreator.bgmSoundEffects}
+                          className="w-full px-4 py-3 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Add Timeline Item */}
+              <button
+                onClick={() => addTimelineItem(section.id)}
+                className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-all"
+              >
+                <Plus size={16} />
+                {t.projectCreator.addSegment}
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  // ============================================================
+  // Render Step 3: Voice Generation - ported from ProjectCreator
+  // ============================================================
+  const renderVoiceGenerationStep = () => {
+    const { voiceGeneration } = production;
+    
+    // Show voice assignment UI before confirming
+    if (!voicesConfirmed) {
+      return (
+        <div className="space-y-6">
+          <div className="text-center py-4">
+            <div 
+              className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
+              style={{ background: `${theme.primary}20` }}
+            >
+              <Mic2 size={32} style={{ color: theme.primaryLight }} />
+            </div>
+            <h3 className="text-xl font-medium text-white mb-2">
+              {language === 'zh' ? '角色音色配置' : 'Character Voice Configuration'}
+            </h3>
+            <p className="text-base text-white/50">
+              {language === 'zh' 
+                ? '为每个角色选择音色，确认后开始语音合成' 
+                : 'Assign voices to each character, then start synthesis'}
+            </p>
+          </div>
+
+          {/* Character voice assignment list */}
+          {characters.length > 0 && (
+            <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: theme.bgCard }}>
+              <div className="px-5 py-3 border-b border-white/10 flex items-center justify-between">
+                <span className="text-sm text-white/50">
+                  {language === 'zh' ? '角色音色分配' : 'Character Voice Assignment'}
+                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={recommendVoicesForAll}
+                    disabled={isRecommendingVoices || systemVoices.length + availableVoices.length === 0}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
+                    style={{ background: `${theme.primary}25`, color: theme.primaryLight }}
+                    title={language === 'zh' ? '用 AI 为每个角色推荐最合适的预置音色' : 'Use AI to recommend the best preset voice for each character'}
+                  >
+                    {isRecommendingVoices ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Wand2 size={16} />
+                    )}
+                    {language === 'zh' ? 'AI 推荐音色' : 'Recommend with AI'}
+                  </button>
+                  <span className="text-xs text-white/40">
+                    {characters.length} {language === 'zh' ? '个角色' : 'characters'}
+                  </span>
+                </div>
+              </div>
+              <div className="p-4 space-y-3">
+                {characters.map((char, index) => {
+                  const assignedVoiceId = char.assignedVoiceId;
+                  const assignedSystemVoice = systemVoices.find(v => v.id === assignedVoiceId);
+                  const assignedCustomVoice = availableVoices.find(v => v.id === assignedVoiceId);
+                  const hasAssignment = assignedSystemVoice || assignedCustomVoice;
+                  
+                  return (
+                    <div key={index} className="flex items-center gap-4 p-4 rounded-lg bg-white/5 border border-white/5">
+                      <div className="w-12 h-12 rounded-full flex items-center justify-center bg-white/10">
+                        <User size={20} className="text-white/60" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base text-white font-medium truncate">{char.name}</p>
+                        {char.description && (
+                          <p className="text-sm text-white/40 truncate">{char.description}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={assignedVoiceId || ''}
+                          onChange={(e) => assignVoiceToCharacter(index, e.target.value)}
+                          className="px-4 py-2.5 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20 min-w-[160px]"
+                          style={{ background: hasAssignment ? `${theme.primary}15` : 'rgba(255,255,255,0.05)' }}
+                        >
+                          <option value="" className="bg-gray-900">
+                            {language === 'zh' ? '选择音色...' : 'Select voice...'}
+                          </option>
+                          {systemVoices.length > 0 && (
+                            <optgroup label={language === 'zh' ? '系统音色' : 'System Voices'}>
+                              {systemVoices.map((voice) => (
+                                <option key={voice.id} value={voice.id} className="bg-gray-900">
+                                  {voice.name} - {language === 'zh' ? voice.descriptionZh : voice.description}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {availableVoices.length > 0 && (
+                            <optgroup label={language === 'zh' ? '自定义音色' : 'Custom Voices'}>
+                              {availableVoices.map((voice) => (
+                                <option key={voice.id} value={voice.id} className="bg-gray-900">
+                                  {voice.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </select>
+                        {assignedSystemVoice && (
+                          <button 
+                            onClick={() => playVoiceSample(assignedSystemVoice.id)}
+                            disabled={loadingVoiceId === assignedSystemVoice.id}
+                            className={`p-2.5 rounded-lg transition-all ${
+                              playingVoiceId === assignedSystemVoice.id 
+                                ? 'text-white' 
+                                : 'text-white/50 hover:text-white hover:bg-white/10'
+                            }`}
+                            style={playingVoiceId === assignedSystemVoice.id ? { background: theme.primary } : {}}
+                            title={language === 'zh' ? '试听' : 'Preview'}
+                          >
+                            {loadingVoiceId === assignedSystemVoice.id ? (
+                              <Loader2 size={18} className="animate-spin" />
+                            ) : playingVoiceId === assignedSystemVoice.id ? (
+                              <Square size={16} />
+                            ) : (
+                              <Play size={18} />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* No characters message */}
+          {characters.length === 0 && (
+            <div className="text-center py-10 text-white/40">
+              <User size={40} className="mx-auto mb-3 opacity-50" />
+              <p>{language === 'zh' ? '未检测到角色' : 'No characters detected'}</p>
+            </div>
+          )}
+
+          {/* Voice studio hint */}
+          {availableVoices.length === 0 && (
+            <div 
+              className="p-4 rounded-xl border border-white/10 flex items-start gap-3"
+              style={{ background: `${theme.primary}10` }}
+            >
+              <Sparkles size={20} className="flex-shrink-0 mt-0.5" style={{ color: theme.primaryLight }} />
+              <div>
+                <p className="text-sm text-white/70">
+                  {language === 'zh' 
+                    ? '您可以在"音色工作室"中创建自定义音色，或使用系统默认音色。' 
+                    : 'You can create custom voices in Voice Studio, or use system default voices.'}
+                </p>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+    
+    // Show section-by-section voice generation UI after confirming
+    const { sectionStatus } = voiceGeneration;
+    const completedSections = scriptSections.filter(s => sectionStatus[s.id]?.status === 'completed').length;
+    const allCompleted = completedSections === scriptSections.length && scriptSections.length > 0;
+    
+    return (
+      <div className="space-y-6">
+        {/* Overall progress header */}
+        <div className="text-center py-4">
+          <div 
+            className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
+            style={{ background: `${theme.primary}20` }}
+          >
+            {allCompleted ? (
+              <Check size={32} style={{ color: theme.primaryLight }} />
+            ) : (
+              <Mic2 size={32} className={voiceGeneration.status === 'processing' ? 'animate-pulse' : ''} style={{ color: theme.primaryLight }} />
+            )}
+          </div>
+          <h3 className="text-xl font-medium text-white mb-2">
+            {language === 'zh' ? '逐段语音生成' : 'Section-by-Section Voice Generation'}
+          </h3>
+          <p className="text-base text-white/50">
+            {allCompleted 
+              ? (language === 'zh' ? '所有段落已完成' : 'All sections completed')
+              : `${completedSections}/${scriptSections.length} ${language === 'zh' ? '段落已完成' : 'sections completed'}`
+            }
+          </p>
+        </div>
+
+        {/* Section list with individual controls */}
+        <div className="space-y-4">
+          {scriptSections.map((section, index) => {
+            const status = sectionStatus[section.id] || { status: 'idle', progress: 0, audioSegments: [] };
+            const isCurrentSection = voiceGeneration.currentSectionId === section.id;
+            const lineCount = section.timeline.reduce((acc, item) => acc + (item.lines?.filter(l => l.line.trim()).length || 0), 0);
+            
+            return (
+              <div 
+                key={section.id}
+                className={`rounded-xl border overflow-hidden transition-all ${
+                  isCurrentSection ? 'border-white/30' : 'border-white/10'
+                }`}
+                style={{ background: theme.bgCard }}
+              >
+                {/* Section header */}
+                <div 
+                  className={`px-5 py-4 flex items-center gap-4 ${
+                    status.status === 'completed' && status.audioSegments.length > 0 
+                      ? 'cursor-pointer hover:bg-white/5 transition-colors' 
+                      : ''
+                  }`}
+                  onClick={() => {
+                    if (status.status === 'completed' && status.audioSegments.length > 0) {
+                      setExpandedVoiceSections(prev => {
+                        const next = new Set(prev);
+                        if (next.has(section.id)) {
+                          next.delete(section.id);
+                          if (segmentAudioRef.current) {
+                            segmentAudioRef.current.pause();
+                            segmentAudioRef.current = null;
+                          }
+                          setPlayingSegmentId(null);
+                        } else {
+                          next.add(section.id);
+                        }
+                        return next;
+                      });
+                    }
+                  }}
+                >
+                  {/* Status icon */}
+                  <div 
+                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ 
+                      background: status.status === 'completed' 
+                        ? `${theme.primary}30` 
+                        : status.status === 'processing' 
+                          ? `${theme.primary}20` 
+                          : status.status === 'error'
+                            ? 'rgba(239, 68, 68, 0.2)'
+                            : 'rgba(255,255,255,0.05)'
+                    }}
+                  >
+                    {status.status === 'completed' ? (
+                      <Check size={20} style={{ color: theme.primaryLight }} />
+                    ) : status.status === 'processing' ? (
+                      <Loader2 size={20} className="animate-spin" style={{ color: theme.primaryLight }} />
+                    ) : status.status === 'error' ? (
+                      <X size={20} className="text-red-400" />
+                    ) : (
+                      <span className="text-white/40 text-sm font-medium">{index + 1}</span>
+                    )}
+                  </div>
+                  
+                  {/* Section info */}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-base font-medium text-white truncate">{section.name}</h4>
+                    <p className="text-sm text-white/40">
+                      {lineCount} {language === 'zh' ? '条对话' : 'lines'}
+                      {status.status === 'completed' && status.audioSegments.length > 0 && (
+                        <span className="ml-2 text-green-400">
+                          · {status.audioSegments.length} {language === 'zh' ? '条音频' : 'audio clips'}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                    {status.status === 'processing' && (
+                      <span className="text-sm font-medium" style={{ color: theme.primaryLight }}>
+                        {status.progress}%
+                      </span>
+                    )}
+                    
+                    {(status.status === 'idle' || status.status === 'error') && (
+                      <button
+                        onClick={() => generateVoiceForSection(section)}
+                        disabled={voiceGeneration.status === 'processing'}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                        style={{ background: theme.primary }}
+                      >
+                        <Mic2 size={16} />
+                        {status.status === 'error' 
+                          ? (language === 'zh' ? '重试' : 'Retry')
+                          : (language === 'zh' ? '生成' : 'Generate')
+                        }
+                      </button>
+                    )}
+                    
+                    {status.status === 'completed' && (
+                      <button
+                        onClick={() => {
+                          clearSectionVoice(section.id);
+                          generateVoiceForSection(section);
+                        }}
+                        disabled={voiceGeneration.status === 'processing'}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/10 transition-all disabled:opacity-50"
+                        title={language === 'zh' ? '重新生成' : 'Regenerate'}
+                      >
+                        <RefreshCw size={16} />
+                      </button>
+                    )}
+                    
+                    {status.status === 'completed' && status.audioSegments.length > 0 && (
+                      <ChevronDown 
+                        size={18} 
+                        className={`text-white/40 transition-transform duration-200 ${
+                          expandedVoiceSections.has(section.id) ? 'rotate-180' : ''
+                        }`} 
+                      />
+                    )}
+                  </div>
+                </div>
+                
+                {/* Progress bar for processing sections */}
+                {status.status === 'processing' && (
+                  <div className="px-5 pb-4">
+                    <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                      <div 
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{ width: `${status.progress}%`, background: theme.primary }}
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                {/* Error message */}
+                {status.status === 'error' && status.error && (
+                  <div className="px-5 pb-4">
+                    <p className="text-sm text-red-400">{status.error}</p>
+                  </div>
+                )}
+                
+                {/* Expanded audio segment list */}
+                {status.status === 'completed' && status.audioSegments.length > 0 && expandedVoiceSections.has(section.id) && (
+                  <div className="border-t border-white/5">
+                    <div className="divide-y divide-white/5">
+                      {status.audioSegments.map((audio, audioIndex) => {
+                        const segId = `${section.id}-${audioIndex}`;
+                        const isPlaying = playingSegmentId === segId;
+                        return (
+                          <div 
+                            key={audioIndex}
+                            className="px-5 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
+                          >
+                            <button
+                              onClick={() => {
+                                if (isPlaying) {
+                                  if (segmentAudioRef.current) {
+                                    segmentAudioRef.current.pause();
+                                    segmentAudioRef.current = null;
+                                  }
+                                  setPlayingSegmentId(null);
+                                } else {
+                                  if (segmentAudioRef.current) {
+                                    segmentAudioRef.current.pause();
+                                    segmentAudioRef.current = null;
+                                  }
+                                  const audioUrl = api.audioDataToUrl(audio.audioData, audio.mimeType);
+                                  const audioEl = new Audio(audioUrl);
+                                  audioEl.onended = () => {
+                                    setPlayingSegmentId(null);
+                                    segmentAudioRef.current = null;
+                                  };
+                                  audioEl.play().catch(() => {
+                                    setPlayingSegmentId(null);
+                                    segmentAudioRef.current = null;
+                                  });
+                                  segmentAudioRef.current = audioEl;
+                                  setPlayingSegmentId(segId);
+                                }
+                              }}
+                              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:scale-110"
+                              style={{ background: isPlaying ? theme.primary : `${theme.primary}30` }}
+                            >
+                              {isPlaying ? (
+                                <Pause size={14} className="text-white" />
+                              ) : (
+                                <Play size={14} className="ml-0.5" style={{ color: theme.primaryLight }} />
+                              )}
+                            </button>
+                            
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium text-white/80">{audio.speaker}</span>
+                              <p className="text-xs text-white/40 truncate mt-0.5">{audio.text}</p>
+                            </div>
+                            
+                            <span className="text-xs text-white/20 flex-shrink-0">#{audio.lineIndex + 1}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Generate all button */}
+        {!allCompleted && (
+          <button
+            onClick={performVoiceGeneration}
+            disabled={voiceGeneration.status === 'processing'}
+            className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-xl text-base text-white font-medium transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            style={{ background: `${theme.primary}80` }}
+          >
+            {voiceGeneration.status === 'processing' ? (
+              <Loader2 size={22} className="animate-spin" />
+            ) : (
+              <Mic2 size={22} />
+            )}
+            {language === 'zh' ? '一键生成全部' : 'Generate All Sections'}
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  // ============================================================
+  // Render Step 4: Media Production - ported from ProjectCreator
+  // ============================================================
+  const renderMediaProductionStep = () => {
+    const { mediaProduction } = production;
+    const hasBgm = spec?.addBgm;
+    const hasSfx = spec?.addSoundEffects;
+    const hasImages = spec?.hasVisualContent;
+    
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-6">
+          <div 
+            className="w-20 h-20 mx-auto mb-5 rounded-full flex items-center justify-center"
+            style={{ background: `${theme.primary}20` }}
+          >
+            {mediaProduction.status === 'completed' ? (
+              <Check size={40} style={{ color: theme.primaryLight }} />
+            ) : (
+              <Music size={40} className={mediaProduction.status === 'processing' ? 'animate-pulse' : ''} style={{ color: theme.primaryLight }} />
+            )}
+          </div>
+          <h3 className="text-xl font-medium text-white mb-2">
+            {language === 'zh' ? '媒体制作' : 'Media Production'}
+          </h3>
+          <p className="text-base text-white/50">
+            {mediaProduction.status === 'completed' 
+              ? (language === 'zh' ? '媒体制作完成' : 'Media production complete')
+              : mediaProduction.currentTask || (language === 'zh' ? '准备中...' : 'Preparing...')
+            }
+          </p>
+        </div>
+
+        {/* Progress bar */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-sm text-white/50">
+            <span>{language === 'zh' ? '进度' : 'Progress'}</span>
+            <span>{mediaProduction.progress}%</span>
+          </div>
+          <div className="h-3 rounded-full bg-white/10 overflow-hidden">
+            <div 
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${mediaProduction.progress}%`, background: theme.primary }}
+            />
+          </div>
+        </div>
+
+        {/* Media tasks */}
+        <div className="grid grid-cols-3 gap-4">
+          {hasBgm && (
+            <div 
+              className="p-5 rounded-xl border border-white/10 text-center"
+              style={{ background: theme.bgCard }}
+            >
+              <Music size={28} className="mx-auto mb-3" style={{ color: theme.primaryLight }} />
+              <p className="text-sm text-white/70">BGM</p>
+              {mediaProduction.progress > 33 && (
+                <Check size={16} className="mx-auto mt-2" style={{ color: theme.primaryLight }} />
+              )}
+            </div>
+          )}
+          {hasSfx && (
+            <div 
+              className="p-5 rounded-xl border border-white/10 text-center"
+              style={{ background: theme.bgCard }}
+            >
+              <Volume2 size={28} className="mx-auto mb-3" style={{ color: theme.primaryLight }} />
+              <p className="text-sm text-white/70">SFX</p>
+              {mediaProduction.progress > 66 && (
+                <Check size={16} className="mx-auto mt-2" style={{ color: theme.primaryLight }} />
+              )}
+            </div>
+          )}
+          {hasImages && (
+            <div 
+              className="p-5 rounded-xl border border-white/10 text-center"
+              style={{ background: theme.bgCard }}
+            >
+              <Image size={28} className="mx-auto mb-3" style={{ color: theme.primaryLight }} />
+              <p className="text-sm text-white/70">{language === 'zh' ? '图片' : 'Images'}</p>
+              {mediaProduction.progress === 100 && (
+                <Check size={16} className="mx-auto mt-2" style={{ color: theme.primaryLight }} />
+              )}
+            </div>
+          )}
+          {!hasBgm && !hasSfx && !hasImages && (
+            <div className="col-span-3 text-center py-10 text-white/40 text-base">
+              {language === 'zh' ? '此项目不需要额外媒体' : 'No additional media needed'}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ============================================================
+  // Render Step 5: Mixing & Editing - ported from ProjectCreator
+  // ============================================================
+  const renderMixingStep = () => {
+    const { mixingEditing } = production;
+    const mixedOutput = mixingEditing.output;
+    const mixingError = mixingEditing.error;
+    
+    const handlePlayMixedAudio = () => {
+      if (mixedOutput?.audioData) {
+        const audioUrl = api.audioDataToUrl(mixedOutput.audioData, mixedOutput.mimeType);
+        const audio = new Audio(audioUrl);
+        audio.play().catch(err => console.error('Playback failed:', err));
+      }
+    };
+    
+    const handleDownloadMixedAudio = () => {
+      if (mixedOutput?.audioData) {
+        const filename = `${title || 'episode-audio'}.wav`;
+        api.downloadAudio(mixedOutput.audioData, mixedOutput.mimeType, filename);
+      }
+    };
+    
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-6">
+          <div 
+            className="w-20 h-20 mx-auto mb-5 rounded-full flex items-center justify-center"
+            style={{ background: `${theme.primary}20` }}
+          >
+            {mixingEditing.status === 'completed' && mixedOutput ? (
+              <Check size={40} style={{ color: theme.primaryLight }} />
+            ) : mixingError ? (
+              <X size={40} className="text-red-400" />
+            ) : (
+              <Sliders size={40} className={mixingEditing.status === 'processing' ? 'animate-pulse' : ''} style={{ color: theme.primaryLight }} />
+            )}
+          </div>
+          <h3 className="text-xl font-medium text-white mb-2">
+            {language === 'zh' ? '混音与编辑' : 'Mixing & Editing'}
+          </h3>
+          <p className="text-base text-white/50">
+            {mixingError 
+              ? (language === 'zh' ? `混音失败: ${mixingError}` : `Mixing failed: ${mixingError}`)
+              : mixingEditing.status === 'completed' && mixedOutput
+                ? (language === 'zh' ? '混音完成！' : 'Mixing complete!')
+                : (language === 'zh' ? '正在合成音轨...' : 'Combining audio tracks...')
+            }
+          </p>
+        </div>
+
+        {/* Progress bar */}
+        {mixingEditing.status === 'processing' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm text-white/50">
+              <span>{language === 'zh' ? '进度' : 'Progress'}</span>
+              <span>{mixingEditing.progress}%</span>
+            </div>
+            <div className="h-3 rounded-full bg-white/10 overflow-hidden">
+              <div 
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${mixingEditing.progress}%`, background: theme.primary }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Audio Player when complete */}
+        {mixingEditing.status === 'completed' && mixedOutput && (
+          <div 
+            className="rounded-xl p-5 border border-white/10"
+            style={{ background: theme.bgCard }}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Music size={18} style={{ color: theme.primaryLight }} />
+              <span className="text-white text-base font-medium">
+                {language === 'zh' ? '最终音频' : 'Final Audio'}
+              </span>
+              <span className="text-white/40 text-sm ml-auto">
+                {formatDuration(mixedOutput.durationMs)}
+              </span>
+            </div>
+            
+            <audio 
+              controls 
+              className="w-full mb-4"
+              src={api.audioDataToUrl(mixedOutput.audioData, mixedOutput.mimeType)}
+              style={{ height: '40px' }}
+            />
+            
+            <div className="flex gap-3">
+              <button
+                onClick={handlePlayMixedAudio}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-white text-sm font-medium transition-all hover:opacity-90"
+                style={{ background: theme.primary }}
+              >
+                <Play size={16} />
+                {language === 'zh' ? '播放' : 'Play'}
+              </button>
+              <button
+                onClick={handleDownloadMixedAudio}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-white text-sm font-medium border border-white/20 transition-all hover:bg-white/10"
+              >
+                <Save size={16} />
+                {language === 'zh' ? '下载' : 'Download'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Retry button on error */}
+        {mixingError && (
+          <button
+            onClick={() => performMixing()}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-white text-sm font-medium transition-all hover:opacity-90"
+            style={{ background: theme.primary }}
+          >
+            <RefreshCw size={16} />
+            {language === 'zh' ? '重试混音' : 'Retry Mixing'}
+          </button>
+        )}
+
+        {/* Visual preview */}
+        {mixingEditing.status === 'completed' && spec?.hasVisualContent && (
+          <div 
+            className="rounded-xl p-5 border border-white/10"
+            style={{ background: theme.bgCard }}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Image size={18} style={{ color: theme.primaryLight }} />
+              <span className="text-white text-base font-medium">{language === 'zh' ? '视觉预览' : 'Visual Preview'}</span>
+            </div>
+            <div className="h-14 rounded-lg flex items-center justify-center text-white/40 text-sm" style={{ background: `${theme.primary}10` }}>
+              {language === 'zh' ? '即将推出' : 'Coming soon'}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ============================================================
+  // Render Step 6: Save Episode
+  // ============================================================
+  const renderSaveStep = () => (
+    <div className="space-y-6">
+      {/* Success message */}
+      <div className="text-center py-6">
+        <div 
+          className="w-20 h-20 mx-auto mb-5 rounded-full flex items-center justify-center"
+          style={{ background: `${theme.primary}30` }}
+        >
+          <Check size={40} style={{ color: theme.primaryLight }} />
+        </div>
+        <h3 className="text-xl font-medium text-white mb-2">
+          {language === 'zh' ? '准备就绪！' : 'Ready to Save!'}
+        </h3>
+        <p className="text-base text-white/50">
+          {language === 'zh' ? '确认以下信息并保存剧集' : 'Confirm the details below and save your episode'}
+        </p>
+      </div>
+
+      {/* Episode summary */}
       <div 
         className="rounded-xl p-6 border border-white/10"
         style={{ background: `${theme.primary}10` }}
       >
-        <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-4 mb-5">
           <div 
-            className="w-12 h-12 rounded-xl flex items-center justify-center"
+            className="w-14 h-14 rounded-xl flex items-center justify-center"
             style={{ background: `${theme.primary}30` }}
           >
-            <ReligionIcon size={24} color={theme.primaryLight} />
+            <ReligionIcon size={28} color={theme.primaryLight} />
           </div>
-          <div>
-            <h3 className="text-xl font-serif text-white">{title}</h3>
-            <p className="text-sm text-white/50">{project.title}</p>
+          <div className="flex-1">
+            <h3 className="text-2xl font-serif text-white">{title}</h3>
+            <p className="text-base text-white/50">{project.title}</p>
           </div>
         </div>
 
-        <div className="space-y-3 text-sm">
-          <p className="text-white/70 line-clamp-2">{description}</p>
-          <div className="flex items-center gap-4 text-xs text-white/60">
-            <span>{scriptSections.length} {t.projectCreator.postProcessing.scriptSections}</span>
+        <div className="space-y-4 text-base">
+          {description && (
+            <p className="text-white/70 line-clamp-2">{description}</p>
+          )}
+          <div className="flex items-center gap-4 text-sm text-white/60">
+            <span>{scriptSections.length} {language === 'zh' ? '段落' : 'sections'}</span>
             <span>·</span>
-            <span>{characters.length} {t.projectCreator.postProcessing.characterCount}</span>
+            <span>{characters.length} {language === 'zh' ? '角色' : 'characters'}</span>
             {spec?.addBgm && (
               <>
                 <span>·</span>
                 <span className="flex items-center gap-1" style={{ color: theme.primaryLight }}>
-                  <Music size={12} /> BGM
+                  <Music size={14} /> BGM
                 </span>
               </>
             )}
@@ -902,7 +1964,15 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               <>
                 <span>·</span>
                 <span className="flex items-center gap-1" style={{ color: theme.primaryLight }}>
-                  <Volume2 size={12} /> SFX
+                  <Volume2 size={14} /> SFX
+                </span>
+              </>
+            )}
+            {spec?.hasVisualContent && (
+              <>
+                <span>·</span>
+                <span className="flex items-center gap-1" style={{ color: theme.primaryLight }}>
+                  <Image size={14} /> {language === 'zh' ? '视觉' : 'Visual'}
                 </span>
               </>
             )}
@@ -910,18 +1980,23 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         </div>
       </div>
 
-      <p className="text-center text-white/40 text-xs">
-        {t.projectCreator.postProcessing.confirmSave}
+      <p className="text-center text-white/40 text-sm">
+        {language === 'zh' ? '点击下方按钮保存剧集' : 'Click the button below to save your episode'}
       </p>
     </div>
   );
 
+  // ============================================================
+  // Main render
+  // ============================================================
   const renderStepContent = () => {
     switch (currentStep) {
-      case 1: return renderScriptStep();
-      case 2: return renderCharacterStep();
-      case 3: return renderGenerationStep();
-      case 4: return renderPostProcessingStep();
+      case 1: return renderContentInputStep();
+      case 2: return renderScriptStep();
+      case 3: return renderVoiceGenerationStep();
+      case 4: return renderMediaProductionStep();
+      case 5: return renderMixingStep();
+      case 6: return renderSaveStep();
       default: return null;
     }
   };
@@ -929,32 +2004,32 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div 
-        className="rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-slide-up border border-white/10"
+        className="rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-slide-up border border-white/10"
         style={{ background: theme.bgDark }}
       >
         {/* Header */}
-        <div className="px-6 py-4 flex items-center justify-between border-b border-white/10">
+        <div className="px-8 py-5 flex items-center justify-between border-b border-white/10">
           <div className="flex items-center gap-4">
             <div 
-              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              className="w-12 h-12 rounded-xl flex items-center justify-center"
               style={{ background: `${theme.primary}30` }}
             >
-              <ReligionIcon size={20} color={theme.primaryLight} />
+              <ReligionIcon size={24} color={theme.primaryLight} />
             </div>
             <div>
-              <h2 className="text-lg font-serif text-white">{t.episodeEditor.createTitle}</h2>
-              <p className="text-xs text-white/50">
-                {project.title} · {t.projectCreator.step} {currentStep} {t.projectCreator.of} {STEPS.length}
+              <h2 className="text-xl font-serif text-white">{t.episodeEditor.createTitle}</h2>
+              <p className="text-sm text-white/50">
+                {project.title} · {t.projectCreator.step} {currentStep} / {STEPS.length} · {STEPS[currentStep - 1]?.title}
               </p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-            <X className="text-white/50" size={20} />
+            <X className="text-white/50" size={24} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto px-6 py-6">
+        <div className="flex-1 overflow-auto px-8 py-8">
           {renderStepContent()}
         </div>
 
@@ -970,48 +2045,73 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/10 flex items-center justify-between">
+        <div className="px-8 py-5 border-t border-white/10 flex items-center justify-between">
           <button
             onClick={currentStep === 1 ? onClose : handleBack}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-base text-white/60 hover:text-white hover:bg-white/5 transition-colors"
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={22} />
             {currentStep === 1 ? t.projectCreator.buttons.cancel : t.projectCreator.buttons.back}
           </button>
 
-          {currentStep < STEPS.length ? (
-            canProceed() && (
+          <div className="flex items-center gap-3">
+            {/* Skip for now - available from step 2 onwards when script exists */}
+            {currentStep >= 2 && scriptSections.length > 0 && (
               <button
-                onClick={handleNext}
-                disabled={isProcessingNext}
-                className={`flex items-center gap-2 px-6 py-2 rounded-lg text-white font-medium transition-all hover:scale-105 ${
-                  isProcessingNext ? 'animate-pulse' : ''
-                }`}
+                onClick={handleSkipAndSave}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-base text-white/50 hover:text-white hover:bg-white/10 transition-colors border border-white/10"
+              >
+                {language === 'zh' ? '跳过，稍后继续' : 'Skip for now'}
+              </button>
+            )}
+
+            {/* Confirm & Start Voice Synthesis - shown on step 3 before voices are confirmed */}
+            {currentStep === 3 && !voicesConfirmed && (
+              <button
+                onClick={startVoiceGeneration}
+                disabled={characters.length === 0 || characters.some(c => !c.assignedVoiceId)}
+                className="flex items-center gap-2 px-8 py-2.5 rounded-lg text-base text-white font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                 style={{ background: theme.primary }}
               >
-                {isProcessingNext ? (
-                  <>
-                    <Loader2 size={20} className="animate-spin" />
-                    {t.common.loading}
-                  </>
-                ) : (
-                  <>
-                    {t.projectCreator.buttons.next}
-                    <ChevronRight size={20} />
-                  </>
-                )}
+                <Mic2 size={22} />
+                {language === 'zh' ? '确认并开始语音合成' : 'Confirm & Start Voice Synthesis'}
               </button>
-            )
-          ) : (
-            <button
-              onClick={handleSave}
-              className="flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all hover:scale-105"
-              style={{ background: theme.accent, color: theme.primaryDark }}
-            >
-              <Save size={20} />
-              {t.episodeEditor.buttons.create}
-            </button>
-          )}
+            )}
+
+            {currentStep < STEPS.length ? (
+              canProceed() && (
+                <button
+                  onClick={handleNext}
+                  disabled={isProcessingNext}
+                  className={`flex items-center gap-2 px-8 py-2.5 rounded-lg text-base text-white font-medium transition-all hover:scale-105 ${
+                    isProcessingNext ? 'animate-pulse' : ''
+                  }`}
+                  style={{ background: theme.primary }}
+                >
+                  {isProcessingNext ? (
+                    <>
+                      <Loader2 size={22} className="animate-spin" />
+                      {t.common.loading}
+                    </>
+                  ) : (
+                    <>
+                      {currentStep >= 2 ? (language === 'zh' ? '确认' : 'Approve') : t.projectCreator.buttons.next}
+                      <ChevronRight size={22} />
+                    </>
+                  )}
+                </button>
+              )
+            ) : (
+              <button
+                onClick={handleSave}
+                className="flex items-center gap-2 px-8 py-2.5 rounded-lg text-base font-medium transition-all hover:scale-105"
+                style={{ background: theme.accent, color: theme.primaryDark }}
+              >
+                <Save size={22} />
+                {t.episodeEditor.buttons.create}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

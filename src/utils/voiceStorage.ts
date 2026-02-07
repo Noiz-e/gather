@@ -88,9 +88,17 @@ export async function loadVoiceCharactersFromCloud(): Promise<VoiceCharacter[]> 
   try {
     const cloudVoices = await loadVoicesFromCloud();
     if (cloudVoices.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudVoices));
-      console.log(`Loaded ${cloudVoices.length} voice characters from cloud`);
-      return cloudVoices as unknown as VoiceCharacter[];
+      // Map server field names to client field names
+      // Server returns refAudioUrl (signed GCS URL), client expects refAudioDataUrl
+      const mapped: VoiceCharacter[] = cloudVoices.map((v: Record<string, unknown>) => ({
+        ...v,
+        // Map refAudioUrl -> refAudioDataUrl if the client field is missing
+        refAudioDataUrl: (v.refAudioDataUrl as string) || (v.refAudioUrl as string) || undefined,
+        // audioSampleUrl is returned with the same name from server
+      })) as unknown as VoiceCharacter[];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+      console.log(`Loaded ${mapped.length} voice characters from cloud`);
+      return mapped;
     }
     
     // If cloud is empty, push local data to cloud
@@ -133,7 +141,7 @@ export function addVoiceCharacter(
   const now = new Date().toISOString();
   const character: VoiceCharacter = {
     ...newCharacter,
-    id: `char-${Date.now()}`,
+    id: crypto.randomUUID(),
     createdAt: now,
     updatedAt: now
   };

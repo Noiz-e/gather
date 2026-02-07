@@ -1,7 +1,9 @@
 import { useTheme } from '../contexts/ThemeContext';
 import { useProjects } from '../contexts/ProjectContext';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Mic2, TrendingUp, ArrowRight, FileText, Plus } from 'lucide-react';
+import { RoleBadge } from './RoleBadge';
 
 interface DashboardProps {
   onCreateProject: () => void;
@@ -12,6 +14,7 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
   const { theme, religion } = useTheme();
   const { getProjectsByReligion } = useProjects();
   const { t } = useLanguage();
+  const { user } = useAuth();
 
   const myProjects = getProjectsByReligion(religion);
   const totalEpisodes = myProjects.reduce((acc, p) => acc + p.episodes.length, 0);
@@ -26,9 +29,12 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
     <div className="space-y-6 md:space-y-8 animate-fade-in">
       {/* Welcome Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-light text-white tracking-wide">
-          {t.dashboard.welcome}
-        </h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-light text-white tracking-wide">
+            {t.dashboard.welcome}{user?.displayName ? `, ${user.displayName}` : ''}
+          </h1>
+          {user && <RoleBadge role={user.role} size="md" />}
+        </div>
         <p className="text-white/50 mt-1 text-sm md:text-base">
           {religionT.description}
         </p>
@@ -37,14 +43,15 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3 md:gap-6">
         {[
-          { label: t.dashboard.podcastProjects, value: myProjects.length, icon: Mic2 },
-          { label: t.dashboard.totalEpisodes, value: totalEpisodes, icon: TrendingUp },
+          { label: t.dashboard.podcastProjects, value: myProjects.length, icon: Mic2, onClick: onViewProjects },
+          { label: t.dashboard.totalEpisodes, value: totalEpisodes, icon: TrendingUp, onClick: onViewProjects },
         ].map((stat, index) => {
           const Icon = stat.icon;
           return (
             <div 
               key={index}
-              className="rounded-xl md:rounded-2xl p-3 sm:p-4 md:p-6 border border-white/10 backdrop-blur-sm transition-all duration-300 hover:border-white/20"
+              onClick={stat.onClick}
+              className="rounded-xl md:rounded-2xl p-3 sm:p-4 md:p-6 border border-white/10 backdrop-blur-sm transition-all duration-300 hover:border-white/20 cursor-pointer"
               style={{ background: theme.bgCard }}
             >
               <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">

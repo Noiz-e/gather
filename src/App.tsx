@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ProjectProvider, useProjects } from './contexts/ProjectContext';
+import './i18n'; // Initialize i18next
 import { LanguageProvider } from './i18n/LanguageContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Project, Episode } from './types';
 import { Layout } from './components/Layout';
 import { Landing, LandingData } from './components/Landing';
@@ -14,6 +16,8 @@ import { EpisodeEditor } from './components/EpisodeEditor';
 import { VoiceStudio } from './components/VoiceStudio';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Settings } from './components/Settings';
+import { AuthPage } from './components/AuthPage';
+import { Loader2 } from 'lucide-react';
 
 type Page = 'dashboard' | 'projects' | 'voice' | 'media' | 'settings' | 'project-detail';
 
@@ -153,8 +157,22 @@ function AppContent({ initialLandingData, onClearLandingData }: AppContentProps)
   );
 }
 
-function App() {
-  const [showLanding, setShowLanding] = useState(true);
+// Loading screen component
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 size={40} className="animate-spin text-purple-400" />
+        <p className="text-white/60 text-sm">加载中...</p>
+      </div>
+    </div>
+  );
+}
+
+// Authenticated app content wrapper
+function AuthenticatedApp() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const [showLanding, setShowLanding] = useState(false);
   const [landingData, setLandingData] = useState<LandingData | null>(null);
 
   const handleEnterWorkspace = (data?: LandingData) => {
@@ -164,16 +182,37 @@ function App() {
     setShowLanding(false);
   };
 
+  // Show loading screen while checking auth
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  // Show auth page if not authenticated
+  if (!isAuthenticated) {
+    return <AuthPage />;
+  }
+
+  // Show main app content
+  return (
+    <>
+      {showLanding ? (
+        <Landing onEnterWorkspace={handleEnterWorkspace} />
+      ) : (
+        <ProjectProvider>
+          <AppContent initialLandingData={landingData} onClearLandingData={() => setLandingData(null)} />
+        </ProjectProvider>
+      )}
+    </>
+  );
+}
+
+function App() {
   return (
     <LanguageProvider>
       <ThemeProvider>
-        {showLanding ? (
-          <Landing onEnterWorkspace={handleEnterWorkspace} />
-        ) : (
-          <ProjectProvider>
-            <AppContent initialLandingData={landingData} onClearLandingData={() => setLandingData(null)} />
-          </ProjectProvider>
-        )}
+        <AuthProvider>
+          <AuthenticatedApp />
+        </AuthProvider>
       </ThemeProvider>
     </LanguageProvider>
   );

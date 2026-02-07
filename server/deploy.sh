@@ -13,7 +13,9 @@ FRONTEND_DIR="$(dirname "$0")/.."
 CLOUD_SQL_CONNECTION_NAME="${CLOUD_SQL_CONNECTION_NAME:-${PROJECT_ID}:${REGION}:gather}"
 DB_NAME="${DB_NAME:-postgres}"
 DB_USER="${DB_USER:-postgres}"
-DB_PASSWORD="${DB_PASSWORD:-26}sM*\"J$P2#oZv2"
+# Password has special chars, use single quotes to avoid bash expansion
+DEFAULT_DB_PASSWORD='26}sM*"J$P2#oZv2'
+DB_PASSWORD="${DB_PASSWORD:-$DEFAULT_DB_PASSWORD}"
 
 echo "🚀 Deploying backend to Cloud Run..."
 echo "   Project: $PROJECT_ID"
@@ -26,6 +28,9 @@ if [ -f .env ]; then
   export $(grep -v '^#' .env | grep -v '^$' | xargs)
 fi
 
+# Frontend URL for CORS (the bucket name maps to the custom domain)
+FRONTEND_URL="${FRONTEND_URL:-https://gatherin.org}"
+
 # Build and deploy backend with environment variables and Cloud SQL connection
 gcloud run deploy $SERVICE_NAME \
   --source . \
@@ -36,7 +41,7 @@ gcloud run deploy $SERVICE_NAME \
   --memory 512Mi \
   --timeout 300s \
   --add-cloudsql-instances $CLOUD_SQL_CONNECTION_NAME \
-  --set-env-vars "GEMINI_API_KEY=${GEMINI_API_KEY},ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY},FAL_KEY=${FAL_KEY},TTS_ENDPOINT=${TTS_ENDPOINT},CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME},DB_NAME=${DB_NAME},DB_USER=${DB_USER},DB_PASSWORD=${DB_PASSWORD}"
+  --set-env-vars "GEMINI_API_KEY=${GEMINI_API_KEY},ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY},FAL_KEY=${FAL_KEY},TTS_ENDPOINT=${TTS_ENDPOINT},CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME},DB_NAME=${DB_NAME},DB_USER=${DB_USER},DB_PASSWORD=${DB_PASSWORD},JWT_SECRET=${JWT_SECRET},FRONTEND_URL=${FRONTEND_URL},NODE_ENV=production"
 
 echo "✅ Backend deployment complete!"
 

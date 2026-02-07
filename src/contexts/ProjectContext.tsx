@@ -18,6 +18,9 @@ interface CreateProjectData {
     description: string;
     scriptSections?: ScriptSection[];
     characters?: EpisodeCharacter[];
+    audioData?: string;
+    audioMimeType?: string;
+    audioDurationMs?: number;
   };
 }
 
@@ -102,7 +105,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         script: '', // Legacy field
         scriptSections: data.firstEpisode.scriptSections,
         characters: data.firstEpisode.characters,
-        stage: 'scripting',
+        audioData: data.firstEpisode.audioData,
+        audioMimeType: data.firstEpisode.audioMimeType,
+        audioDurationMs: data.firstEpisode.audioDurationMs,
+        stage: data.firstEpisode.audioData ? 'review' : 'scripting',
         createdAt: now,
         updatedAt: now,
         notes: '',

@@ -63,6 +63,9 @@ export interface Episode {
   scriptSections?: ScriptSection[]; // Rich script with timeline
   characters?: EpisodeCharacter[]; // Characters in this episode
   audioUrl?: string;
+  audioData?: string; // Base64-encoded final mixed audio
+  audioMimeType?: string; // e.g. 'audio/wav'
+  audioDurationMs?: number; // Duration in milliseconds
   duration?: number;
   stage: ProjectStage;
   createdAt: string;

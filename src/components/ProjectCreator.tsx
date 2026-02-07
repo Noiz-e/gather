@@ -4,8 +4,8 @@ import { useProjects } from '../contexts/ProjectContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { VoiceCharacter, ScriptSection, EpisodeCharacter } from '../types';
 import { 
-  ChevronLeft, ChevronRight, Check, X, Upload, FileText, 
-  Sparkles, Plus, Trash2, Play, User, Loader2,
+  ChevronLeft, ChevronRight, ChevronDown, Check, X, Upload, FileText, 
+  Sparkles, Plus, Trash2, Play, Pause, User, Loader2,
   Music, Volume2, Image, RefreshCw, Save,
   BookOpen, Mic2, Wand2, Sliders, GraduationCap,
   LucideIcon, Square, Users, Headphones, Mic, MessageSquare, 
@@ -25,10 +25,13 @@ import {
   initialState, 
   actions,
   SpecData,
-  SectionVoiceAudio
+  SectionVoiceAudio,
+  saveDraft,
+  loadDraft,
+  clearDraft
 } from './ProjectCreator/reducer';
 import { PROJECT_TEMPLATES, getAudioMixConfig } from './ProjectCreator/templates';
-import { loadVoiceCharacters } from '../utils/voiceStorage';
+import { loadVoiceCharacters, addVoiceCharacter } from '../utils/voiceStorage';
 import type { LandingData } from './Landing';
 
 // Icon mapping for templates (basic + advanced)
@@ -94,10 +97,25 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
   const [isRecommendingVoices, setIsRecommendingVoices] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Voice upload state
+  const voiceUploadRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingForCharIndex, setUploadingForCharIndex] = useState<number | null>(null);
+  // Expanded sections for viewing generated audio
+  const [expandedVoiceSections, setExpandedVoiceSections] = useState<Set<string>>(new Set());
+  // Track currently playing audio segment: "sectionId-lineIndex"
+  const [playingSegmentId, setPlayingSegmentId] = useState<string | null>(null);
+  const segmentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const performMixingRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  // Keep latest state in a ref so async callbacks avoid stale closures
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const [showProgressTooltip, setShowProgressTooltip] = useState(false);
   const [hoveredStep, setHoveredStep] = useState<number | null>(null);
   const [isProcessingNext, setIsProcessingNext] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  // Draft persistence
+  const [draftBanner, setDraftBanner] = useState<{ visible: boolean; savedAt: number } | null>(null);
+  const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -337,6 +355,48 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     dispatch(actions.assignVoiceToCharacter(characterIndex, voiceId));
   }, []);
 
+  // Handle voice file upload for a character
+  const handleVoiceFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || uploadingForCharIndex === null) return;
+
+    const charIndex = uploadingForCharIndex;
+    const char = extractedCharacters[charIndex];
+    if (!char) return;
+
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const voiceName = char.name || file.name.replace(/\.[^.]+$/, '');
+      const updatedVoices = addVoiceCharacter(availableVoices, {
+        name: voiceName,
+        description: language === 'zh'
+          ? '上传的音色'
+          : 'Uploaded voice',
+        refAudioDataUrl: dataUrl,
+        audioSampleUrl: dataUrl,
+        tags: ['uploaded'],
+      });
+
+      const newVoice = updatedVoices[updatedVoices.length - 1];
+      setAvailableVoices(updatedVoices);
+      assignVoiceToCharacter(charIndex, newVoice.id);
+    } catch (error) {
+      console.error('Failed to upload voice file:', error);
+      alert(language === 'zh' ? '上传音色文件失败' : 'Failed to upload voice file');
+    } finally {
+      setUploadingForCharIndex(null);
+      if (voiceUploadRef.current) {
+        voiceUploadRef.current.value = '';
+      }
+    }
+  }, [uploadingForCharIndex, extractedCharacters, availableVoices, language, assignVoiceToCharacter]);
+
   // AI recommend voices for all characters (Gemini Flash)
   const recommendVoicesForAll = useCallback(async () => {
     const allVoices = [
@@ -423,6 +483,27 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     }
   }, [currentStep]);
 
+  // Auto-advance from step 6 (media) to step 7 (mixing) when media production completes
+  useEffect(() => {
+    if (currentStep === 6 && production.mediaProduction.status === 'completed') {
+      const timer = setTimeout(() => {
+        setCurrentStep(7);
+        setTimeout(() => performMixingRef.current(), 100);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, production.mediaProduction.status]);
+
+  // Auto-advance from step 7 (mixing) to step 8 (save) when mixing completes successfully
+  useEffect(() => {
+    if (currentStep === 7 && production.mixingEditing.status === 'completed' && production.mixingEditing.output && !production.mixingEditing.error) {
+      const timer = setTimeout(() => {
+        setCurrentStep(8);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, production.mixingEditing.status, production.mixingEditing.output, production.mixingEditing.error]);
+
   // Memoized action dispatchers to avoid re-creating on each render
   const updateTimelineItem = useCallback(
     (sectionId: string, itemId: string, field: 'timeStart' | 'timeEnd' | 'soundMusic', value: string) => {
@@ -482,7 +563,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   );
 
   // Voice generation for a single section (concurrent batch processing)
-  const generateVoiceForSection = async (section: ScriptSection) => {
+  // Returns true on success, false on failure
+  const generateVoiceForSection = async (section: ScriptSection): Promise<boolean> => {
     const sectionId = section.id;
     
     // Collect lines for this section
@@ -512,13 +594,14 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     
     if (segments.length === 0) {
       dispatch(actions.updateSectionVoiceStatus(sectionId, 'completed', 100));
-      return;
+      return true;
     }
     
     // Update section status to processing
     dispatch(actions.updateSectionVoiceStatus(sectionId, 'processing', 0));
     dispatch(actions.setCurrentSection(sectionId));
     
+    let success = false;
     try {
       // Use batch API for concurrent TTS generation
       const batchSegments: api.AudioSegment[] = segments.map(seg => ({
@@ -546,19 +629,40 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         }
       }
       
-      // Log errors if any
+      // Check if generation actually produced any audio
       if (result.errors && result.errors.length > 0) {
         console.warn('Some segments failed:', result.errors);
       }
       
-      dispatch(actions.updateSectionVoiceStatus(sectionId, 'completed', 100));
+      if (result.totalGenerated === 0 || (result.segments && result.segments.length === 0)) {
+        // All segments failed - treat as error
+        const errorMessages = result.errors?.map(e => e.error).filter(Boolean) || [];
+        const errorMsg = errorMessages.length > 0 
+          ? errorMessages[0] 
+          : (language === 'zh' ? '所有音频生成失败' : 'All audio segments failed to generate');
+        dispatch(actions.updateSectionVoiceStatus(sectionId, 'error', 0, errorMsg));
+        success = false;
+      } else if (result.errors && result.errors.length > 0) {
+        // Partial success - mark completed but note the failures
+        const failedCount = result.errors.length;
+        const totalCount = segments.length;
+        console.warn(`${failedCount}/${totalCount} segments failed`);
+        dispatch(actions.updateSectionVoiceStatus(sectionId, 'completed', 100));
+        success = true;
+      } else {
+        // Full success
+        dispatch(actions.updateSectionVoiceStatus(sectionId, 'completed', 100));
+        success = true;
+      }
     } catch (error) {
       console.error('Section voice generation failed:', error);
       dispatch(actions.updateSectionVoiceStatus(sectionId, 'error', 0, 
         error instanceof Error ? error.message : 'Generation failed'));
+      success = false;
     }
     
     dispatch(actions.setCurrentSection(undefined));
+    return success;
   };
   
   // Voice generation for all sections sequentially
@@ -570,16 +674,28 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     
     dispatch(actions.updateProductionPhase('voice-generation', 'processing', 0));
     
+    let failedSections = 0;
     for (let i = 0; i < scriptSections.length; i++) {
       const section = scriptSections[i];
-      await generateVoiceForSection(section);
+      const success = await generateVoiceForSection(section);
+      if (!success) failedSections++;
       
       // Update overall progress
       const overallProgress = Math.round(((i + 1) / scriptSections.length) * 100);
       dispatch(actions.updateProductionPhase('voice-generation', 'processing', overallProgress, section.name));
     }
     
-    dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100));
+    if (failedSections === scriptSections.length) {
+      // All sections failed
+      dispatch(actions.updateProductionPhase('voice-generation', 'error', 0, 
+        language === 'zh' ? '所有段落生成失败' : 'All sections failed'));
+    } else if (failedSections > 0) {
+      // Some sections failed - still mark as completed so user can proceed, but warn
+      dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100, 
+        language === 'zh' ? `${failedSections} 个段落失败` : `${failedSections} section(s) failed`));
+    } else {
+      dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100));
+    }
   };
 
   // Media production using real APIs (BGM, SFX, Images)
@@ -644,15 +760,23 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     try {
       dispatch(actions.updateProductionPhase('mixing-editing', 'processing', 10));
       
+      // Read latest state from ref to avoid stale closures
+      const latestState = stateRef.current;
+      const latestProduction = latestState.production;
+      const latestScriptSections = latestState.scriptSections;
+      const latestSpec = latestState.spec;
+      
       // Get audio mix config based on template
-      const mixConfig = getAudioMixConfig(selectedTemplateId);
-      console.log(`Using mix config for template "${selectedTemplateId || 'default'}":`, mixConfig);
+      const mixConfig = getAudioMixConfig(latestState.selectedTemplateId);
+      console.log(`Using mix config for template "${latestState.selectedTemplateId || 'default'}":`, mixConfig);
       
       // Collect all voice audio segments from all sections with speaker info
       const voiceTracks: api.AudioTrack[] = [];
       
-      for (const section of scriptSections) {
-        const sectionStatus = production.voiceGeneration.sectionStatus[section.id];
+      console.log(`[Mix] Scanning ${latestScriptSections.length} sections for voice data...`);
+      for (const section of latestScriptSections) {
+        const sectionStatus = latestProduction.voiceGeneration.sectionStatus[section.id];
+        console.log(`[Mix] Section ${section.id}: status=${sectionStatus?.status}, segments=${sectionStatus?.audioSegments?.length ?? 0}`);
         if (sectionStatus?.audioSegments) {
           for (const segment of sectionStatus.audioSegments) {
             if (segment.audioData) {
@@ -668,6 +792,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       }
       
       if (voiceTracks.length === 0) {
+        console.warn('[Mix] No voice tracks found! sectionStatus keys:', Object.keys(latestProduction.voiceGeneration.sectionStatus));
         dispatch(actions.setMixingError(language === 'zh' ? '没有可用的语音数据' : 'No voice data available'));
         dispatch(actions.updateProductionPhase('mixing-editing', 'completed', 100));
         return;
@@ -693,17 +818,17 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       };
       
       // Add BGM if available
-      if (specData.addBgm && production.mediaProduction.bgmAudio) {
+      if (latestSpec.addBgm && latestProduction.mediaProduction.bgmAudio) {
         mixRequest.bgmTrack = {
-          audioData: production.mediaProduction.bgmAudio.audioData,
-          mimeType: production.mediaProduction.bgmAudio.mimeType,
+          audioData: latestProduction.mediaProduction.bgmAudio.audioData,
+          mimeType: latestProduction.mediaProduction.bgmAudio.mimeType,
         };
       }
       
       dispatch(actions.updateProductionPhase('mixing-editing', 'processing', 50));
       
       // Call mixing API
-      console.log(`Mixing ${voiceTracks.length} voice tracks${mixRequest.bgmTrack ? ' with BGM' : ''}...`);
+      console.log(`[Mix] Mixing ${voiceTracks.length} voice tracks${mixRequest.bgmTrack ? ' with BGM' : ''}...`);
       const result = await api.mixAudioTracks(mixRequest);
       
       dispatch(actions.updateProductionPhase('mixing-editing', 'processing', 90));
@@ -725,6 +850,9 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       dispatch(actions.updateProductionPhase('mixing-editing', 'completed', 100));
     }
   };
+
+  // Keep ref current so effects/callbacks always call the latest version
+  performMixingRef.current = performMixing;
 
   // Handle create project
   const handleCreate = () => {
@@ -759,14 +887,30 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         description: specData.toneAndExpression,
         scriptSections,
         characters: episodeCharacters,
+        audioData: production.mixingEditing.output?.audioData,
+        audioMimeType: production.mixingEditing.output?.mimeType,
+        audioDurationMs: production.mixingEditing.output?.durationMs,
       } : undefined,
     });
+    // Clear draft on successful save
+    clearDraft();
     onSuccess(project.id);
   };
   
   // Handle skip - save project with current progress and go to detail
   const handleSkipAndSave = () => {
     handleCreate();
+  };
+
+  // Handle discard draft - reset everything to initial state
+  const handleDiscardDraft = () => {
+    clearDraft();
+    dispatch(actions.resetAll());
+    setCurrentStep(1);
+    setCustomDescription('');
+    setTemplateConfig({ voiceCount: 'single', addBgm: false, addSoundEffects: false, hasVisualContent: false });
+    setVoicesConfirmed(false);
+    setDraftBanner(null);
   };
 
   // Navigation validation for 8-step workflow
@@ -847,13 +991,23 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       return;
     }
     
-    // Step 5 -> 6: Voice generation done, go to media production
+    // Step 5 -> 6: Voice generation done, go to media production (or skip if no media)
     if (currentStep === 5 && production.voiceGeneration.status === 'completed') {
-      setCurrentStep(6);
-      // Auto-start media production
-      setTimeout(() => {
-        performMediaProduction();
-      }, 100);
+      const hasMedia = specData.addBgm || specData.addSoundEffects || specData.hasVisualContent;
+      if (!hasMedia) {
+        // No media tasks — mark media production as completed and skip to mixing
+        dispatch(actions.updateProductionPhase('media-production', 'completed', 100));
+        setCurrentStep(7);
+        setTimeout(() => {
+          performMixing();
+        }, 100);
+      } else {
+        setCurrentStep(6);
+        // Auto-start media production
+        setTimeout(() => {
+          performMediaProduction();
+        }, 100);
+      }
       return;
     }
     
@@ -965,9 +1119,9 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   // Render Step 1: Template Selection (NEW)
   const renderTemplateStep = () => {
     return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Template Grid - All Templates */}
-      <div className="grid gap-3 grid-cols-4">
+      <div className="grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-4">
         {PROJECT_TEMPLATES.map((template) => {
           const IconComponent = TemplateIconMap[template.icon] || FileText;
           const isSelected = selectedTemplateId === template.id;
@@ -1057,7 +1211,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
   // Render Step 2: Spec Confirmation (simplified - no file upload)
   const renderSpecStep = () => (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Spec Form */}
       <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: theme.bgCard }}>
         <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
@@ -1285,7 +1439,28 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
   // Render Step 3: Content Input (NEW - moved from old Step 1)
   const renderContentInputStep = () => (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
+      {/* First Episode Banner */}
+      <div 
+        className="flex items-center gap-3 px-5 py-4 rounded-xl border border-white/10"
+        style={{ background: `${theme.primary}10` }}
+      >
+        <div 
+          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+          style={{ background: `${theme.primary}25` }}
+        >
+          <Sparkles size={18} style={{ color: theme.primaryLight }} />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-white/90">
+            {t.projectCreator.firstEpisodeBanner}
+          </p>
+          <p className="text-xs text-white/50 mt-0.5">
+            {t.projectCreator.firstEpisodeHint}
+          </p>
+        </div>
+      </div>
+
       {/* Text Input with File Attachment */}
       <div>
         <label className="block text-base font-medium text-white/70 mb-3 flex items-center justify-end gap-2">
@@ -1404,7 +1579,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
   // Render Step 2: Script Generation
   const renderScriptStep = () => (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Generate Script Button */}
       {scriptSections.length === 0 && !isGeneratingScript && (
         <button
@@ -1663,18 +1838,19 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     // Show voice assignment UI before confirming
     if (!voicesConfirmed) {
       return (
-        <div className="space-y-6">
-          <div className="text-center py-4">
+        <div className="space-y-4 sm:space-y-6">
+          <div className="text-center py-2 sm:py-4">
             <div 
-              className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
+              className="w-10 h-10 sm:w-16 sm:h-16 mx-auto mb-2 sm:mb-4 rounded-full flex items-center justify-center"
               style={{ background: `${theme.primary}20` }}
             >
-              <Mic2 size={32} style={{ color: theme.primaryLight }} />
+              <Mic2 size={20} className="sm:hidden" style={{ color: theme.primaryLight }} />
+              <Mic2 size={32} className="hidden sm:block" style={{ color: theme.primaryLight }} />
             </div>
-            <h3 className="text-xl font-medium text-white mb-2">
+            <h3 className="text-base sm:text-xl font-medium text-white mb-1 sm:mb-2">
               {language === 'zh' ? '角色音色配置' : 'Character Voice Configuration'}
             </h3>
-            <p className="text-base text-white/50">
+            <p className="text-sm sm:text-base text-white/50">
               {language === 'zh' 
                 ? '为每个角色选择音色，确认后开始语音合成' 
                 : 'Assign voices to each character, then start synthesis'}
@@ -1709,6 +1885,14 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   </span>
                 </div>
               </div>
+              {/* Hidden voice file upload input */}
+              <input
+                ref={voiceUploadRef}
+                type="file"
+                accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a,.aac"
+                onChange={handleVoiceFileUpload}
+                className="hidden"
+              />
               <div className="p-4 space-y-3">
                 {extractedCharacters.map((char, index) => {
                   const assignedVoiceId = char.assignedVoiceId;
@@ -1717,21 +1901,24 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   const hasAssignment = assignedSystemVoice || assignedCustomVoice;
                   
                   return (
-                    <div key={index} className="flex items-center gap-4 p-4 rounded-lg bg-white/5 border border-white/5">
-                      <div className="w-12 h-12 rounded-full flex items-center justify-center bg-white/10">
-                        <User size={20} className="text-white/60" />
+                    <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg bg-white/5 border border-white/5">
+                      <div className="flex items-center gap-3 sm:gap-4">
+                        <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full flex items-center justify-center bg-white/10 flex-shrink-0">
+                          <User size={16} className="sm:hidden text-white/60" />
+                          <User size={20} className="hidden sm:block text-white/60" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm sm:text-base text-white font-medium truncate">{char.name}</p>
+                          {char.description && (
+                            <p className="text-xs sm:text-sm text-white/40 truncate">{char.description}</p>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-base text-white font-medium truncate">{char.name}</p>
-                        {char.description && (
-                          <p className="text-sm text-white/40 truncate">{char.description}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 pl-12 sm:pl-0">
                         <select
                           value={assignedVoiceId || ''}
                           onChange={(e) => assignVoiceToCharacter(index, e.target.value)}
-                          className="px-4 py-2.5 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20 min-w-[160px]"
+                          className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg border border-white/10 bg-white/5 text-sm sm:text-base text-white focus:outline-none focus:border-white/20 min-w-0 sm:min-w-[160px] flex-1 sm:flex-none"
                           style={{ background: hasAssignment ? `${theme.primary}15` : 'rgba(255,255,255,0.05)' }}
                         >
                           <option value="" className="bg-gray-900">
@@ -1758,6 +1945,17 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                             </optgroup>
                           )}
                         </select>
+                        {/* Upload voice file button */}
+                        <button
+                          onClick={() => {
+                            setUploadingForCharIndex(index);
+                            voiceUploadRef.current?.click();
+                          }}
+                          className="p-2.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-all"
+                          title={language === 'zh' ? '上传音色文件' : 'Upload voice file'}
+                        >
+                          <Upload size={18} />
+                        </button>
                         {/* Play button for assigned voice */}
                         {assignedSystemVoice && (
                           <button 
@@ -1790,8 +1988,9 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
           {/* No characters message */}
           {extractedCharacters.length === 0 && (
-            <div className="text-center py-10 text-white/40">
-              <User size={40} className="mx-auto mb-3 opacity-50" />
+            <div className="text-center py-6 sm:py-10 text-white/40">
+              <User size={28} className="sm:hidden mx-auto mb-2 opacity-50" />
+              <User size={40} className="hidden sm:block mx-auto mb-3 opacity-50" />
               <p>{language === 'zh' ? '未检测到角色' : 'No characters detected'}</p>
             </div>
           )}
@@ -1833,28 +2032,30 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     const allCompleted = completedSections === scriptSections.length && scriptSections.length > 0;
     
     return (
-      <div className="space-y-6">
-        {/* Overall progress header */}
-        <div className="text-center py-4">
+      <div className="space-y-4 sm:space-y-6">
+        {/* Overall progress header — compact */}
+        <div className="flex items-center gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-white/10" style={{ background: `${theme.primary}10` }}>
           <div 
-            className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
-            style={{ background: `${theme.primary}20` }}
+            className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+            style={{ background: `${theme.primary}25` }}
           >
             {allCompleted ? (
-              <Check size={32} style={{ color: theme.primaryLight }} />
+              <Check size={18} style={{ color: theme.primaryLight }} />
             ) : (
-              <Mic2 size={32} className={voiceGeneration.status === 'processing' ? 'animate-pulse' : ''} style={{ color: theme.primaryLight }} />
+              <Mic2 size={18} className={voiceGeneration.status === 'processing' ? 'animate-pulse' : ''} style={{ color: theme.primaryLight }} />
             )}
           </div>
-          <h3 className="text-xl font-medium text-white mb-2">
-            {language === 'zh' ? '逐段语音生成' : 'Section-by-Section Voice Generation'}
-          </h3>
-          <p className="text-base text-white/50">
-            {allCompleted 
-              ? (language === 'zh' ? '所有段落已完成' : 'All sections completed')
-              : `${completedSections}/${scriptSections.length} ${language === 'zh' ? '段落已完成' : 'sections completed'}`
-            }
-          </p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white/90">
+              {language === 'zh' ? '逐段语音生成' : 'Voice Generation'}
+            </p>
+            <p className="text-xs text-white/50">
+              {allCompleted 
+                ? (language === 'zh' ? '所有段落已完成' : 'All sections completed')
+                : `${completedSections}/${scriptSections.length} ${language === 'zh' ? '段落已完成' : 'sections completed'}`
+              }
+            </p>
+          </div>
         </div>
 
         {/* Section list with individual controls */}
@@ -1873,7 +2074,32 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                 style={{ background: theme.bgCard }}
               >
                 {/* Section header */}
-                <div className="px-5 py-4 flex items-center gap-4">
+                <div 
+                  className={`px-5 py-4 flex items-center gap-4 ${
+                    status.status === 'completed' && status.audioSegments.length > 0 
+                      ? 'cursor-pointer hover:bg-white/5 transition-colors' 
+                      : ''
+                  }`}
+                  onClick={() => {
+                    if (status.status === 'completed' && status.audioSegments.length > 0) {
+                      setExpandedVoiceSections(prev => {
+                        const next = new Set(prev);
+                        if (next.has(section.id)) {
+                          next.delete(section.id);
+                          // Stop playing audio when collapsing
+                          if (segmentAudioRef.current) {
+                            segmentAudioRef.current.pause();
+                            segmentAudioRef.current = null;
+                          }
+                          setPlayingSegmentId(null);
+                        } else {
+                          next.add(section.id);
+                        }
+                        return next;
+                      });
+                    }
+                  }}
+                >
                   {/* Status icon */}
                   <div 
                     className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
@@ -1912,7 +2138,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   </div>
                   
                   {/* Action buttons */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                     {/* Progress indicator for processing */}
                     {status.status === 'processing' && (
                       <span className="text-sm font-medium" style={{ color: theme.primaryLight }}>
@@ -1950,6 +2176,16 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                         <RefreshCw size={16} />
                       </button>
                     )}
+                    
+                    {/* Expand/collapse chevron for completed sections */}
+                    {status.status === 'completed' && status.audioSegments.length > 0 && (
+                      <ChevronDown 
+                        size={18} 
+                        className={`text-white/40 transition-transform duration-200 ${
+                          expandedVoiceSections.has(section.id) ? 'rotate-180' : ''
+                        }`} 
+                      />
+                    )}
                   </div>
                 </div>
                 
@@ -1972,24 +2208,69 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   </div>
                 )}
                 
-                {/* Audio preview for completed sections */}
-                {status.status === 'completed' && status.audioSegments.length > 0 && (
-                  <div className="px-5 pb-4 border-t border-white/5 pt-3">
-                    <div className="flex flex-wrap gap-2">
-                      {status.audioSegments.map((audio, audioIndex) => (
-                        <button
-                          key={audioIndex}
-                          onClick={() => {
-                            const audioUrl = api.audioDataToUrl(audio.audioData, audio.mimeType);
-                            const audioEl = new Audio(audioUrl);
-                            audioEl.play();
-                          }}
-                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-white/5 hover:bg-white/10 transition-all"
-                        >
-                          <Play size={12} style={{ color: theme.primaryLight }} />
-                          <span className="text-white/70">{audio.speaker}</span>
-                        </button>
-                      ))}
+                {/* Expanded audio segment list for completed sections */}
+                {status.status === 'completed' && status.audioSegments.length > 0 && expandedVoiceSections.has(section.id) && (
+                  <div className="border-t border-white/5">
+                    <div className="divide-y divide-white/5">
+                      {status.audioSegments.map((audio, audioIndex) => {
+                        const segId = `${section.id}-${audioIndex}`;
+                        const isPlaying = playingSegmentId === segId;
+                        return (
+                          <div 
+                            key={audioIndex}
+                            className="px-5 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
+                          >
+                            {/* Play/Pause button */}
+                            <button
+                              onClick={() => {
+                                if (isPlaying) {
+                                  // Stop current
+                                  if (segmentAudioRef.current) {
+                                    segmentAudioRef.current.pause();
+                                    segmentAudioRef.current = null;
+                                  }
+                                  setPlayingSegmentId(null);
+                                } else {
+                                  // Stop previous if any
+                                  if (segmentAudioRef.current) {
+                                    segmentAudioRef.current.pause();
+                                    segmentAudioRef.current = null;
+                                  }
+                                  const audioUrl = api.audioDataToUrl(audio.audioData, audio.mimeType);
+                                  const audioEl = new Audio(audioUrl);
+                                  audioEl.onended = () => {
+                                    setPlayingSegmentId(null);
+                                    segmentAudioRef.current = null;
+                                  };
+                                  audioEl.play().catch(() => {
+                                    setPlayingSegmentId(null);
+                                    segmentAudioRef.current = null;
+                                  });
+                                  segmentAudioRef.current = audioEl;
+                                  setPlayingSegmentId(segId);
+                                }
+                              }}
+                              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:scale-110"
+                              style={{ background: isPlaying ? theme.primary : `${theme.primary}30` }}
+                            >
+                              {isPlaying ? (
+                                <Pause size={14} className="text-white" />
+                              ) : (
+                                <Play size={14} className="ml-0.5" style={{ color: theme.primaryLight }} />
+                              )}
+                            </button>
+                            
+                            {/* Segment info */}
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium text-white/80">{audio.speaker}</span>
+                              <p className="text-xs text-white/40 truncate mt-0.5">{audio.text}</p>
+                            </div>
+                            
+                            {/* Line index */}
+                            <span className="text-xs text-white/20 flex-shrink-0">#{audio.lineIndex + 1}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -2026,22 +2307,28 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     const hasImages = specData.hasVisualContent;
     
     return (
-      <div className="space-y-6">
-        <div className="text-center py-6">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="text-center py-3 sm:py-6">
           <div 
-            className="w-20 h-20 mx-auto mb-5 rounded-full flex items-center justify-center"
+            className="w-12 h-12 sm:w-20 sm:h-20 mx-auto mb-3 sm:mb-5 rounded-full flex items-center justify-center"
             style={{ background: `${theme.primary}20` }}
           >
             {mediaProduction.status === 'completed' ? (
-              <Check size={40} style={{ color: theme.primaryLight }} />
+              <>
+                <Check size={24} className="sm:hidden" style={{ color: theme.primaryLight }} />
+                <Check size={40} className="hidden sm:block" style={{ color: theme.primaryLight }} />
+              </>
             ) : (
-              <Music size={40} className={mediaProduction.status === 'processing' ? 'animate-pulse' : ''} style={{ color: theme.primaryLight }} />
+              <>
+                <Music size={24} className={`sm:hidden ${mediaProduction.status === 'processing' ? 'animate-pulse' : ''}`} style={{ color: theme.primaryLight }} />
+                <Music size={40} className={`hidden sm:block ${mediaProduction.status === 'processing' ? 'animate-pulse' : ''}`} style={{ color: theme.primaryLight }} />
+              </>
             )}
           </div>
-          <h3 className="text-xl font-medium text-white mb-2">
+          <h3 className="text-base sm:text-xl font-medium text-white mb-1 sm:mb-2">
             {language === 'zh' ? '媒体制作' : 'Media Production'}
           </h3>
-          <p className="text-base text-white/50">
+          <p className="text-sm sm:text-base text-white/50">
             {mediaProduction.status === 'completed' 
               ? (language === 'zh' ? '媒体制作完成' : 'Media production complete')
               : mediaProduction.currentTask || (language === 'zh' ? '准备中...' : 'Preparing...')
@@ -2064,45 +2351,48 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         </div>
 
         {/* Media tasks */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
           {hasBgm && (
             <div 
-              className="p-5 rounded-xl border border-white/10 text-center"
+              className="p-3 sm:p-5 rounded-xl border border-white/10 text-center"
               style={{ background: theme.bgCard }}
             >
-              <Music size={28} className="mx-auto mb-3" style={{ color: theme.primaryLight }} />
-              <p className="text-sm text-white/70">BGM</p>
+              <Music size={20} className="sm:hidden mx-auto mb-2" style={{ color: theme.primaryLight }} />
+              <Music size={28} className="hidden sm:block mx-auto mb-3" style={{ color: theme.primaryLight }} />
+              <p className="text-xs sm:text-sm text-white/70">BGM</p>
               {mediaProduction.progress > 33 && (
-                <Check size={16} className="mx-auto mt-2" style={{ color: theme.primaryLight }} />
+                <Check size={14} className="mx-auto mt-1 sm:mt-2" style={{ color: theme.primaryLight }} />
               )}
             </div>
           )}
           {hasSfx && (
             <div 
-              className="p-5 rounded-xl border border-white/10 text-center"
+              className="p-3 sm:p-5 rounded-xl border border-white/10 text-center"
               style={{ background: theme.bgCard }}
             >
-              <Volume2 size={28} className="mx-auto mb-3" style={{ color: theme.primaryLight }} />
-              <p className="text-sm text-white/70">SFX</p>
+              <Volume2 size={20} className="sm:hidden mx-auto mb-2" style={{ color: theme.primaryLight }} />
+              <Volume2 size={28} className="hidden sm:block mx-auto mb-3" style={{ color: theme.primaryLight }} />
+              <p className="text-xs sm:text-sm text-white/70">SFX</p>
               {mediaProduction.progress > 66 && (
-                <Check size={16} className="mx-auto mt-2" style={{ color: theme.primaryLight }} />
+                <Check size={14} className="mx-auto mt-1 sm:mt-2" style={{ color: theme.primaryLight }} />
               )}
             </div>
           )}
           {hasImages && (
             <div 
-              className="p-5 rounded-xl border border-white/10 text-center"
+              className="p-3 sm:p-5 rounded-xl border border-white/10 text-center"
               style={{ background: theme.bgCard }}
             >
-              <Image size={28} className="mx-auto mb-3" style={{ color: theme.primaryLight }} />
-              <p className="text-sm text-white/70">{language === 'zh' ? '图片' : 'Images'}</p>
+              <Image size={20} className="sm:hidden mx-auto mb-2" style={{ color: theme.primaryLight }} />
+              <Image size={28} className="hidden sm:block mx-auto mb-3" style={{ color: theme.primaryLight }} />
+              <p className="text-xs sm:text-sm text-white/70">{language === 'zh' ? '图片' : 'Images'}</p>
               {mediaProduction.progress === 100 && (
-                <Check size={16} className="mx-auto mt-2" style={{ color: theme.primaryLight }} />
+                <Check size={14} className="mx-auto mt-1 sm:mt-2" style={{ color: theme.primaryLight }} />
               )}
             </div>
           )}
           {!hasBgm && !hasSfx && !hasImages && (
-            <div className="col-span-3 text-center py-10 text-white/40 text-base">
+            <div className="col-span-3 text-center py-6 sm:py-10 text-white/40 text-sm sm:text-base">
               {language === 'zh' ? '此模板不需要额外媒体' : 'No additional media for this template'}
             </div>
           )}
@@ -2143,24 +2433,33 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     };
     
     return (
-      <div className="space-y-6">
-        <div className="text-center py-6">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="text-center py-3 sm:py-6">
           <div 
-            className="w-20 h-20 mx-auto mb-5 rounded-full flex items-center justify-center"
+            className="w-12 h-12 sm:w-20 sm:h-20 mx-auto mb-3 sm:mb-5 rounded-full flex items-center justify-center"
             style={{ background: `${theme.primary}20` }}
           >
             {mixingEditing.status === 'completed' && mixedOutput ? (
-              <Check size={40} style={{ color: theme.primaryLight }} />
+              <>
+                <Check size={24} className="sm:hidden" style={{ color: theme.primaryLight }} />
+                <Check size={40} className="hidden sm:block" style={{ color: theme.primaryLight }} />
+              </>
             ) : mixingError ? (
-              <X size={40} className="text-red-400" />
+              <>
+                <X size={24} className="sm:hidden text-red-400" />
+                <X size={40} className="hidden sm:block text-red-400" />
+              </>
             ) : (
-              <Sliders size={40} className={mixingEditing.status === 'processing' ? 'animate-pulse' : ''} style={{ color: theme.primaryLight }} />
+              <>
+                <Sliders size={24} className={`sm:hidden ${mixingEditing.status === 'processing' ? 'animate-pulse' : ''}`} style={{ color: theme.primaryLight }} />
+                <Sliders size={40} className={`hidden sm:block ${mixingEditing.status === 'processing' ? 'animate-pulse' : ''}`} style={{ color: theme.primaryLight }} />
+              </>
             )}
           </div>
-          <h3 className="text-xl font-medium text-white mb-2">
+          <h3 className="text-base sm:text-xl font-medium text-white mb-1 sm:mb-2">
             {language === 'zh' ? '混音与编辑' : 'Mixing & Editing'}
           </h3>
-          <p className="text-base text-white/50">
+          <p className="text-sm sm:text-base text-white/50">
             {mixingError 
               ? (language === 'zh' ? `混音失败: ${mixingError}` : `Mixing failed: ${mixingError}`)
               : mixingEditing.status === 'completed' && mixedOutput
@@ -2263,50 +2562,105 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   };
 
   // Render Step 8: Save (Post-processing)
-  const renderSaveStep = () => (
-    <div className="space-y-6">
-      {/* Success message */}
-      <div className="text-center py-6">
-        <div 
-          className="w-20 h-20 mx-auto mb-5 rounded-full flex items-center justify-center"
-          style={{ background: `${theme.primary}30` }}
-        >
-          <Check size={40} style={{ color: theme.primaryLight }} />
+  const renderSaveStep = () => {
+    const mixedOutput = production.mixingEditing.output;
+    
+    const handleDownloadFinal = () => {
+      if (mixedOutput?.audioData) {
+        const filename = `${specData.storyTitle || 'mixed-audio'}.wav`;
+        api.downloadAudio(mixedOutput.audioData, mixedOutput.mimeType, filename);
+      }
+    };
+
+    return (
+    <div className="space-y-4 sm:space-y-6">
+      {/* Audio Preview */}
+      <div 
+        className="rounded-xl p-3 sm:p-5 border border-white/10"
+        style={{ background: theme.bgCard }}
+      >
+        <div className="flex items-center gap-2 mb-4">
+          <Headphones size={18} style={{ color: theme.primaryLight }} />
+          <span className="text-white text-base font-medium">
+            {language === 'zh' ? '最终预览' : 'Final Preview'}
+          </span>
+          {mixedOutput && (
+            <span className="text-white/40 text-sm ml-auto">
+              {formatDuration(mixedOutput.durationMs)}
+            </span>
+          )}
         </div>
-        <h3 className="text-xl font-medium text-white mb-2">
-          {language === 'zh' ? '准备就绪！' : 'Ready to Save!'}
-        </h3>
-        <p className="text-base text-white/50">
-          {language === 'zh' ? '确认以下信息并保存项目' : 'Confirm the details below and save your project'}
-        </p>
+        
+        {mixedOutput ? (
+          <>
+            {/* Native audio player */}
+            <audio 
+              controls 
+              className="w-full mb-4"
+              src={api.audioDataToUrl(mixedOutput.audioData, mixedOutput.mimeType)}
+              style={{ height: '40px' }}
+            />
+            
+            {/* Download button */}
+            <button
+              onClick={handleDownloadFinal}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-white text-sm font-medium border border-white/20 transition-all hover:bg-white/10"
+            >
+              <Save size={16} />
+              {language === 'zh' ? '下载音频' : 'Download Audio'}
+            </button>
+          </>
+        ) : (
+          <div className="py-4 text-center space-y-3">
+            <p className="text-white/40 text-sm">
+              {production.mixingEditing.error
+                ? (language === 'zh' ? `混音失败: ${production.mixingEditing.error}` : `Mixing failed: ${production.mixingEditing.error}`)
+                : (language === 'zh' ? '没有可用的音频' : 'No audio available')
+              }
+            </p>
+            <button
+              onClick={() => {
+                dispatch(actions.updateProductionPhase('mixing-editing', 'idle', 0));
+                dispatch(actions.setMixingError(''));
+                setTimeout(() => performMixing(), 100);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all hover:scale-105"
+              style={{ background: theme.primary }}
+            >
+              <RefreshCw size={16} />
+              {language === 'zh' ? '重新混音' : 'Retry Mixing'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Project summary */}
       <div 
-        className="rounded-xl p-6 border border-white/10"
+        className="rounded-xl p-4 sm:p-6 border border-white/10"
         style={{ background: `${theme.primary}10` }}
       >
-        <div className="flex items-center gap-4 mb-5">
+        <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-5">
           <div 
-            className="w-14 h-14 rounded-xl flex items-center justify-center"
+            className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center flex-shrink-0"
             style={{ background: `${theme.primary}30` }}
           >
-            <ReligionIcon size={28} color={theme.primaryLight} />
+            <ReligionIcon size={20} color={theme.primaryLight} className="sm:hidden" />
+            <ReligionIcon size={28} color={theme.primaryLight} className="hidden sm:block" />
           </div>
-          <div className="flex-1">
-            <h3 className="text-2xl font-serif text-white">{specData.storyTitle}</h3>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-lg sm:text-2xl font-serif text-white truncate">{specData.storyTitle}</h3>
             {specData.subtitle && (
-              <p className="text-base text-white/70 italic">{specData.subtitle}</p>
+              <p className="text-sm sm:text-base text-white/70 italic truncate">{specData.subtitle}</p>
             )}
-            <p className="text-base text-white/50">
+            <p className="text-xs sm:text-base text-white/50 truncate">
               {specData.targetAudience} · {specData.formatAndDuration}
             </p>
           </div>
         </div>
 
-        <div className="space-y-4 text-base">
+        <div className="space-y-3 sm:space-y-4 text-sm sm:text-base">
           <p className="text-white/70 line-clamp-1">{specData.toneAndExpression}</p>
-          <div className="flex items-center gap-4 text-sm text-white/60">
+          <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-white/60 flex-wrap">
             <span>{scriptSections.length} {language === 'zh' ? '段落' : 'sections'}</span>
             <span>·</span>
             <span>{extractedCharacters.length} {language === 'zh' ? '角色' : 'characters'}</span>
@@ -2354,7 +2708,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         {language === 'zh' ? '点击下方按钮保存项目' : 'Click the button below to save your project'}
       </p>
     </div>
-  );
+    );
+  };
 
   // Main render step content for 8-step workflow
   const renderStepContent = () => {
@@ -2420,6 +2775,47 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     }
   }, [initialData]);
 
+  // --- Draft Persistence: Restore on mount ---
+  useEffect(() => {
+    // Skip if initialData is provided (coming from Landing page – fresh flow)
+    if (initialData) return;
+    
+    const draft = loadDraft();
+    if (draft) {
+      // Restore reducer state
+      dispatch(actions.restoreDraft(draft));
+      // Restore local UI state
+      setCurrentStep(draft.currentStep);
+      setCustomDescription(draft.localState.customDescription);
+      setTemplateConfig(draft.localState.templateConfig);
+      setVoicesConfirmed(draft.localState.voicesConfirmed);
+      // Show restoration banner
+      setDraftBanner({ visible: true, savedAt: draft.savedAt });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount
+
+  // --- Draft Persistence: Auto-save on step changes and state mutations ---
+  useEffect(() => {
+    // Don't save if we're on step 1 with no data yet (nothing to persist)
+    if (currentStep === 1 && !selectedTemplateId && !customDescription.trim()) return;
+
+    // Debounce saves to avoid excessive writes
+    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => {
+      saveDraft(currentStep, state, {
+        customDescription,
+        templateConfig,
+        voicesConfirmed,
+      });
+    }, 500);
+
+    return () => {
+      if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, state, customDescription, templateConfig, voicesConfirmed]);
+
   // Parse streaming text progressively for UI rendering
   useEffect(() => {
     if (!streamingText) {
@@ -2440,29 +2836,63 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         style={{ background: theme.bgDark }}
       >
         {/* Header */}
-        <div className="px-8 py-5 flex items-center justify-between border-b border-white/10">
-          <div className="flex items-center gap-4">
+        <div className="px-4 sm:px-8 py-3 sm:py-5 flex items-center justify-between border-b border-white/10">
+          <div className="flex items-center gap-3 sm:gap-4">
             <div 
-              className="w-12 h-12 rounded-xl flex items-center justify-center"
+              className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: `${theme.primary}30` }}
             >
-              <ReligionIcon size={24} color={theme.primaryLight} />
+              <ReligionIcon size={20} color={theme.primaryLight} className="sm:hidden" />
+              <ReligionIcon size={24} color={theme.primaryLight} className="hidden sm:block" />
             </div>
-            <div>
-              <h2 className="text-xl font-serif text-white">{t.projectCreator.title}</h2>
-              <p className="text-sm text-white/50">
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-xl font-serif text-white truncate">{t.projectCreator.title}</h2>
+              <p className="text-xs sm:text-sm text-white/50 truncate">
                 {t.projectCreator.step} {currentStep} / {STEPS.length} · {STEPS[currentStep - 1]?.title}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-            <X className="text-white/50" size={24} />
+          <button onClick={onClose} className="p-1.5 sm:p-2 hover:bg-white/10 rounded-lg transition-colors flex-shrink-0">
+            <X className="text-white/50" size={20} />
           </button>
         </div>
 
 
+        {/* Draft Restored Banner */}
+        {draftBanner?.visible && (
+          <div 
+            className="mx-4 sm:mx-8 mt-3 sm:mt-4 px-3 sm:px-4 py-2 sm:py-3 rounded-xl flex items-center justify-between border border-white/10 animate-slide-up gap-2"
+            style={{ background: `${theme.primary}15` }}
+          >
+            <div className="flex items-center gap-3">
+              <RefreshCw size={16} style={{ color: theme.primaryLight }} />
+              <span className="text-sm text-white/80">
+                {language === 'zh' 
+                  ? `已恢复上次的草稿（${new Date(draftBanner.savedAt).toLocaleString('zh-CN')}）` 
+                  : `Draft restored from ${new Date(draftBanner.savedAt).toLocaleString()}`
+                }
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDiscardDraft}
+                className="text-xs px-3 py-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                {language === 'zh' ? '放弃草稿' : 'Discard'}
+              </button>
+              <button
+                onClick={() => setDraftBanner(null)}
+                className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+                style={{ background: `${theme.primary}30`, color: theme.primaryLight }}
+              >
+                {language === 'zh' ? '继续编辑' : 'Continue'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Content */}
-        <div className="flex-1 overflow-auto px-8 py-8">
+        <div className="flex-1 overflow-auto px-4 py-4 sm:px-8 sm:py-8">
           {renderStepContent()}
         </div>
 

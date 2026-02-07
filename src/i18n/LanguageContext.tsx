@@ -1,7 +1,6 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Language, Translations } from './types';
-// Import default translations synchronously for initial render
-import enTranslations from './locales/en.json';
+import { createContext, useContext, ReactNode, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { Language, Translations } from './types';
 
 interface LanguageContextType {
   language: Language;
@@ -12,71 +11,33 @@ interface LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'gather_language';
-
-// Dynamic import function for JSON files
-async function loadTranslations(lang: Language): Promise<Translations> {
-  try {
-    const module = await import(`./locales/${lang}.json`);
-    return module.default;
-  } catch (error) {
-    console.error(`Failed to load translations for ${lang}:`, error);
-    // Fallback to English if loading fails
-    return enTranslations as Translations;
-  }
-}
-
+/**
+ * LanguageProvider wraps i18next and provides a backward-compatible API.
+ * 
+ * Existing components can continue using:
+ *   const { t, language, setLanguage } = useLanguage();
+ *   <span>{t.nav.workspace}</span>
+ * 
+ * New components can also use react-i18next directly:
+ *   const { t } = useTranslation();
+ *   <span>{t('nav.workspace')}</span>
+ */
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>('en');
-  // Initialize with English translations to prevent undefined errors during first render
-  const [translations, setTranslations] = useState<Translations>(enTranslations as Translations);
-  const [loading, setLoading] = useState(true);
+  const { i18n } = useTranslation();
 
-  // Load translations when language changes
-  useEffect(() => {
-    let isMounted = true;
-    
-    async function loadLanguage() {
-      setLoading(true);
-      const t = await loadTranslations(language);
-      if (isMounted) {
-        setTranslations(t);
-        setLoading(false);
-      }
-    }
+  const language = (i18n.language?.startsWith('zh') ? 'zh' :
+    i18n.language?.startsWith('es') ? 'es' : 
+    i18n.resolvedLanguage || 'en') as Language;
 
-    loadLanguage();
+  const setLanguage = useCallback((lang: Language) => {
+    i18n.changeLanguage(lang);
+  }, [i18n]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [language]);
+  // Get the full translation object for dot-access (backward compat)
+  const t = (i18n.getResourceBundle(language, 'translation') || 
+    i18n.getResourceBundle('en', 'translation')) as Translations;
 
-  // Initialize language from localStorage or browser language
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY) as Language | null;
-    if (saved && (saved === 'en' || saved === 'zh' || saved === 'es')) {
-      setLanguageState(saved);
-    } else {
-      // Detect browser language
-      const browserLang = navigator.language.toLowerCase();
-      if (browserLang.startsWith('zh')) {
-        setLanguageState('zh');
-      } else if (browserLang.startsWith('es')) {
-        setLanguageState('es');
-      } else {
-        setLanguageState('en');
-      }
-    }
-  }, []);
-
-  const setLanguage = (lang: Language) => {
-    setLanguageState(lang);
-    localStorage.setItem(STORAGE_KEY, lang);
-  };
-
-  // translations is never null now since we initialize with static translations
-  const t = translations;
+  const loading = !i18n.isInitialized;
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage, t, loading }}>
@@ -85,6 +46,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Hook for accessing translations with dot-notation (backward compat).
+ * For new code, prefer useTranslation() from 'react-i18next'.
+ */
 export function useLanguage() {
   const context = useContext(LanguageContext);
   if (context === undefined) {

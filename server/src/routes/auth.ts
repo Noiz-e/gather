@@ -33,6 +33,50 @@ interface TokenPayload {
 const JWT_SECRET = process.env.JWT_SECRET || 'gather-secret-key-change-in-production';
 const ACCESS_TOKEN_EXPIRES_MS = 60 * 60 * 1000; // 1 hour
 const REFRESH_TOKEN_EXPIRES_DAYS = 30;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+// Cookie configuration
+// In production: cross-origin (different domains) requires sameSite: 'none' + secure: true
+// In development: same-origin (localhost) uses sameSite: 'lax' + secure: false
+const COOKIE_OPTIONS: {
+  httpOnly: boolean;
+  secure: boolean;
+  sameSite: 'strict' | 'lax' | 'none';
+  maxAge: number;
+  path: string;
+} = IS_PRODUCTION ? {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'none',
+  maxAge: ACCESS_TOKEN_EXPIRES_MS,
+  path: '/',
+} : {
+  httpOnly: true,
+  secure: false,
+  sameSite: 'lax',
+  maxAge: ACCESS_TOKEN_EXPIRES_MS,
+  path: '/',
+};
+
+const REFRESH_COOKIE_OPTIONS: {
+  httpOnly: boolean;
+  secure: boolean;
+  sameSite: 'strict' | 'lax' | 'none';
+  maxAge: number;
+  path: string;
+} = IS_PRODUCTION ? {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'none',
+  maxAge: REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000,
+  path: '/api/auth',
+} : {
+  httpOnly: true,
+  secure: false,
+  sameSite: 'lax',
+  maxAge: REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000,
+  path: '/api/auth',
+};
 
 function createToken(payload: Omit<TokenPayload, 'iat'>): string {
   const fullPayload: TokenPayload = {
@@ -88,24 +132,33 @@ function generateAccessToken(userId: string): string {
 
 /**
  * Authentication middleware
- * Extracts and verifies the access token from Authorization header
+ * Extracts and verifies the access token from cookies or Authorization header
  */
 export async function authMiddleware(
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  const authHeader = req.headers.authorization;
+  // Try to get token from cookie first, then fallback to Authorization header
+  let token = req.cookies?.accessToken;
   
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Missing or invalid authorization header' });
+  if (!token) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.slice(7);
+    }
+  }
+  
+  if (!token) {
+    res.status(401).json({ error: 'Not authenticated' });
     return;
   }
   
-  const token = authHeader.slice(7);
   const payload = verifyToken(token);
   
   if (!payload) {
+    // Token expired or invalid - clear cookies
+    res.clearCookie('accessToken', { path: '/' });
     res.status(401).json({ error: 'Invalid or expired token' });
     return;
   }
@@ -114,6 +167,7 @@ export async function authMiddleware(
   const user = await usersRepo.getUserById(payload.userId);
   
   if (!user || !user.isActive) {
+    res.clearCookie('accessToken', { path: '/' });
     res.status(401).json({ error: 'User not found or inactive' });
     return;
   }
@@ -216,6 +270,10 @@ authRouter.post('/register', async (req: Request, res: Response) => {
     // Update last login
     await usersRepo.updateLastLogin(user.id);
     
+    // Set cookies
+    res.cookie('accessToken', accessToken, COOKIE_OPTIONS);
+    res.cookie('refreshToken', refreshToken, REFRESH_COOKIE_OPTIONS);
+    
     res.status(201).json({
       user: {
         id: user.id,
@@ -224,9 +282,6 @@ authRouter.post('/register', async (req: Request, res: Response) => {
         role: user.role,
         createdAt: user.createdAt,
       },
-      accessToken,
-      refreshToken,
-      expiresIn: ACCESS_TOKEN_EXPIRES_MS / 1000,
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -276,6 +331,10 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     // Update last login
     await usersRepo.updateLastLogin(user.id);
     
+    // Set cookies
+    res.cookie('accessToken', accessToken, COOKIE_OPTIONS);
+    res.cookie('refreshToken', refreshToken, REFRESH_COOKIE_OPTIONS);
+    
     res.json({
       user: {
         id: user.id,
@@ -285,9 +344,6 @@ authRouter.post('/login', async (req: Request, res: Response) => {
         preferredLanguage: user.preferredLanguage,
         createdAt: user.createdAt,
       },
-      accessToken,
-      refreshToken,
-      expiresIn: ACCESS_TOKEN_EXPIRES_MS / 1000,
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -300,11 +356,12 @@ authRouter.post('/login', async (req: Request, res: Response) => {
 
 /**
  * POST /api/auth/refresh
- * Refresh access token using refresh token
+ * Refresh access token using refresh token from cookie
  */
 authRouter.post('/refresh', async (req: Request, res: Response) => {
   try {
-    const { refreshToken } = req.body;
+    // Get refresh token from cookie or body
+    const refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
     
     if (!refreshToken) {
       return res.status(400).json({ error: 'Missing refresh token' });
@@ -319,22 +376,24 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
     // Validate refresh token
     const session = await usersRepo.getSessionByToken(refreshToken);
     if (!session) {
+      res.clearCookie('accessToken', { path: '/' });
+      res.clearCookie('refreshToken', { path: '/api/auth' });
       return res.status(401).json({ error: 'Invalid or expired refresh token' });
     }
     
     // Get user
     const user = await usersRepo.getUserById(session.userId);
     if (!user || !user.isActive) {
+      res.clearCookie('accessToken', { path: '/' });
+      res.clearCookie('refreshToken', { path: '/api/auth' });
       return res.status(401).json({ error: 'User not found or inactive' });
     }
     
-    // Generate new access token
+    // Generate new access token and set cookie
     const accessToken = generateAccessToken(user.id);
+    res.cookie('accessToken', accessToken, COOKIE_OPTIONS);
     
-    res.json({
-      accessToken,
-      expiresIn: ACCESS_TOKEN_EXPIRES_MS / 1000,
-    });
+    res.json({ success: true });
   } catch (error) {
     console.error('Token refresh error:', error);
     res.status(500).json({ 
@@ -346,11 +405,12 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
 
 /**
  * POST /api/auth/logout
- * Logout and revoke refresh token
+ * Logout, revoke refresh token, and clear cookies
  */
 authRouter.post('/logout', async (req: Request, res: Response) => {
   try {
-    const { refreshToken } = req.body;
+    // Get refresh token from cookie or body
+    const refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
     
     if (refreshToken) {
       const session = await usersRepo.getSessionByToken(refreshToken);
@@ -358,6 +418,10 @@ authRouter.post('/logout', async (req: Request, res: Response) => {
         await usersRepo.revokeSession(session.id);
       }
     }
+    
+    // Clear cookies
+    res.clearCookie('accessToken', { path: '/' });
+    res.clearCookie('refreshToken', { path: '/api/auth' });
     
     res.json({ success: true });
   } catch (error) {

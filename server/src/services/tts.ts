@@ -105,6 +105,40 @@ function dataUrlToBuffer(dataUrl: string): { buffer: Buffer; mimeType: string } 
 }
 
 /**
+ * Resolve audio source to a Buffer - supports data URLs and HTTP(S) URLs
+ * Returns null for unsupported formats (e.g. blob: URLs, relative paths)
+ */
+async function resolveAudioToBuffer(url: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  if (!url || typeof url !== 'string') {
+    return null;
+  }
+
+  // Handle data URLs
+  if (url.startsWith('data:')) {
+    return dataUrlToBuffer(url);
+  }
+
+  // Handle HTTP(S) URLs (e.g. signed GCS URLs)
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.warn(`Failed to fetch audio from URL (${response.status}), skipping voice cloning`);
+      return null;
+    }
+    const contentType = response.headers.get('content-type') || 'audio/wav';
+    const arrayBuffer = await response.arrayBuffer();
+    return {
+      buffer: Buffer.from(arrayBuffer),
+      mimeType: contentType.split(';')[0].trim(),
+    };
+  }
+
+  // Unsupported format (blob: URLs, relative paths, etc.) - skip gracefully
+  console.warn(`Unsupported audio URL format (${url.substring(0, 30)}...), skipping voice cloning`);
+  return null;
+}
+
+/**
  * Generate speech using custom TTS endpoint
  */
 export async function generateCustomSpeech(
@@ -117,11 +151,39 @@ export async function generateCustomSpeech(
 
   const targetText = padText(text);
   
+  // Determine if we have reference audio for voice cloning
+  let hasRefAudio = false;
+  let refAudioBuffer: Buffer | null = null;
+  let refAudioMimeType = 'audio/wav';
+  let refAudioFilename = 'reference.wav';
+
+  if (options.refAudioDataUrl) {
+    const resolved = await resolveAudioToBuffer(options.refAudioDataUrl);
+    if (resolved) {
+      refAudioBuffer = resolved.buffer;
+      refAudioMimeType = resolved.mimeType;
+      const ext = resolved.mimeType.split('/')[1] || 'wav';
+      refAudioFilename = `reference.${ext}`;
+      hasRefAudio = true;
+    }
+  }
+  
+  if (!hasRefAudio && options.refAudioPath && fs.existsSync(options.refAudioPath)) {
+    refAudioBuffer = fs.readFileSync(options.refAudioPath);
+    const ext = path.extname(options.refAudioPath).slice(1) || 'wav';
+    refAudioMimeType = `audio/${ext}`;
+    refAudioFilename = path.basename(options.refAudioPath);
+    hasRefAudio = true;
+  }
+
+  // Use spk_id -1 (voice cloning) only if we have reference audio, otherwise use default speaker 0
+  const effectiveSpkId = options.spkId ?? (hasRefAudio ? -1 : 0);
+
   // Prepare form data
   const formData = new FormData();
   formData.append('synthesis_text', targetText);
   formData.append('prompt_text', options.refText || '');
-  formData.append('spk_id', String(options.spkId ?? -1));
+  formData.append('spk_id', String(effectiveSpkId));
   formData.append('quality_preset', String(options.qualityPreset ?? 0));
   formData.append('balance_volume', String(options.balanceVolume ?? false));
 
@@ -145,20 +207,11 @@ export async function generateCustomSpeech(
     formData.append('emotion_enh', options.emotionEnh);
   }
 
-  // Add reference audio if provided
-  if (options.refAudioDataUrl) {
-    const { buffer, mimeType } = dataUrlToBuffer(options.refAudioDataUrl);
-    const ext = mimeType.split('/')[1] || 'wav';
-    formData.append('wav', buffer, {
-      filename: `reference.${ext}`,
-      contentType: mimeType
-    });
-  } else if (options.refAudioPath && fs.existsSync(options.refAudioPath)) {
-    const audioBuffer = fs.readFileSync(options.refAudioPath);
-    const ext = path.extname(options.refAudioPath).slice(1) || 'wav';
-    formData.append('wav', audioBuffer, {
-      filename: path.basename(options.refAudioPath),
-      contentType: `audio/${ext}`
+  // Add reference audio if available
+  if (hasRefAudio && refAudioBuffer) {
+    formData.append('wav', refAudioBuffer, {
+      filename: refAudioFilename,
+      contentType: refAudioMimeType
     });
   }
 

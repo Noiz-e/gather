@@ -11,7 +11,7 @@ import crypto from 'crypto';
 // Types
 // ============================================
 
-export type UserRole = 'user' | 'admin' | 'superadmin';
+export type UserRole = 'user' | 'editor' | 'admin' | 'superadmin';
 export type AuthProvider = 'email' | 'google' | 'apple' | 'github';
 
 export interface User {

@@ -146,14 +146,16 @@ export function VoiceStudio() {
     if (character) {
       // Editing existing character - show form directly
       setEditingCharacter(character);
+      // Prefer refAudioDataUrl (base64) over audioSampleUrl for TTS compatibility
+      const audioUrl = character.refAudioDataUrl || character.audioSampleUrl || '';
       setCharacterForm({
         name: character.name,
         description: character.description,
         tags: character.tags.join(', '),
-        audioSampleUrl: character.audioSampleUrl || '',
+        audioSampleUrl: audioUrl,
         projectIds: character.projectIds || [],
       });
-      setAudioUploaded(true); // Already has audio
+      setAudioUploaded(!!audioUrl); // Has audio if URL exists
     } else {
       // New character - start with upload flow
       setEditingCharacter(null);
@@ -171,10 +173,17 @@ export function VoiceStudio() {
   };
 
   const handleAudioUpload = async (file: File) => {
-    // Create URL for the uploaded audio
-    const audioUrl = URL.createObjectURL(file);
-    setCharacterForm(prev => ({ ...prev, audioSampleUrl: audioUrl }));
     setIsAnalyzing(true);
+
+    // Convert file to base64 data URL (required for TTS voice cloning)
+    const reader = new FileReader();
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+    
+    setCharacterForm(prev => ({ ...prev, audioSampleUrl: dataUrl }));
 
     // Simulate AI analysis (in real app, this would call an API)
     await new Promise(resolve => setTimeout(resolve, 1500));
@@ -211,9 +220,7 @@ export function VoiceStudio() {
   };
 
   const resetAudioUpload = () => {
-    if (characterForm.audioSampleUrl && !editingCharacter?.audioSampleUrl) {
-      URL.revokeObjectURL(characterForm.audioSampleUrl);
-    }
+    // Data URLs don't need revoking (unlike blob URLs)
     setCharacterForm(prev => ({
       ...prev,
       audioSampleUrl: '',
@@ -241,6 +248,10 @@ export function VoiceStudio() {
     const now = new Date().toISOString();
     const tagsArray = characterForm.tags.split(',').map(tag => tag.trim()).filter(Boolean);
     
+    // audioSampleUrl is now a base64 data URL (from handleAudioUpload)
+    // Set both audioSampleUrl (for playback) and refAudioDataUrl (for TTS voice cloning)
+    const audioUrl = characterForm.audioSampleUrl || undefined;
+    
     if (editingCharacter) {
       // Update existing character
       const updated = characters.map(c => 
@@ -250,7 +261,8 @@ export function VoiceStudio() {
               name: characterForm.name,
               description: characterForm.description,
               tags: tagsArray,
-              audioSampleUrl: characterForm.audioSampleUrl || undefined,
+              audioSampleUrl: audioUrl,
+              refAudioDataUrl: audioUrl,  // Also set refAudioDataUrl for TTS
               projectIds: characterForm.projectIds,
               updatedAt: now,
             }
@@ -261,11 +273,12 @@ export function VoiceStudio() {
     } else {
       // Create new character
       const newCharacter: VoiceCharacter = {
-        id: `char-${Date.now()}`,
+        id: crypto.randomUUID(),
         name: characterForm.name,
         description: characterForm.description,
         tags: tagsArray,
-        audioSampleUrl: characterForm.audioSampleUrl || undefined,
+        audioSampleUrl: audioUrl,
+        refAudioDataUrl: audioUrl,  // Also set refAudioDataUrl for TTS
         projectIds: characterForm.projectIds,
         createdAt: now,
         updatedAt: now,

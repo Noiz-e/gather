@@ -1,9 +1,11 @@
 import { ReactNode, useState, useEffect, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Language, LANGUAGE_OPTIONS } from '../i18n/types';
-import { LayoutDashboard, FolderOpen, Settings, AudioWaveform, Globe, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Menu, X, Image } from 'lucide-react';
+import { LayoutDashboard, FolderOpen, Settings, AudioWaveform, Globe, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Menu, X, Image, LogOut } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
+import { RoleBadge } from './RoleBadge';
 
 interface LayoutProps {
   children: ReactNode;
@@ -14,12 +16,17 @@ interface LayoutProps {
 export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
   const { religion, theme } = useTheme();
   const { t, language, setLanguage } = useLanguage();
+  const { user, logout } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [mobileLangMenuOpen, setMobileLangMenuOpen] = useState(false);
   const langMenuRef = useRef<HTMLDivElement>(null);
   const mobileLangMenuRef = useRef<HTMLDivElement>(null);
+
+  const handleLogout = async () => {
+    await logout();
+  };
 
   // Close mobile menu when navigating
   const handleNavigate = (page: string) => {
@@ -208,8 +215,27 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
           </ul>
         </nav>
 
+        {/* Mobile User Info */}
+        {user && (
+          <div className="px-4 py-3 border-t border-white/5">
+            <div className="flex items-center gap-3">
+              <div 
+                className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium text-white/80"
+                style={{ background: `${theme.primary}25` }}
+              >
+                {user.displayName?.charAt(0)?.toUpperCase() || '?'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-white/80 truncate leading-tight">{user.displayName}</p>
+                <p className="text-xs text-white/40 truncate">{user.email}</p>
+              </div>
+              <RoleBadge role={user.role} size="sm" />
+            </div>
+          </div>
+        )}
+
         {/* Mobile Bottom Actions */}
-        <div className="p-4 border-t border-white/5">
+        <div className="p-4 border-t border-white/5 space-y-3">
           <div className="relative" ref={mobileLangMenuRef}>
             <button
               onClick={() => setMobileLangMenuOpen(!mobileLangMenuOpen)}
@@ -239,6 +265,15 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
               </div>
             )}
           </div>
+          
+          {/* Logout button */}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 transition-all duration-300 text-red-400 hover:text-red-300 text-sm"
+          >
+            <LogOut size={16} />
+            <span>{t.common.logout}</span>
+          </button>
         </div>
       </aside>
 
@@ -306,8 +341,25 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
           </ul>
         </nav>
 
-        {/* Bottom actions - Language, Theme, Collapse in one row */}
-        <div className={`${sidebarCollapsed ? 'p-3' : 'p-4'} border-t border-white/5 transition-all duration-300`}>
+        {/* Bottom: User Info + Actions */}
+        <div className={`${sidebarCollapsed ? 'p-3' : 'px-4 py-3'} border-t border-white/5 transition-all duration-300`}>
+          {/* User Info (expanded only) */}
+          {user && !sidebarCollapsed && (
+            <div className="flex items-center gap-3 mb-3">
+              <div 
+                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium text-white/80"
+                style={{ background: `${theme.primary}25` }}
+              >
+                {user.displayName?.charAt(0)?.toUpperCase() || '?'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-white/80 truncate leading-tight">{user.displayName}</p>
+                <RoleBadge role={user.role} size="sm" />
+              </div>
+            </div>
+          )}
+
+          {/* Action buttons */}
           <div className={`flex items-center ${sidebarCollapsed ? 'flex-col gap-2' : 'justify-between'}`}>
             {/* Language Switcher */}
             <div className="relative" ref={langMenuRef}>
@@ -336,6 +388,15 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
                 </div>
               )}
             </div>
+
+            {/* Logout button */}
+            <button
+              onClick={handleLogout}
+              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-red-500/10 transition-all duration-300 text-white/40 hover:text-red-400"
+              title={t.common.logout}
+            >
+              <LogOut size={16} />
+            </button>
 
             {/* Collapse Toggle */}
             <button

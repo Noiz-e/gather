@@ -271,7 +271,9 @@
     "minutes": " 分钟",
     "processing": "处理中",
     "save": "保存",
-    "episode1": "第1集"
+    "episode1": "第1集",
+    "firstEpisodeBanner": "你正在创建你的第一个 Episode！",
+    "firstEpisodeHint": "上传或粘贴你的内容素材，AI 将帮你生成专业脚本"
   },
   "projectDetail": {
     "episodeList": "节目列表",
@@ -489,6 +491,25 @@
     "aboutText": "为宗教社区打造的播客创作平台。所有数据均存储在本地,保护您的隐私。",
     "version": "v1.0.0"
   },
+  "roles": {
+    "admin": "管理员",
+    "editor": "编辑"
+  },
+  "auth": {
+    "login": "登录",
+    "register": "注册",
+    "loggingIn": "登录中...",
+    "registering": "注册中...",
+    "displayName": "显示名称",
+    "displayNamePlaceholder": "你的名字",
+    "email": "邮箱",
+    "password": "密码",
+    "passwordPlaceholderRegister": "至少8个字符",
+    "noAccount": "还没有账号？",
+    "hasAccount": "已有账号？",
+    "displayNameRequired": "请输入显示名称",
+    "errorOccurred": "发生错误"
+  },
   "common": {
     "loading": "加载中...",
     "error": "错误",
@@ -505,6 +526,7 @@
     "yes": "是",
     "no": "否",
     "expand": "展开",
-    "collapse": "收起"
+    "collapse": "收起",
+    "logout": "退出登录"
   }
 }

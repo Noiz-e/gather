@@ -218,7 +218,7 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
                     style={{ color: isSelected ? theme.primaryLight : 'rgba(255,255,255,0.5)' }}
                   />
                   <span 
-                    className="text-[10px] font-medium text-center line-clamp-1"
+                    className="text-[10px] font-medium text-center line-clamp-2"
                     style={{ color: isSelected ? theme.textOnDark : 'rgba(255,255,255,0.5)' }}
                   >
                     {language === 'zh' ? template.nameZh : template.name}

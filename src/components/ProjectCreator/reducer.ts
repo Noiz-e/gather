@@ -3,6 +3,131 @@ import { produce } from 'immer';
 import { ScriptSection, EpisodeCharacter } from '../../types';
 import { ProjectTemplate, getTemplateById } from './templates';
 
+// --- Draft Persistence ---
+
+const DRAFT_STORAGE_KEY = 'gather_project_creator_draft';
+
+/**
+ * Serializable snapshot of the project creator state + local UI state.
+ * File objects (uploadedFiles) cannot be serialized and are excluded.
+ */
+export interface DraftSnapshot {
+  /** Current wizard step (1-8) */
+  currentStep: number;
+  /** Reducer state (minus non-serializable fields) */
+  reducerState: Omit<ProjectCreatorState, 'contentInput'> & {
+    contentInput: { textContent: string };
+  };
+  /** Local UI state that lives outside the reducer */
+  localState: {
+    customDescription: string;
+    templateConfig: {
+      voiceCount: 'single' | 'multiple';
+      addBgm: boolean;
+      addSoundEffects: boolean;
+      hasVisualContent: boolean;
+    };
+    voicesConfirmed: boolean;
+  };
+  /** Timestamp for display / staleness checks */
+  savedAt: number;
+}
+
+/**
+ * Save the current project creator draft to localStorage.
+ * Strips non-serializable data (File objects, very large audio blobs).
+ */
+export function saveDraft(
+  currentStep: number,
+  state: ProjectCreatorState,
+  localState: DraftSnapshot['localState']
+): void {
+  try {
+    // Build a serializable copy – drop uploadedFiles (File objects)
+    const snapshot: DraftSnapshot = {
+      currentStep,
+      reducerState: {
+        selectedTemplateId: state.selectedTemplateId,
+        selectedTemplate: state.selectedTemplate,
+        spec: state.spec,
+        contentInput: {
+          textContent: state.contentInput.textContent,
+        },
+        scriptSections: state.scriptSections,
+        characters: state.characters,
+        production: state.production,
+      },
+      localState,
+      savedAt: Date.now(),
+    };
+
+    const json = JSON.stringify(snapshot);
+
+    // Guard against localStorage quota (~5 MB). If the payload is too large
+    // (e.g. lots of base64 audio), strip production audio data and retry.
+    if (json.length > 4 * 1024 * 1024) {
+      // Strip heavy audio data but keep status/progress
+      const lite: DraftSnapshot = {
+        ...snapshot,
+        reducerState: {
+          ...snapshot.reducerState,
+          production: {
+            voiceGeneration: {
+              ...state.production.voiceGeneration,
+              sectionStatus: Object.fromEntries(
+                Object.entries(state.production.voiceGeneration.sectionStatus).map(
+                  ([id, s]) => [id, { ...s, audioSegments: [] }]
+                )
+              ),
+            },
+            mediaProduction: {
+              ...state.production.mediaProduction,
+              bgmAudio: undefined,
+            },
+            mixingEditing: {
+              ...state.production.mixingEditing,
+              output: undefined,
+            },
+          },
+        },
+      };
+      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(lite));
+    } else {
+      localStorage.setItem(DRAFT_STORAGE_KEY, json);
+    }
+  } catch (err) {
+    console.warn('[Draft] Failed to save draft:', err);
+  }
+}
+
+/**
+ * Load a previously saved draft from localStorage (if any).
+ */
+export function loadDraft(): DraftSnapshot | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    const snapshot: DraftSnapshot = JSON.parse(raw);
+    // Basic validity check
+    if (!snapshot.currentStep || !snapshot.reducerState) return null;
+    return snapshot;
+  } catch {
+    console.warn('[Draft] Failed to load draft');
+    return null;
+  }
+}
+
+/**
+ * Remove the saved draft from localStorage.
+ */
+export function clearDraft(): void {
+  try {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export interface SpecData {
   storyTitle: string;
   subtitle: string;
@@ -45,7 +170,7 @@ export interface MixedAudioOutput {
 
 export interface ProductionProgress {
   voiceGeneration: {
-    status: 'idle' | 'processing' | 'completed';
+    status: 'idle' | 'processing' | 'completed' | 'error';
     progress: number;
     currentSectionId?: string;
     currentChunk?: string;
@@ -53,7 +178,7 @@ export interface ProductionProgress {
     sectionStatus: Record<string, SectionVoiceStatus>;
   };
   mediaProduction: {
-    status: 'idle' | 'processing' | 'completed';
+    status: 'idle' | 'processing' | 'completed' | 'error';
     progress: number;
     currentTask?: string;
     // Generated BGM (if any)
@@ -63,7 +188,7 @@ export interface ProductionProgress {
     };
   };
   mixingEditing: {
-    status: 'idle' | 'processing' | 'completed';
+    status: 'idle' | 'processing' | 'completed' | 'error';
     progress: number;
     // Final mixed audio output
     output?: MixedAudioOutput;
@@ -152,7 +277,7 @@ type Action =
   | { type: 'ASSIGN_VOICE_TO_CHARACTER'; characterIndex: number; voiceId: string }
   | { type: 'EXTRACT_CHARACTERS_FROM_SCRIPT' }
   // Production progress
-  | { type: 'UPDATE_PRODUCTION_PHASE'; phase: ProductionPhase; status: 'idle' | 'processing' | 'completed'; progress: number; detail?: string }
+  | { type: 'UPDATE_PRODUCTION_PHASE'; phase: ProductionPhase; status: 'idle' | 'processing' | 'completed' | 'error'; progress: number; detail?: string }
   | { type: 'RESET_PRODUCTION' }
   // Mixing output
   | { type: 'SET_MIXED_OUTPUT'; output: MixedAudioOutput }
@@ -163,6 +288,8 @@ type Action =
   | { type: 'ADD_SECTION_VOICE_AUDIO'; sectionId: string; audio: SectionVoiceAudio }
   | { type: 'CLEAR_SECTION_VOICE'; sectionId: string }
   | { type: 'SET_CURRENT_SECTION'; sectionId: string | undefined }
+  // Draft restoration
+  | { type: 'RESTORE_DRAFT'; snapshot: DraftSnapshot }
   // Global
   | { type: 'RESET_ALL' };
 
@@ -351,9 +478,12 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
         state.production.voiceGeneration.progress = progress;
         state.production.voiceGeneration.currentChunk = detail;
       } else if (phase === 'media-production') {
-        state.production.mediaProduction = { status, progress, currentTask: detail };
+        state.production.mediaProduction.status = status;
+        state.production.mediaProduction.progress = progress;
+        state.production.mediaProduction.currentTask = detail;
       } else if (phase === 'mixing-editing') {
-        state.production.mixingEditing = { status, progress };
+        state.production.mixingEditing.status = status;
+        state.production.mixingEditing.progress = progress;
       }
       break;
     }
@@ -424,6 +554,21 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
       state.production.voiceGeneration.currentSectionId = action.sectionId;
       break;
 
+    case 'RESTORE_DRAFT': {
+      const rs = action.snapshot.reducerState;
+      state.selectedTemplateId = rs.selectedTemplateId;
+      state.selectedTemplate = rs.selectedTemplate;
+      state.spec = rs.spec;
+      state.contentInput = {
+        textContent: rs.contentInput.textContent,
+        uploadedFiles: [], // Files are not serializable – user will re-upload if needed
+      };
+      state.scriptSections = rs.scriptSections;
+      state.characters = rs.characters;
+      state.production = rs.production;
+      break;
+    }
+
     case 'RESET_ALL':
       return initialState;
   }
@@ -483,7 +628,7 @@ export const actions = {
   // Production progress
   updateProductionPhase: (
     phase: ProductionPhase, 
-    status: 'idle' | 'processing' | 'completed', 
+    status: 'idle' | 'processing' | 'completed' | 'error', 
     progress: number, 
     detail?: string
   ): Action => ({ type: 'UPDATE_PRODUCTION_PHASE', phase, status, progress, detail }),
@@ -510,6 +655,10 @@ export const actions = {
   setCurrentSection: (sectionId: string | undefined): Action =>
     ({ type: 'SET_CURRENT_SECTION', sectionId }),
   
+  // Draft restoration
+  restoreDraft: (snapshot: DraftSnapshot): Action =>
+    ({ type: 'RESTORE_DRAFT', snapshot }),
+
   // Global
   resetAll: (): Action => 
     ({ type: 'RESET_ALL' }),

@@ -271,7 +271,9 @@
     "minutes": "min",
     "processing": "Procesando",
     "save": "Guardar",
-    "episode1": "Episodio 1"
+    "episode1": "Episodio 1",
+    "firstEpisodeBanner": "¡Estás creando tu primer episodio!",
+    "firstEpisodeHint": "Sube o pega tu contenido, la IA generará un guión profesional"
   },
   "projectDetail": {
     "episodeList": "Lista de Episodios",
@@ -489,6 +491,25 @@
     "aboutText": "Una plataforma de creación de podcasts para comunidades religiosas. Todos los datos se almacenan localmente para proteger tu privacidad.",
     "version": "v1.0.0"
   },
+  "roles": {
+    "admin": "Admin",
+    "editor": "Editor"
+  },
+  "auth": {
+    "login": "Iniciar Sesión",
+    "register": "Registrarse",
+    "loggingIn": "Iniciando sesión...",
+    "registering": "Registrando...",
+    "displayName": "Nombre para mostrar",
+    "displayNamePlaceholder": "Tu nombre",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "passwordPlaceholderRegister": "Al menos 8 caracteres",
+    "noAccount": "¿No tienes cuenta?",
+    "hasAccount": "¿Ya tienes cuenta?",
+    "displayNameRequired": "El nombre para mostrar es obligatorio",
+    "errorOccurred": "Ocurrió un error"
+  },
   "common": {
     "loading": "Cargando...",
     "error": "Error",
@@ -505,6 +526,7 @@
     "yes": "Sí",
     "no": "No",
     "expand": "Expandir",
-    "collapse": "Colapsar"
+    "collapse": "Colapsar",
+    "logout": "Cerrar Sesión"
   }
 }
