@@ -30,12 +30,12 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
       {/* Welcome Header */}
       <div>
         <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-light text-white tracking-wide">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-light text-t-text1 tracking-wide">
             {t.dashboard.welcome}{user?.displayName ? `, ${user.displayName}` : ''}
           </h1>
           {user && <RoleBadge role={user.role} size="md" />}
         </div>
-        <p className="text-white/50 mt-1 text-sm md:text-base">
+        <p className="text-t-text3 mt-1 text-sm md:text-base">
           {religionT.description}
         </p>
       </div>
@@ -51,8 +51,8 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
             <div 
               key={index}
               onClick={stat.onClick}
-              className="rounded-xl md:rounded-2xl p-3 sm:p-4 md:p-6 border border-white/10 backdrop-blur-sm transition-all duration-300 hover:border-white/20 cursor-pointer"
-              style={{ background: theme.bgCard }}
+              className="rounded-xl md:rounded-2xl p-3 sm:p-4 md:p-6 border border-t-border backdrop-blur-sm transition-all duration-300 hover:border-t-border cursor-pointer"
+              style={{ background: 'var(--t-bg-card)' }}
             >
               <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
                 <div 
@@ -63,10 +63,9 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
                   <Icon size={22} className="hidden md:block" color={theme.primaryLight} />
                 </div>
                 <div>
-                  <p className="text-white/50 text-[10px] sm:text-xs md:text-sm line-clamp-1">{stat.label}</p>
+                  <p className="text-t-text3 text-[10px] sm:text-xs md:text-sm line-clamp-1">{stat.label}</p>
                   <p 
-                    className="text-xl sm:text-2xl md:text-3xl font-light tracking-wide"
-                    style={{ color: theme.textOnDark }}
+                    className="text-xl sm:text-2xl md:text-3xl font-light tracking-wide text-t-text1"
                   >
                     {stat.value}
                   </p>
@@ -80,9 +79,9 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
       {/* Quick Action */}
       <button
         onClick={onCreateProject}
-        className="w-full flex items-center justify-center gap-3 px-5 py-4 md:py-5 rounded-xl md:rounded-2xl font-medium transition-all duration-300 hover:scale-[1.02] border border-white/10"
+        className="w-full flex items-center justify-center gap-3 px-5 py-4 md:py-5 rounded-xl md:rounded-2xl font-medium transition-all duration-300 hover:scale-[1.02] border border-t-border"
         style={{ 
-          background: theme.bgCard,
+          background: 'var(--t-bg-card)',
         }}
       >
         <div 
@@ -91,21 +90,21 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
         >
           <Plus size={20} color={theme.primaryLight} />
         </div>
-        <span className="text-white text-sm md:text-base">{t.dashboard.newProduction}</span>
+        <span className="text-t-text1 text-sm md:text-base">{t.dashboard.newProduction}</span>
       </button>
 
       {/* Recent Projects */}
       <div 
-        className="rounded-xl md:rounded-2xl p-4 sm:p-6 lg:p-8 border border-white/10"
-        style={{ background: theme.bgCard }}
+        className="rounded-xl md:rounded-2xl p-4 sm:p-6 lg:p-8 border border-t-border"
+        style={{ background: 'var(--t-bg-card)' }}
       >
         <div className="flex items-center justify-between mb-4 md:mb-6">
-          <h2 className="text-lg md:text-xl font-serif text-white tracking-wide">
+          <h2 className="text-lg md:text-xl font-serif text-t-text1 tracking-wide">
             {t.dashboard.recentProjects}
           </h2>
           <button
             onClick={onViewProjects}
-            className="flex items-center gap-1.5 text-xs md:text-sm text-white/60 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 text-xs md:text-sm text-t-text2 hover:text-t-text1 transition-colors"
           >
             {t.dashboard.viewAll}
             <ArrowRight size={14} />
@@ -116,7 +115,7 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
             {recentProjects.map((project) => (
               <div
                 key={project.id}
-                className="flex items-center justify-between p-3 md:p-4 rounded-lg md:rounded-xl border border-white/5 hover:border-white/10 transition-all duration-300 cursor-pointer group gap-3"
+                className="flex items-center justify-between p-3 md:p-4 rounded-lg md:rounded-xl border border-t-border-lt hover:border-t-border transition-all duration-300 cursor-pointer group gap-3"
                 style={{ background: `${theme.primary}05` }}
                 onClick={onViewProjects}
               >
@@ -126,10 +125,10 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
                     style={{ background: theme.primary }}
                   />
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-medium text-white group-hover:text-white/90 transition-colors text-sm md:text-base truncate">
+                    <h3 className="font-medium text-t-text1 group-hover:text-t-text1 transition-colors text-sm md:text-base truncate">
                       {project.title}
                     </h3>
-                    <p className="text-xs md:text-sm text-white/40 truncate">
+                    <p className="text-xs md:text-sm text-t-text3 truncate">
                       {project.episodes.length} {t.dashboard.episodes} · {new Date(project.updatedAt).toLocaleDateString()}
                     </p>
                   </div>
@@ -157,7 +156,7 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
               <Mic2 size={24} className="md:hidden" color={theme.primaryLight} style={{ opacity: 0.5 }} />
               <Mic2 size={28} className="hidden md:block" color={theme.primaryLight} style={{ opacity: 0.5 }} />
             </div>
-            <p className="text-white/40 text-sm md:text-base">{t.dashboard.noProjects}</p>
+            <p className="text-t-text3 text-sm md:text-base">{t.dashboard.noProjects}</p>
           </div>
         )}
       </div>

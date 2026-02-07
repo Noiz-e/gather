@@ -33,35 +33,15 @@
   "religions": {
     "default": {
       "name": "Predeterminado",
-      "description": "Genera podcasts y contenido de audio para todas las comunidades"
+      "description": "Estilo de diseño moderno, limpio y elegante"
     },
-    "christianity": {
-      "name": "Cristianismo",
-      "description": "Genera podcasts cristianos, sermones y testimonios de audio"
+    "educational": {
+      "name": "Educativo",
+      "description": "Perfecto para la creación de contenido educativo"
     },
-    "catholicism": {
-      "name": "Catolicismo",
-      "description": "Crea podcasts católicos, homilías y contenido de fe"
-    },
-    "buddhism": {
-      "name": "Budismo",
-      "description": "Produce enseñanzas budistas, guías de meditación y charlas del dharma"
-    },
-    "islam": {
-      "name": "Islam",
-      "description": "Genera podcasts islámicos, recitaciones del Corán y contenido espiritual"
-    },
-    "judaism": {
-      "name": "Judaísmo",
-      "description": "Crea podcasts judíos, estudios de la Torá y discusiones de fe"
-    },
-    "hinduism": {
-      "name": "Hinduismo",
-      "description": "Produce podcasts hindúes, enseñanzas védicas y guías espirituales"
-    },
-    "taoism": {
-      "name": "Taoísmo",
-      "description": "Genera podcasts taoístas, charlas filosóficas y guías de cultivo"
+    "faithful": {
+      "name": "Comunidad de Fe",
+      "description": "Un tema cálido diseñado para comunidades de fe"
     }
   },
   "dashboard": {
@@ -470,6 +450,9 @@
   "settings": {
     "title": "Configuración",
     "subtitle": "Gestiona la configuración de tu aplicación y datos",
+    "appearance": "Apariencia",
+    "lightMode": "Claro",
+    "darkMode": "Oscuro",
     "currentTheme": "Tema Actual",
     "changeTheme": "Cambiar Tema",
     "allThemes": "Vista Previa de Todos los Temas",

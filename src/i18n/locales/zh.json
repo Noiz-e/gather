@@ -33,35 +33,15 @@
   "religions": {
     "default": {
       "name": "默认",
-      "description": "为所有社区生成播客和音频内容"
+      "description": "简洁优雅的现代设计风格"
     },
-    "christianity": {
-      "name": "基督教",
-      "description": "生成基督教主题播客、讲道和见证音频"
+    "educational": {
+      "name": "教育",
+      "description": "适合教育类内容创作"
     },
-    "catholicism": {
-      "name": "天主教",
-      "description": "创作天主教播客、弥撒讲道和信仰内容"
-    },
-    "buddhism": {
-      "name": "佛教",
-      "description": "制作佛教教义、冥想引导和佛法开示音频"
-    },
-    "islam": {
-      "name": "伊斯兰教",
-      "description": "生成伊斯兰播客、古兰经诵读和灵修内容"
-    },
-    "judaism": {
-      "name": "犹太教",
-      "description": "创作犹太播客、托拉研习和信仰讨论音频"
-    },
-    "hinduism": {
-      "name": "印度教",
-      "description": "制作印度教播客、吠陀教义和灵修引导"
-    },
-    "taoism": {
-      "name": "道教",
-      "description": "生成道教播客、哲学讲解和修炼指南音频"
+    "faithful": {
+      "name": "信仰社区",
+      "description": "为信仰社区打造的温暖主题"
     }
   },
   "dashboard": {
@@ -470,6 +450,9 @@
   "settings": {
     "title": "设置",
     "subtitle": "管理您的应用设置和数据",
+    "appearance": "外观",
+    "lightMode": "浅色",
+    "darkMode": "深色",
     "currentTheme": "当前主题",
     "changeTheme": "更换主题",
     "allThemes": "所有主题预览",

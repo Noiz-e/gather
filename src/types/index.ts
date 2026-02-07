@@ -1,12 +1,9 @@
 export type Religion = 
-  | 'default'
-  | 'christianity' 
-  | 'catholicism'
-  | 'buddhism' 
-  | 'islam' 
-  | 'judaism' 
-  | 'hinduism' 
-  | 'taoism';
+  | 'default'      // Apple-style modern minimalist
+  | 'educational'  // Educational content
+  | 'faithful';    // Faith community
+
+export type ColorMode = 'light' | 'dark';
 
 export interface ReligionInfo {
   id: Religion;
@@ -109,49 +106,19 @@ export const RELIGIONS: ReligionInfo[] = [
     id: 'default',
     name: '默认',
     nameEn: 'Default',
-    description: '现代简约风格，适合所有社区',
+    description: '简洁优雅的现代设计风格',
   },
   {
-    id: 'christianity',
-    name: '基督教',
-    nameEn: 'Christianity',
-    description: '探索信仰、传播福音、分享见证',
+    id: 'educational',
+    name: '教育',
+    nameEn: 'Educational',
+    description: '适合教育类内容创作',
   },
   {
-    id: 'catholicism',
-    name: '天主教',
-    nameEn: 'Catholicism',
-    description: '传承圣统、分享圣言、见证信仰',
-  },
-  {
-    id: 'buddhism',
-    name: '佛教',
-    nameEn: 'Buddhism',
-    description: '弘扬佛法、开示禅理、传播智慧',
-  },
-  {
-    id: 'islam',
-    name: '伊斯兰教',
-    nameEn: 'Islam',
-    description: '分享伊斯兰智慧、传播和平信息',
-  },
-  {
-    id: 'judaism',
-    name: '犹太教',
-    nameEn: 'Judaism',
-    description: '传承传统、探讨托拉、分享信仰',
-  },
-  {
-    id: 'hinduism',
-    name: '印度教',
-    nameEn: 'Hinduism',
-    description: '探索吠陀智慧、分享精神修行',
-  },
-  {
-    id: 'taoism',
-    name: '道教',
-    nameEn: 'Taoism',
-    description: '传播道家思想、分享修身养性之道',
+    id: 'faithful',
+    name: '信仰社区',
+    nameEn: 'Faithful Community',
+    description: '为信仰社区打造的温暖主题',
   },
 ];
 

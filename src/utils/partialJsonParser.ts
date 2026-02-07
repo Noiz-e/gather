@@ -2,6 +2,37 @@ import { parse as parsePartialJson } from 'partial-json';
 import type { ScriptSection } from '../types';
 
 /**
+ * Strip markdown code block markers from text.
+ * Handles various formats:
+ * - ```json ... ```
+ * - ``` json ... ```
+ * - ```JSON ... ```
+ * - Leading/trailing whitespace
+ * - Incomplete blocks (no closing ```)
+ */
+export function stripMarkdownCodeBlock(text: string): string {
+  let result = text;
+  
+  // Remove opening code block marker: ```json, ``` json, ```JSON, etc.
+  // Also handles just ``` without language specifier
+  result = result.replace(/^[\s\S]*?```\s*(?:json|JSON)?\s*\n?/, '');
+  
+  // If we didn't find an opening marker, check if the text starts with it after some content
+  if (result === text) {
+    // Try to find ```json anywhere and extract content after it
+    const codeBlockMatch = text.match(/```\s*(?:json|JSON)?\s*\n?([\s\S]*?)(?:```|$)/);
+    if (codeBlockMatch) {
+      result = codeBlockMatch[1];
+    }
+  }
+  
+  // Remove closing code block marker if present
+  result = result.replace(/\s*```\s*$/, '');
+  
+  return result.trim();
+}
+
+/**
  * Attempts to parse streaming JSON and extract whatever valid ScriptSection objects are available.
  * Uses a loose parser that can handle incomplete JSON.
  */
@@ -18,11 +49,9 @@ export function parseStreamingScriptSections(text: string): {
     // Try to find and parse the JSON array
     let jsonText = text;
     
-    // Handle markdown code blocks
-    const markdownMatch = text.match(/```(?:json)?\s*([\s\S]*?)(?:```|$)/);
-    if (markdownMatch) {
-      jsonText = markdownMatch[1];
-    }
+    // Preprocess: strip markdown code block markers
+    // Handle various formats: ```json, ``` json, ```JSON, etc.
+    jsonText = stripMarkdownCodeBlock(jsonText);
     
     // Find the start of the array
     const arrayStart = jsonText.indexOf('[');

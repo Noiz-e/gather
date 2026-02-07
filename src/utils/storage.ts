@@ -1,4 +1,4 @@
-import { Project, Religion } from '../types';
+import { Project, Religion, ColorMode } from '../types';
 import { 
   loadProjectsFromCloud, 
   saveProjectsToCloud,
@@ -8,6 +8,7 @@ import {
 const STORAGE_KEYS = {
   PROJECTS: 'gather_projects',
   CURRENT_RELIGION: 'gather_religion',
+  COLOR_MODE: 'gather_color_mode',
   USER_PREFERENCES: 'gather_preferences',
   CLOUD_SYNC_ENABLED: 'gather_cloud_sync',
 };
@@ -179,6 +180,24 @@ export const storage = {
       localStorage.setItem(STORAGE_KEYS.CURRENT_RELIGION, religion);
     } catch {
       console.error('Failed to save religion preference');
+    }
+  },
+
+  // Color Mode
+  getColorMode(): ColorMode | null {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.COLOR_MODE);
+      return data as ColorMode | null;
+    } catch {
+      return null;
+    }
+  },
+
+  setColorMode(mode: ColorMode): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.COLOR_MODE, mode);
+    } catch {
+      console.error('Failed to save color mode preference');
     }
   },
 

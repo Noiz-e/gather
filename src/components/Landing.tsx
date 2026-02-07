@@ -126,7 +126,7 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
       <button
         type="button"
         onClick={() => onEnterWorkspace()}
-        className="absolute bottom-6 left-6 md:bottom-12 md:left-12 lg:bottom-16 lg:left-16 z-20 flex items-center gap-1.5 text-white/30 hover:text-white/60 transition-colors duration-200"
+        className="absolute bottom-6 left-6 md:bottom-12 md:left-12 lg:bottom-16 lg:left-16 z-20 flex items-center gap-1.5 text-t-text3 hover:text-t-text2 transition-colors duration-200"
       >
         <Home size={14} />
         <span className="text-xs">
@@ -137,17 +137,15 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
       {/* Left: Marketing */}
       <div className="flex-1 max-w-xl relative z-10">
         <div
-          className="inline-block px-3 py-1.5 rounded-full border border-white/20 text-[10px] md:text-xs font-medium tracking-wider uppercase mb-6 md:mb-8"
+          className="inline-block px-3 py-1.5 rounded-full border border-t-border text-[10px] md:text-xs font-medium tracking-wider uppercase mb-6 md:mb-8"
           style={{
             background: theme.bgCard,
-            color: theme.textOnDark,
           }}
         >
           {t.landing.badge}
         </div>
         <h1
-          className="font-serif font-bold text-4xl md:text-5xl lg:text-6xl xl:text-7xl leading-[1.15] tracking-tight mb-6"
-          style={{ color: theme.textOnDark }}
+          className="font-serif font-bold text-4xl md:text-5xl lg:text-6xl xl:text-7xl leading-[1.15] tracking-tight mb-6 text-t-text1"
         >
           <span className="block">{t.landing.headline1}</span>
           <span className="block">{t.landing.headline2}</span>
@@ -165,7 +163,7 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
       {/* Right: Start Your Journey card */}
       <div className="flex-1 w-full max-w-lg relative z-10">
         <div
-          className="rounded-3xl border border-white/10 p-6 md:p-8 relative"
+          className="rounded-3xl border border-t-border p-6 md:p-8 relative"
           style={{
             background: theme.bgCard,
             boxShadow: `0 0 30px ${theme.glow}`,
@@ -175,20 +173,19 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
           <button
             type="button"
             onClick={() => onEnterWorkspace()}
-            className="absolute top-4 right-4 md:top-6 md:right-6 z-20 flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/10 hover:border-white/30 transition-all duration-200 hover:scale-105"
-            style={{ background: theme.bgDark }}
+            className="absolute top-4 right-4 md:top-6 md:right-6 z-20 flex items-center gap-2 px-3 py-1.5 rounded-xl border border-t-border hover:border-t-border transition-all duration-200 hover:scale-105"
+            style={{ background: 'var(--t-bg-base)' }}
           >
             <Home size={14} style={{ color: theme.primaryLight }} />
           </button>
 
           <h2
-            className="font-semibold text-xl md:text-2xl mb-4"
-            style={{ color: theme.textOnDark }}
+            className="font-semibold text-xl md:text-2xl mb-4 text-t-text1"
           >
             {t.landing.startJourney}
           </h2>
 
-          <p className="text-[10px] md:text-xs font-medium text-white/50 uppercase tracking-wider mb-3">
+          <p className="text-[10px] md:text-xs font-medium text-t-text3 uppercase tracking-wider mb-3">
             {t.landing.selectFormat}
           </p>
           <div className="grid grid-cols-3 gap-2 mb-5">
@@ -200,7 +197,7 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
                   key={template.id}
                   type="button"
                   onClick={() => handleFormatSelect(template.id)}
-                  className="p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all duration-200 border border-white/10 hover:border-white/20"
+                  className="p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all duration-200 border border-t-border hover:border-t-border"
                   style={
                     isSelected
                       ? {
@@ -215,11 +212,10 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
                   <IconComponent 
                     size={20} 
                     strokeWidth={isSelected ? 2.5 : 1.5} 
-                    style={{ color: isSelected ? theme.primaryLight : 'rgba(255,255,255,0.5)' }}
+                    style={{ color: isSelected ? theme.primaryLight : 'var(--t-text-3)' }}
                   />
                   <span 
-                    className="text-[10px] font-medium text-center line-clamp-2"
-                    style={{ color: isSelected ? theme.textOnDark : 'rgba(255,255,255,0.5)' }}
+                    className={`text-[10px] font-medium text-center line-clamp-2 ${isSelected ? 'text-t-text1' : 'text-t-text3'}`}
                   >
                     {language === 'zh' ? template.nameZh : template.name}
                   </span>
@@ -227,7 +223,7 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
               );
             })}
           </div>
-          <p className="text-white/50 text-sm italic mb-2">
+          <p className="text-t-text3 text-sm italic mb-2">
             "{t.landing.journeyPrompt}"
           </p>
           <div className="relative mb-4">
@@ -235,25 +231,24 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
               value={projectDescription}
               onChange={(e) => setProjectDescription(e.target.value)}
               placeholder={t.landing.inputPlaceholder}
-              className="w-full min-h-[100px] md:min-h-[120px] px-4 py-3 pr-10 rounded-xl border border-white/10 focus:outline-none focus:ring-2 focus:border-transparent resize-none text-sm placeholder:text-white/40"
+              className="w-full min-h-[100px] md:min-h-[120px] px-4 py-3 pr-10 rounded-xl border border-t-border focus:outline-none focus:ring-2 focus:border-transparent resize-none text-sm placeholder:text-t-text3"
               style={{
-                background: theme.bgDark,
-                color: theme.textOnDark,
+                background: 'var(--t-bg-base)',
               }}
               rows={4}
             />
             <div className="absolute bottom-3 right-3 flex items-center gap-2">
-              <span className="text-[10px] text-white/30">[{language === 'zh' ? '选填' : 'optional'}]</span>
+              <span className="text-[10px] text-t-text3">[{language === 'zh' ? '选填' : 'optional'}]</span>
               <Sparkles size={16} className="opacity-60" style={{ color: theme.primaryLight }} />
             </div>
           </div>
 
           {/* Media Options - Show when format is selected */}
           {selectedFormat && (
-            <div className="mb-5 p-3 rounded-xl border border-white/10" style={{ background: `${theme.primary}08` }}>
+            <div className="mb-5 p-3 rounded-xl border border-t-border" style={{ background: `${theme.primary}08` }}>
               {/* Voice Type */}
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-[10px] text-white/50 uppercase tracking-wider w-16">
+                <span className="text-[10px] text-t-text3 uppercase tracking-wider w-16">
                   {language === 'zh' ? '声音' : 'Voice'}
                 </span>
                 <div className="flex gap-1.5 flex-1">
@@ -262,8 +257,8 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
                     onClick={() => setMediaConfig(prev => ({ ...prev, voiceCount: 'single' }))}
                     className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all flex items-center justify-center gap-1 ${
                       mediaConfig.voiceCount === 'single'
-                        ? 'text-white'
-                        : 'text-white/50 border border-white/10 hover:border-white/20'
+                        ? 'text-t-text1'
+                        : 'text-t-text3 border border-t-border hover:border-t-border'
                     }`}
                     style={mediaConfig.voiceCount === 'single' ? { background: theme.primary } : {}}
                   >
@@ -275,8 +270,8 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
                     onClick={() => setMediaConfig(prev => ({ ...prev, voiceCount: 'multiple' }))}
                     className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all flex items-center justify-center gap-1 ${
                       mediaConfig.voiceCount === 'multiple'
-                        ? 'text-white'
-                        : 'text-white/50 border border-white/10 hover:border-white/20'
+                        ? 'text-t-text1'
+                        : 'text-t-text3 border border-t-border hover:border-t-border'
                     }`}
                     style={mediaConfig.voiceCount === 'multiple' ? { background: theme.primary } : {}}
                   >
@@ -289,7 +284,7 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
               
               {/* Media Toggles */}
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-white/50 uppercase tracking-wider w-16">
+                <span className="text-[10px] text-t-text3 uppercase tracking-wider w-16">
                   {language === 'zh' ? '媒体' : 'Media'}
                 </span>
                 <div className="flex gap-1.5 flex-1">
@@ -298,8 +293,8 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
                     onClick={() => setMediaConfig(prev => ({ ...prev, addBgm: !prev.addBgm }))}
                     className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all flex items-center justify-center gap-1 ${
                       mediaConfig.addBgm
-                        ? 'text-white'
-                        : 'text-white/50 border border-white/10 hover:border-white/20'
+                        ? 'text-t-text1'
+                        : 'text-t-text3 border border-t-border hover:border-t-border'
                     }`}
                     style={mediaConfig.addBgm ? { background: theme.primary } : {}}
                   >
@@ -311,8 +306,8 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
                     onClick={() => setMediaConfig(prev => ({ ...prev, addSoundEffects: !prev.addSoundEffects }))}
                     className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all flex items-center justify-center gap-1 ${
                       mediaConfig.addSoundEffects
-                        ? 'text-white'
-                        : 'text-white/50 border border-white/10 hover:border-white/20'
+                        ? 'text-t-text1'
+                        : 'text-t-text3 border border-t-border hover:border-t-border'
                     }`}
                     style={mediaConfig.addSoundEffects ? { background: theme.primary } : {}}
                   >
@@ -324,8 +319,8 @@ export function Landing({ onEnterWorkspace }: LandingProps) {
                     onClick={() => setMediaConfig(prev => ({ ...prev, hasVisualContent: !prev.hasVisualContent }))}
                     className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all flex items-center justify-center gap-1 ${
                       mediaConfig.hasVisualContent
-                        ? 'text-white'
-                        : 'text-white/50 border border-white/10 hover:border-white/20'
+                        ? 'text-t-text1'
+                        : 'text-t-text3 border border-t-border hover:border-t-border'
                     }`}
                     style={mediaConfig.hasVisualContent ? { background: theme.primary } : {}}
                   >

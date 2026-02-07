@@ -38,10 +38,10 @@ export function ProjectList({ onCreateProject, onViewProject, onEditProject }: P
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 md:gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-light text-white tracking-wide">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-light text-t-text1 tracking-wide">
             {t.projectList.title}
           </h1>
-          <p className="text-white/50 mt-1 text-sm md:text-base">
+          <p className="text-t-text3 mt-1 text-sm md:text-base">
             {t.projectList.subtitle}
           </p>
         </div>
@@ -57,13 +57,13 @@ export function ProjectList({ onCreateProject, onViewProject, onEditProject }: P
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 md:left-4 top-1/2 transform -translate-y-1/2 text-white/30" size={18} />
+        <Search className="absolute left-3 md:left-4 top-1/2 transform -translate-y-1/2 text-t-text3" size={18} />
         <input
           type="text"
           placeholder={t.projectList.searchPlaceholder}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 md:pl-12 pr-4 py-2.5 md:py-3 rounded-xl border border-white/10 bg-white/5 text-white placeholder-white/30 focus:outline-none focus:border-white/20 transition-all text-sm md:text-base"
+          className="w-full pl-10 md:pl-12 pr-4 py-2.5 md:py-3 rounded-xl border border-t-border bg-t-card text-t-text1 placeholder-t-text3 focus:outline-none focus:border-t-border transition-all text-sm md:text-base"
         />
       </div>
 
@@ -73,8 +73,8 @@ export function ProjectList({ onCreateProject, onViewProject, onEditProject }: P
           {filteredProjects.map((project) => (
             <div
               key={project.id}
-              className="rounded-xl md:rounded-2xl overflow-hidden border border-white/10 hover:border-white/20 transition-all duration-300 group cursor-pointer"
-              style={{ background: theme.bgCard }}
+              className="rounded-xl md:rounded-2xl overflow-hidden border border-t-border hover:border-t-border transition-all duration-300 group cursor-pointer"
+              style={{ background: 'var(--t-bg-card)' }}
               onClick={() => onViewProject(project)}
             >
               {/* Cover */}
@@ -88,21 +88,21 @@ export function ProjectList({ onCreateProject, onViewProject, onEditProject }: P
                     background: `radial-gradient(circle at 50% 50%, ${theme.glow}, transparent 70%)`,
                   }}
                 />
-                <Mic2 size={36} className="md:hidden text-white/20" />
-                <Mic2 size={48} className="hidden md:block text-white/20" />
+                <Mic2 size={36} className="md:hidden text-t-surface-m" />
+                <Mic2 size={48} className="hidden md:block text-t-surface-m" />
               </div>
               
               {/* Content */}
               <div className="p-4 md:p-5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-base md:text-lg text-white truncate group-hover:text-white/90 transition-colors">
+                    <h3 className="font-medium text-base md:text-lg text-t-text1 truncate group-hover:text-t-text1 transition-colors">
                       {project.title}
                     </h3>
                     {project.subtitle && (
-                      <p className="text-white/60 text-xs md:text-sm italic truncate">{project.subtitle}</p>
+                      <p className="text-t-text2 text-xs md:text-sm italic truncate">{project.subtitle}</p>
                     )}
-                    <p className="text-white/40 text-xs md:text-sm mt-1 line-clamp-2">
+                    <p className="text-t-text3 text-xs md:text-sm mt-1 line-clamp-2">
                       {project.description || t.projectDetail.noEpisodes}
                     </p>
                   </div>
@@ -111,27 +111,27 @@ export function ProjectList({ onCreateProject, onViewProject, onEditProject }: P
                   <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => setMenuOpenId(menuOpenId === project.id ? null : project.id)}
-                      className="p-1.5 md:p-2 hover:bg-white/10 rounded-lg transition-colors"
+                      className="p-1.5 md:p-2 hover:bg-t-card-hover rounded-lg transition-colors"
                     >
-                      <MoreVertical size={16} className="md:hidden text-white/40" />
-                      <MoreVertical size={18} className="hidden md:block text-white/40" />
+                      <MoreVertical size={16} className="md:hidden text-t-text3" />
+                      <MoreVertical size={18} className="hidden md:block text-t-text3" />
                     </button>
                     
                     {menuOpenId === project.id && (
                       <div 
-                        className="absolute right-0 top-full mt-1 rounded-xl border border-white/10 py-1 z-10 min-w-[140px] md:min-w-[160px] backdrop-blur-xl"
-                        style={{ background: theme.bgDark }}
+                        className="absolute right-0 top-full mt-1 rounded-xl border border-t-border py-1 z-10 min-w-[140px] md:min-w-[160px] backdrop-blur-xl"
+                        style={{ background: 'var(--t-bg-base)' }}
                       >
                         <button
                           onClick={() => { onViewProject(project); setMenuOpenId(null); }}
-                          className="w-full px-3 md:px-4 py-2 text-left text-xs md:text-sm text-white/70 hover:text-white hover:bg-white/5 flex items-center gap-2 transition-colors"
+                          className="w-full px-3 md:px-4 py-2 text-left text-xs md:text-sm text-t-text2 hover:text-t-text1 hover:bg-t-card flex items-center gap-2 transition-colors"
                         >
                           <Eye size={14} />
                           {t.projectList.viewDetails}
                         </button>
                         <button
                           onClick={() => { onEditProject(project); setMenuOpenId(null); }}
-                          className="w-full px-3 md:px-4 py-2 text-left text-xs md:text-sm text-white/70 hover:text-white hover:bg-white/5 flex items-center gap-2 transition-colors"
+                          className="w-full px-3 md:px-4 py-2 text-left text-xs md:text-sm text-t-text2 hover:text-t-text1 hover:bg-t-card flex items-center gap-2 transition-colors"
                         >
                           <Edit size={14} />
                           {t.projectList.editProject}
@@ -164,11 +164,11 @@ export function ProjectList({ onCreateProject, onViewProject, onEditProject }: P
                 )}
 
                 {/* Footer */}
-                <div className="flex items-center justify-between mt-3 md:mt-4 pt-3 md:pt-4 border-t border-white/5">
-                  <div className="text-xs md:text-sm text-white/40">
+                <div className="flex items-center justify-between mt-3 md:mt-4 pt-3 md:pt-4 border-t border-t-border-lt">
+                  <div className="text-xs md:text-sm text-t-text3">
                     {project.episodes.length} {t.dashboard.episodes}
                   </div>
-                  <div className="text-xs md:text-sm text-white/40">
+                  <div className="text-xs md:text-sm text-t-text3">
                     {new Date(project.updatedAt).toLocaleDateString()}
                   </div>
                 </div>
@@ -178,8 +178,8 @@ export function ProjectList({ onCreateProject, onViewProject, onEditProject }: P
         </div>
       ) : (
         <div 
-          className="rounded-xl md:rounded-2xl p-8 md:p-16 text-center border border-white/10"
-          style={{ background: theme.bgCard }}
+          className="rounded-xl md:rounded-2xl p-8 md:p-16 text-center border border-t-border"
+          style={{ background: 'var(--t-bg-card)' }}
         >
           <div 
             className="w-14 h-14 md:w-20 md:h-20 rounded-xl md:rounded-2xl flex items-center justify-center mx-auto mb-4 md:mb-6"
@@ -188,10 +188,10 @@ export function ProjectList({ onCreateProject, onViewProject, onEditProject }: P
             <Mic2 size={28} className="md:hidden" color={theme.primaryLight} style={{ opacity: 0.5 }} />
             <Mic2 size={36} className="hidden md:block" color={theme.primaryLight} style={{ opacity: 0.5 }} />
           </div>
-          <h3 className="text-lg md:text-xl font-serif text-white mb-2">
+          <h3 className="text-lg md:text-xl font-serif text-t-text1 mb-2">
             {searchTerm ? t.projectList.noProjectsFound : t.projectList.noProjectsYet}
           </h3>
-          <p className="text-white/40 mb-6 md:mb-8 text-sm md:text-base">
+          <p className="text-t-text3 mb-6 md:mb-8 text-sm md:text-base">
             {searchTerm ? t.projectList.adjustSearch : t.projectList.createFirstDesc}
           </p>
           {!searchTerm && (

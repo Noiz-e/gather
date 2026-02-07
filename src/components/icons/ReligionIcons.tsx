@@ -4,120 +4,40 @@ interface IconProps {
   className?: string;
 }
 
-// Default - Abstract circle/wave
+// Default - Apple-style rounded square (SF Symbols inspired)
 export function DefaultIcon({ size = 24, color = 'currentColor', className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      <circle cx="12" cy="12" r="8" stroke={color} strokeWidth="1.5" />
-      <path d="M8 12C8 12 9.5 9 12 9C14.5 9 16 12 16 12C16 12 14.5 15 12 15C9.5 15 8 12 8 12Z" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="12" cy="12" r="2" fill={color} />
+      <rect x="3" y="3" width="18" height="18" rx="5" stroke={color} strokeWidth="1.5" />
+      <circle cx="12" cy="12" r="4" stroke={color} strokeWidth="1.5" />
+      <path d="M12 8V12L14.5 14.5" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-// Christianity - Cross
-export function CrossIcon({ size = 24, color = 'currentColor', className }: IconProps) {
+// Educational - Book/Learning icon
+export function EducationalIcon({ size = 24, color = 'currentColor', className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 7h8M8 11h6" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Faithful Community - Heart with glow/community
+export function FaithfulIcon({ size = 24, color = 'currentColor', className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
       <path
-        d="M12 2V22M7 7H17"
-        stroke={color}
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-// Catholicism - Papal Cross (triple bar)
-export function PapalCrossIcon({ size = 24, color = 'currentColor', className }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      <path d="M12 2V22" stroke={color} strokeWidth="2" strokeLinecap="round" />
-      <path d="M8 5H16" stroke={color} strokeWidth="2" strokeLinecap="round" />
-      <path d="M7 9H17" stroke={color} strokeWidth="2" strokeLinecap="round" />
-      <path d="M9 13H15" stroke={color} strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-// Buddhism - Dharma Wheel
-export function DharmaWheelIcon({ size = 24, color = 'currentColor', className }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.5" />
-      <circle cx="12" cy="12" r="3" stroke={color} strokeWidth="1.5" />
-      <path d="M12 3V9M12 15V21M3 12H9M15 12H21M5.64 5.64L9.17 9.17M14.83 14.83L18.36 18.36M5.64 18.36L9.17 14.83M14.83 9.17L18.36 5.64" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-// Islam - Crescent Moon and Star
-export function CrescentIcon({ size = 24, color = 'currentColor', className }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      <path
-        d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+        d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
         stroke={color}
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <path
-        d="M17 7L17.5 8.5L19 9L17.5 9.5L17 11L16.5 9.5L15 9L16.5 8.5L17 7Z"
-        fill={color}
-      />
-    </svg>
-  );
-}
-
-// Judaism - Star of David
-export function StarOfDavidIcon({ size = 24, color = 'currentColor', className }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      <path
-        d="M12 2L17.5 11H6.5L12 2Z"
-        stroke={color}
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M12 22L6.5 13H17.5L12 22Z"
-        stroke={color}
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-// Hinduism - Om Symbol
-export function OmIcon({ size = 24, color = 'currentColor', className }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      <path
-        d="M5 14C5 14 5 17 8 17C11 17 11 14 11 12C11 10 9 8 7 8M11 12C11 12 11 8 14 8C17 8 19 10 19 13C19 16 16 18 14 18M14 8V5M17 5C17 5 18 4 19 5C20 6 19 7 19 7"
-        stroke={color}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-// Taoism - Yin Yang
-export function YinYangIcon({ size = 24, color = 'currentColor', className }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.5" />
-      <path
-        d="M12 3C8.13 3 5 6.13 5 10C5 13.87 8.13 17 12 17C15.87 17 12 13.87 12 10C12 6.13 15.87 3 12 3Z"
-        fill={color}
-      />
-      <circle cx="12" cy="7" r="1.5" fill={color === 'currentColor' ? 'white' : 'white'} />
-      <circle cx="12" cy="17" r="1.5" fill={color} />
+      <circle cx="12" cy="10" r="2" stroke={color} strokeWidth="1.5" />
     </svg>
   );
 }
@@ -179,13 +99,8 @@ export function PublishedIcon({ size = 20, color = 'currentColor', className }: 
 // Map religion to icon component
 export const ReligionIconMap = {
   default: DefaultIcon,
-  christianity: CrossIcon,
-  catholicism: PapalCrossIcon,
-  buddhism: DharmaWheelIcon,
-  islam: CrescentIcon,
-  judaism: StarOfDavidIcon,
-  hinduism: OmIcon,
-  taoism: YinYangIcon,
+  educational: EducationalIcon,
+  faithful: FaithfulIcon,
 };
 
 // Map stage to icon component

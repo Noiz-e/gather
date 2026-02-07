@@ -52,7 +52,7 @@ export function AuthPage() {
   return (
     <div 
       className="min-h-screen flex items-center justify-center p-4"
-      style={{ background: theme.bgGradient }}
+      style={{ background: 'var(--t-bg)' }}
     >
       {/* Ambient glow effects */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
@@ -67,8 +67,8 @@ export function AuthPage() {
       </div>
 
       <div 
-        className="w-full max-w-md relative z-10 rounded-2xl border border-white/10 p-8 backdrop-blur-xl"
-        style={{ background: `${theme.bgCard}90` }}
+        className="w-full max-w-md relative z-10 rounded-2xl border border-t-border p-8 backdrop-blur-xl"
+        style={{ background: 'var(--t-bg-card)' }}
       >
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
@@ -81,10 +81,10 @@ export function AuthPage() {
           >
             <ReligionIcon size={32} color={theme.primaryLight} />
           </div>
-          <h1 className="text-2xl font-serif text-white tracking-wide">
+          <h1 className="text-2xl font-serif text-t-text1 tracking-wide">
             {t.appName}
           </h1>
-          <p className="text-sm text-white/40 tracking-wider uppercase mt-1">
+          <p className="text-sm text-t-text3 tracking-wider uppercase mt-1">
             Professional Publisher Studio
           </p>
         </div>
@@ -101,15 +101,15 @@ export function AuthPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {mode === 'register' && (
             <div>
-              <label className="block text-sm text-white/60 mb-2">{t.auth.displayName}</label>
+              <label className="block text-sm text-t-text2 mb-2">{t.auth.displayName}</label>
               <div className="relative">
-                <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+                <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-t-text3" />
                 <input
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder={t.auth.displayNamePlaceholder}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:border-white/30 transition-colors"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-t-card border border-t-border text-t-text1 placeholder-t-text3 focus:outline-none focus:border-t-border transition-colors"
                   required={mode === 'register'}
                 />
               </div>
@@ -117,30 +117,30 @@ export function AuthPage() {
           )}
 
           <div>
-            <label className="block text-sm text-white/60 mb-2">{t.auth.email}</label>
+            <label className="block text-sm text-t-text2 mb-2">{t.auth.email}</label>
             <div className="relative">
-              <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+              <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-t-text3" />
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:border-white/30 transition-colors"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-t-card border border-t-border text-t-text1 placeholder-t-text3 focus:outline-none focus:border-t-border transition-colors"
                 required
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm text-white/60 mb-2">{t.auth.password}</label>
+            <label className="block text-sm text-t-text2 mb-2">{t.auth.password}</label>
             <div className="relative">
-              <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+              <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-t-text3" />
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={mode === 'register' ? t.auth.passwordPlaceholderRegister : '••••••••'}
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:border-white/30 transition-colors"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-t-card border border-t-border text-t-text1 placeholder-t-text3 focus:outline-none focus:border-t-border transition-colors"
                 required
                 minLength={mode === 'register' ? 8 : undefined}
               />
@@ -150,7 +150,7 @@ export function AuthPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 rounded-xl font-medium text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl font-medium text-t-text1 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             style={{ 
               background: `linear-gradient(135deg, ${theme.primary}, ${theme.accent})`,
               boxShadow: `0 0 20px ${theme.glow}`,
@@ -169,7 +169,7 @@ export function AuthPage() {
 
         {/* Toggle mode */}
         <div className="mt-6 text-center">
-          <span className="text-white/40 text-sm">
+          <span className="text-t-text3 text-sm">
             {mode === 'login' ? t.auth.noAccount : t.auth.hasAccount}
           </span>
           <button
@@ -185,7 +185,7 @@ export function AuthPage() {
         <div className="mt-6 flex justify-center relative">
           <button
             onClick={() => setShowLangMenu(!showLangMenu)}
-            className="flex items-center gap-1 px-2 py-1 rounded text-xs text-white/30 hover:text-white/50 transition-colors"
+            className="flex items-center gap-1 px-2 py-1 rounded text-xs text-t-text3 hover:text-t-text3 transition-colors"
           >
             <Globe size={12} />
             {LANGUAGE_OPTIONS.find(opt => opt.value === language)?.label}
@@ -194,8 +194,8 @@ export function AuthPage() {
             <>
               <div className="fixed inset-0" onClick={() => setShowLangMenu(false)} />
               <div 
-                className="absolute bottom-full mb-1 py-1 rounded-lg border border-white/10 backdrop-blur-xl overflow-hidden min-w-[100px]"
-                style={{ background: `${theme.bgCard}e0` }}
+                className="absolute bottom-full mb-1 py-1 rounded-lg border border-t-border backdrop-blur-xl overflow-hidden min-w-[100px]"
+                style={{ background: 'var(--t-bg-card)' }}
               >
                 {LANGUAGE_OPTIONS.map(opt => (
                   <button
@@ -203,8 +203,8 @@ export function AuthPage() {
                     onClick={() => { setLanguage(opt.value); setShowLangMenu(false); }}
                     className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
                       language === opt.value 
-                        ? 'text-white bg-white/10' 
-                        : 'text-white/40 hover:text-white hover:bg-white/5'
+                        ? 'text-t-text1 bg-t-card-hover' 
+                        : 'text-t-text3 hover:text-t-text1 hover:bg-t-card'
                     }`}
                   >
                     {opt.label}

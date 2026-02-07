@@ -2,12 +2,12 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useProjects } from '../contexts/ProjectContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { RELIGIONS } from '../types';
-import { religionThemes } from '../themes';
-import { Trash2, Download, Upload, Info } from 'lucide-react';
+import { getThemeColors } from '../themes';
+import { Trash2, Download, Upload, Info, Sun, Moon } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
 
 export function Settings() {
-  const { theme, religion, setReligion } = useTheme();
+  const { theme, religion, setReligion, colorMode, setColorMode, isDark } = useTheme();
   const { projects } = useProjects();
   const { t } = useLanguage();
 
@@ -38,21 +38,50 @@ export function Settings() {
     <div className="space-y-4 md:space-y-8 animate-fade-in max-w-2xl">
       {/* Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-light text-white tracking-wide">{t.settings.title}</h1>
-        <p className="text-white/50 mt-1 text-sm md:text-base">{t.settings.subtitle}</p>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-light tracking-wide text-t-text1">{t.settings.title}</h1>
+        <p className="mt-1 text-sm md:text-base text-t-text3">{t.settings.subtitle}</p>
+      </div>
+
+      {/* Appearance - Light/Dark Mode */}
+      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 bg-t-card border border-t-border">
+        <h2 className="text-base md:text-lg font-serif mb-3 md:mb-4 text-t-text1">{t.settings.appearance}</h2>
+        <div className="flex gap-2 md:gap-3">
+          <button
+            onClick={() => setColorMode('light')}
+            className={`flex-1 flex items-center justify-center gap-2 p-3 md:p-4 rounded-lg md:rounded-xl transition-all duration-200 border ${
+              !isDark ? 'scale-[1.02] border-t-primary bg-t-surface-m' : 'hover:scale-[1.01] border-t-border bg-t-card'
+            }`}
+          >
+            <Sun size={18} className={!isDark ? 'text-t-primary' : 'text-t-text3'} />
+            <span className={`text-sm font-medium ${!isDark ? 'text-t-primary' : 'text-t-text2'}`}>
+              {t.settings.lightMode}
+            </span>
+          </button>
+          <button
+            onClick={() => setColorMode('dark')}
+            className={`flex-1 flex items-center justify-center gap-2 p-3 md:p-4 rounded-lg md:rounded-xl transition-all duration-200 border ${
+              isDark ? 'scale-[1.02] border-t-primary bg-t-surface-m' : 'hover:scale-[1.01] border-t-border bg-t-card'
+            }`}
+          >
+            <Moon size={18} className={isDark ? 'text-t-primary' : 'text-t-text3'} />
+            <span className={`text-sm font-medium ${isDark ? 'text-t-primary' : 'text-t-text2'}`}>
+              {t.settings.darkMode}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Current Theme */}
-      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 border border-white/10" style={{ background: theme.bgCard }}>
-        <h2 className="text-base md:text-lg font-serif text-white mb-3 md:mb-4">{t.settings.currentTheme}</h2>
-        <div className="flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-lg md:rounded-xl border border-white/10" style={{ background: `${theme.primary}10` }}>
+      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 bg-t-card border border-t-border">
+        <h2 className="text-base md:text-lg font-serif mb-3 md:mb-4 text-t-text1">{t.settings.currentTheme}</h2>
+        <div className="flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-lg md:rounded-xl border border-t-border bg-t-surface-m">
           <div className="w-11 h-11 md:w-14 md:h-14 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${theme.primary}30` }}>
             <ReligionIcon size={22} className="md:hidden" color={theme.primaryLight} />
             <ReligionIcon size={28} className="hidden md:block" color={theme.primaryLight} />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-medium text-white text-sm md:text-base">{religionT.name}</h3>
-            <p className="text-xs md:text-sm text-white/50 line-clamp-1">{religionT.description}</p>
+            <h3 className="font-medium text-sm md:text-base text-t-text1">{religionT.name}</h3>
+            <p className="text-xs md:text-sm line-clamp-1 text-t-text3">{religionT.description}</p>
           </div>
         </div>
         <div className="mt-3 md:mt-4 flex gap-2">
@@ -63,37 +92,34 @@ export function Settings() {
       </div>
 
       {/* All Themes */}
-      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 border border-white/10" style={{ background: theme.bgCard }}>
-        <h2 className="text-base md:text-lg font-serif text-white mb-3 md:mb-4">{t.settings.allThemes}</h2>
+      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 bg-t-card border border-t-border">
+        <h2 className="text-base md:text-lg font-serif mb-3 md:mb-4 text-t-text1">{t.settings.allThemes}</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
           {RELIGIONS.map((r) => {
-            const rTheme = religionThemes[r.id];
+            const rTheme = getThemeColors(r.id, colorMode);
             const rT = t.religions[r.id];
             const isActive = religion === r.id;
             const RIcon = ReligionIconMap[r.id];
             return (
               <button
                 key={r.id}
-                onClick={() => {
-                  if (!isActive) {
-                    setReligion(r.id);
-                  }
-                }}
-                className={`p-3 md:p-4 rounded-lg md:rounded-xl transition-all duration-300 border text-left hover:scale-[1.02] active:scale-[0.98] ${
-                  isActive ? 'border-white/30 scale-[1.02]' : 'border-white/5 hover:border-white/20'
+                onClick={() => { if (!isActive) setReligion(r.id); }}
+                className={`p-3 md:p-4 rounded-lg md:rounded-xl transition-all duration-300 text-left hover:scale-[1.02] active:scale-[0.98] border ${
+                  isActive ? 'scale-[1.02]' : 'border-t-border-lt'
                 }`}
-                style={{ 
+                style={{
                   background: isActive ? `${rTheme.primary}30` : `${rTheme.primary}10`,
                   cursor: isActive ? 'default' : 'pointer',
+                  borderColor: isActive ? rTheme.primary : undefined,
                 }}
               >
                 <div className="flex items-center gap-2 md:gap-3 mb-1.5 md:mb-2">
                   <RIcon size={16} className="md:hidden" color={rTheme.primaryLight} />
                   <RIcon size={20} className="hidden md:block" color={rTheme.primaryLight} />
-                  <span className="text-xs md:text-sm font-medium text-white truncate">{rT.name}</span>
+                  <span className="text-xs md:text-sm font-medium truncate text-t-text1">{rT.name}</span>
                 </div>
                 {isActive && (
-                  <div className="text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 rounded inline-block" style={{ background: rTheme.accent, color: rTheme.primaryDark }}>
+                  <div className="text-[10px] md:text-xs px-1.5 md:px-2 py-0.5 rounded inline-block" style={{ background: rTheme.accent, color: '#1d1d1f' }}>
                     {t.settings.currentlyUsing}
                   </div>
                 )}
@@ -104,43 +130,43 @@ export function Settings() {
       </div>
 
       {/* Data Stats */}
-      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 border border-white/10" style={{ background: theme.bgCard }}>
-        <h2 className="text-base md:text-lg font-serif text-white mb-3 md:mb-4">{t.settings.dataStats}</h2>
+      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 bg-t-card border border-t-border">
+        <h2 className="text-base md:text-lg font-serif mb-3 md:mb-4 text-t-text1">{t.settings.dataStats}</h2>
         <div className="grid grid-cols-2 gap-3 md:gap-4">
-          <div className="p-3 md:p-4 rounded-lg md:rounded-xl" style={{ background: `${theme.primary}10` }}>
-            <div className="text-2xl md:text-3xl font-light text-white">{projects.length}</div>
-            <div className="text-xs md:text-sm text-white/50">{t.settings.totalProjects}</div>
+          <div className="p-3 md:p-4 rounded-lg md:rounded-xl bg-t-surface-m">
+            <div className="text-2xl md:text-3xl font-light text-t-text1">{projects.length}</div>
+            <div className="text-xs md:text-sm text-t-text3">{t.settings.totalProjects}</div>
           </div>
-          <div className="p-3 md:p-4 rounded-lg md:rounded-xl" style={{ background: `${theme.primary}10` }}>
-            <div className="text-2xl md:text-3xl font-light text-white">{projects.reduce((acc, p) => acc + p.episodes.length, 0)}</div>
-            <div className="text-xs md:text-sm text-white/50">{t.settings.totalEpisodes}</div>
+          <div className="p-3 md:p-4 rounded-lg md:rounded-xl bg-t-surface-m">
+            <div className="text-2xl md:text-3xl font-light text-t-text1">{projects.reduce((acc, p) => acc + p.episodes.length, 0)}</div>
+            <div className="text-xs md:text-sm text-t-text3">{t.settings.totalEpisodes}</div>
           </div>
         </div>
       </div>
 
       {/* Data Management */}
-      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 border border-white/10" style={{ background: theme.bgCard }}>
-        <h2 className="text-base md:text-lg font-serif text-white mb-3 md:mb-4">{t.settings.dataManagement}</h2>
+      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 bg-t-card border border-t-border">
+        <h2 className="text-base md:text-lg font-serif mb-3 md:mb-4 text-t-text1">{t.settings.dataManagement}</h2>
         <div className="space-y-2 md:space-y-3">
-          <button onClick={exportData} className="w-full flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-lg md:rounded-xl border border-white/10 hover:border-white/20 transition-all text-left group">
-            <div className="w-9 h-9 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${theme.primary}20` }}>
+          <button onClick={exportData} className="w-full flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-lg md:rounded-xl transition-all text-left group hover:opacity-80 border border-t-border">
+            <div className="w-9 h-9 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0 bg-t-surface-m">
               <Download size={18} className="md:hidden" color={theme.primaryLight} />
               <Download size={20} className="hidden md:block" color={theme.primaryLight} />
             </div>
             <div className="min-w-0">
-              <div className="font-medium text-white group-hover:text-white/90 text-sm md:text-base">{t.settings.exportData}</div>
-              <div className="text-xs md:text-sm text-white/40 truncate">{t.settings.exportDataDesc}</div>
+              <div className="font-medium text-sm md:text-base text-t-text1">{t.settings.exportData}</div>
+              <div className="text-xs md:text-sm truncate text-t-text3">{t.settings.exportDataDesc}</div>
             </div>
           </button>
 
-          <button className="w-full flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-lg md:rounded-xl border border-white/10 text-left opacity-50 cursor-not-allowed" disabled>
-            <div className="w-9 h-9 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${theme.primary}20` }}>
+          <button className="w-full flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-lg md:rounded-xl text-left opacity-50 cursor-not-allowed border border-t-border" disabled>
+            <div className="w-9 h-9 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0 bg-t-surface-m">
               <Upload size={18} className="md:hidden" color={theme.primaryLight} />
               <Upload size={20} className="hidden md:block" color={theme.primaryLight} />
             </div>
             <div className="min-w-0">
-              <div className="font-medium text-white text-sm md:text-base">{t.settings.importData}</div>
-              <div className="text-xs md:text-sm text-white/40 truncate">{t.settings.importDataDesc} ({t.settings.comingSoon})</div>
+              <div className="font-medium text-sm md:text-base text-t-text1">{t.settings.importData}</div>
+              <div className="text-xs md:text-sm truncate text-t-text3">{t.settings.importDataDesc} ({t.settings.comingSoon})</div>
             </div>
           </button>
 
@@ -151,21 +177,21 @@ export function Settings() {
             </div>
             <div className="min-w-0">
               <div className="font-medium text-red-400 text-sm md:text-base">{t.settings.clearData}</div>
-              <div className="text-xs md:text-sm text-white/40 truncate">{t.settings.clearDataDesc}</div>
+              <div className="text-xs md:text-sm truncate text-t-text3">{t.settings.clearDataDesc}</div>
             </div>
           </button>
         </div>
       </div>
 
       {/* About */}
-      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 border border-white/10" style={{ background: theme.bgCard }}>
-        <h2 className="text-base md:text-lg font-serif text-white mb-3 md:mb-4">{t.settings.about}</h2>
-        <div className="flex items-start gap-2.5 md:gap-3 p-3 md:p-4 rounded-lg md:rounded-xl" style={{ background: `${theme.primary}10` }}>
+      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 bg-t-card border border-t-border">
+        <h2 className="text-base md:text-lg font-serif mb-3 md:mb-4 text-t-text1">{t.settings.about}</h2>
+        <div className="flex items-start gap-2.5 md:gap-3 p-3 md:p-4 rounded-lg md:rounded-xl bg-t-surface-m">
           <Info size={18} className="md:hidden flex-shrink-0 mt-0.5" color={theme.primaryLight} />
           <Info size={20} className="hidden md:block flex-shrink-0 mt-0.5" color={theme.primaryLight} />
           <div className="text-xs md:text-sm min-w-0">
-            <p className="font-medium text-white">{t.appName} {t.settings.version}</p>
-            <p className="mt-1.5 md:mt-2 text-white/60">{t.settings.aboutText}</p>
+            <p className="font-medium text-t-text1">{t.appName} {t.settings.version}</p>
+            <p className="mt-1.5 md:mt-2 text-t-text2">{t.settings.aboutText}</p>
           </div>
         </div>
       </div>

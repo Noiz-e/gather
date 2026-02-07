@@ -160,10 +160,10 @@ function AppContent({ initialLandingData, onClearLandingData }: AppContentProps)
 // Loading screen component
 function LoadingScreen() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--t-bg)' }}>
       <div className="flex flex-col items-center gap-4">
-        <Loader2 size={40} className="animate-spin text-purple-400" />
-        <p className="text-white/60 text-sm">加载中...</p>
+        <Loader2 size={40} className="animate-spin text-t-primary" />
+        <p className="text-t-text3 text-sm">加载中...</p>
       </div>
     </div>
   );

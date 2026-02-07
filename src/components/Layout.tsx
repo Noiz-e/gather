@@ -90,7 +90,7 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
   return (
     <div 
       className="h-screen flex flex-col md:flex-row overflow-hidden"
-      style={{ background: theme.bgGradient }}
+      style={{ background: 'var(--t-bg)' }}
     >
       {/* Ambient glow effects */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
@@ -105,7 +105,7 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
       </div>
 
       {/* Mobile Header */}
-      <header className="md:hidden sticky top-0 z-30 border-b border-white/5 backdrop-blur-xl" style={{ background: `${theme.bgDark}95` }}>
+      <header className="md:hidden sticky top-0 z-30 border-b border-t-border-lt backdrop-blur-xl" style={{ background: 'var(--t-bg-base)' }}>
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <div 
@@ -118,22 +118,22 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
               <ReligionIcon size={20} color={theme.primaryLight} />
             </div>
             <div>
-              <h1 className="text-base font-serif text-white tracking-wide">
+              <h1 className="text-base font-serif text-t-text1 tracking-wide">
                 {t.appName}
               </h1>
-              <p className="text-[10px] text-white/40 tracking-wider uppercase">
+              <p className="text-[10px] text-t-text3 tracking-wider uppercase">
                 {religionT.name}
               </p>
             </div>
           </div>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            className="p-2 rounded-lg hover:bg-t-card-hover transition-colors"
           >
             {mobileMenuOpen ? (
-              <X size={24} className="text-white/70" />
+              <X size={24} className="text-t-text2" />
             ) : (
-              <Menu size={24} className="text-white/70" />
+              <Menu size={24} className="text-t-text2" />
             )}
           </button>
         </div>
@@ -151,11 +151,11 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
       <aside 
         className={`md:hidden fixed top-0 right-0 h-full w-72 z-50 transform transition-transform duration-300 ease-in-out ${
           mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
-        } border-l border-white/5`}
-        style={{ background: theme.bgDark }}
+        } border-l border-t-border-lt`}
+        style={{ background: 'var(--t-bg-base)' }}
       >
         {/* Mobile Sidebar Header */}
-        <div className="p-6 border-b border-white/5">
+        <div className="p-6 border-b border-t-border-lt">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div 
@@ -168,19 +168,19 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
                 <ReligionIcon size={20} color={theme.primaryLight} />
               </div>
               <div>
-                <h1 className="text-base font-serif text-white tracking-wide">
+                <h1 className="text-base font-serif text-t-text1 tracking-wide">
                   {t.appName}
                 </h1>
-                <p className="text-[10px] text-white/40 tracking-wider uppercase">
+                <p className="text-[10px] text-t-text3 tracking-wider uppercase">
                   {religionT.name}
                 </p>
               </div>
             </div>
             <button
               onClick={() => setMobileMenuOpen(false)}
-              className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+              className="p-2 rounded-lg hover:bg-t-card-hover transition-colors"
             >
-              <X size={20} className="text-white/50" />
+              <X size={20} className="text-t-text3" />
             </button>
           </div>
         </div>
@@ -196,10 +196,10 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
                   <button
                     onClick={() => handleNavigate(item.id)}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
-                      isActive ? 'text-white' : 'text-white/50 hover:text-white/80'
+                      isActive ? 'text-t-text1' : 'text-t-text3 hover:text-t-text2'
                     }`}
                     style={isActive ? { 
-                      background: theme.bgCard,
+                      background: 'var(--t-bg-card)',
                       boxShadow: `0 0 20px ${theme.glow}`,
                     } : {}}
                   >
@@ -217,17 +217,17 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
 
         {/* Mobile User Info */}
         {user && (
-          <div className="px-4 py-3 border-t border-white/5">
+          <div className="px-4 py-3 border-t border-t-border-lt">
             <div className="flex items-center gap-3">
               <div 
-                className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium text-white/80"
+                className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium text-t-text2"
                 style={{ background: `${theme.primary}25` }}
               >
                 {user.displayName?.charAt(0)?.toUpperCase() || '?'}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm text-white/80 truncate leading-tight">{user.displayName}</p>
-                <p className="text-xs text-white/40 truncate">{user.email}</p>
+                <p className="text-sm text-t-text2 truncate leading-tight">{user.displayName}</p>
+                <p className="text-xs text-t-text3 truncate">{user.email}</p>
               </div>
               <RoleBadge role={user.role} size="sm" />
             </div>
@@ -235,11 +235,11 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
         )}
 
         {/* Mobile Bottom Actions */}
-        <div className="p-4 border-t border-white/5 space-y-3">
+        <div className="p-4 border-t border-t-border-lt space-y-3">
           <div className="relative" ref={mobileLangMenuRef}>
             <button
               onClick={() => setMobileLangMenuOpen(!mobileLangMenuOpen)}
-              className="w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-300 text-white/60 hover:text-white/80 text-sm"
+              className="w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-t-card hover:bg-t-card-hover transition-all duration-300 text-t-text2 hover:text-t-text2 text-sm"
             >
               <div className="flex items-center gap-2">
                 <Globe size={16} />
@@ -248,15 +248,15 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
               <ChevronDown size={16} className={`transition-transform duration-200 ${mobileLangMenuOpen ? 'rotate-180' : ''}`} />
             </button>
             {mobileLangMenuOpen && (
-              <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl overflow-hidden">
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-t-surface border border-t-border rounded-xl shadow-xl overflow-hidden">
                 {LANGUAGE_OPTIONS.map((option) => (
                   <button
                     key={option.value}
                     onClick={() => handleLanguageSelect(option.value)}
                     className={`w-full px-4 py-2.5 text-left text-sm transition-all duration-200 ${
                       language === option.value
-                        ? 'bg-white/10 text-white'
-                        : 'text-white/60 hover:bg-white/5 hover:text-white/80'
+                        ? 'bg-t-card-hover text-t-text1'
+                        : 'text-t-text2 hover:bg-t-card hover:text-t-text2'
                     }`}
                   >
                     {option.label}
@@ -279,10 +279,10 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
 
       {/* Desktop Sidebar */}
       <aside 
-        className={`hidden md:flex ${sidebarCollapsed ? 'w-20' : 'w-72'} h-screen flex-col relative z-10 border-r border-white/5 transition-all duration-300 ease-in-out flex-shrink-0`}
+        className={`hidden md:flex ${sidebarCollapsed ? 'w-20' : 'w-72'} h-screen flex-col relative z-10 border-r border-t-border-lt transition-all duration-300 ease-in-out flex-shrink-0`}
       >
         {/* Logo Area */}
-        <div className={`${sidebarCollapsed ? 'p-4' : 'p-8'} border-b border-white/5 transition-all duration-300`}>
+        <div className={`${sidebarCollapsed ? 'p-4' : 'p-8'} border-b border-t-border-lt transition-all duration-300`}>
           <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-4'}`}>
             <div 
               className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -295,10 +295,10 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
             </div>
             {!sidebarCollapsed && (
               <div className="overflow-hidden">
-                <h1 className="text-lg font-serif text-white tracking-wide whitespace-nowrap">
+                <h1 className="text-lg font-serif text-t-text1 tracking-wide whitespace-nowrap">
                   {t.appName}
                 </h1>
-                <p className="text-xs text-white/40 tracking-wider uppercase whitespace-nowrap">
+                <p className="text-xs text-t-text3 tracking-wider uppercase whitespace-nowrap">
                   {religionT.name}
                 </p>
               </div>
@@ -317,10 +317,10 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
                   <button
                     onClick={() => handleNavigate(item.id)}
                     className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl transition-all duration-300 group ${
-                      isActive ? 'text-white' : 'text-white/50 hover:text-white/80'
+                      isActive ? 'text-t-text1' : 'text-t-text3 hover:text-t-text2'
                     }`}
                     style={isActive ? { 
-                      background: theme.bgCard,
+                      background: 'var(--t-bg-card)',
                       boxShadow: `0 0 20px ${theme.glow}`,
                     } : {}}
                     title={sidebarCollapsed ? item.label : undefined}
@@ -342,18 +342,18 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
         </nav>
 
         {/* Bottom: User Info + Actions */}
-        <div className={`${sidebarCollapsed ? 'p-3' : 'px-4 py-3'} border-t border-white/5 transition-all duration-300`}>
+        <div className={`${sidebarCollapsed ? 'p-3' : 'px-4 py-3'} border-t border-t-border-lt transition-all duration-300`}>
           {/* User Info (expanded only) */}
           {user && !sidebarCollapsed && (
             <div className="flex items-center gap-3 mb-3">
               <div 
-                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium text-white/80"
+                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium text-t-text2"
                 style={{ background: `${theme.primary}25` }}
               >
                 {user.displayName?.charAt(0)?.toUpperCase() || '?'}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm text-white/80 truncate leading-tight">{user.displayName}</p>
+                <p className="text-sm text-t-text2 truncate leading-tight">{user.displayName}</p>
                 <RoleBadge role={user.role} size="sm" />
               </div>
             </div>
@@ -365,21 +365,21 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
             <div className="relative" ref={langMenuRef}>
               <button
                 onClick={() => setLangMenuOpen(!langMenuOpen)}
-                className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-white/5 transition-all duration-300 text-white/40 hover:text-white/60"
+                className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-t-card transition-all duration-300 text-t-text3 hover:text-t-text2"
                 title={LANGUAGE_OPTIONS.find(opt => opt.value === language)?.label}
               >
                 <Globe size={16} />
               </button>
               {langMenuOpen && (
-                <div className="absolute bottom-full left-0 mb-2 w-36 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl overflow-hidden z-20">
+                <div className="absolute bottom-full left-0 mb-2 w-36 bg-t-surface border border-t-border rounded-xl shadow-xl overflow-hidden z-20">
                   {LANGUAGE_OPTIONS.map((option) => (
                     <button
                       key={option.value}
                       onClick={() => handleLanguageSelect(option.value)}
                       className={`w-full px-3 py-2 text-left text-sm transition-all duration-200 ${
                         language === option.value
-                          ? 'bg-white/10 text-white'
-                          : 'text-white/60 hover:bg-white/5 hover:text-white/80'
+                          ? 'bg-t-card-hover text-t-text1'
+                          : 'text-t-text2 hover:bg-t-card hover:text-t-text2'
                       }`}
                     >
                       {option.label}
@@ -392,7 +392,7 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
             {/* Logout button */}
             <button
               onClick={handleLogout}
-              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-red-500/10 transition-all duration-300 text-white/40 hover:text-red-400"
+              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-red-500/10 transition-all duration-300 text-t-text3 hover:text-red-400"
               title={t.common.logout}
             >
               <LogOut size={16} />
@@ -401,7 +401,7 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
             {/* Collapse Toggle */}
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-white/5 transition-all duration-300 text-white/40 hover:text-white/60"
+              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-t-card transition-all duration-300 text-t-text3 hover:text-t-text2"
               title={sidebarCollapsed ? t.common.expand || 'Expand' : t.common.collapse || 'Collapse'}
             >
               {sidebarCollapsed ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
@@ -418,7 +418,7 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-white/10 backdrop-blur-xl" style={{ background: `${theme.bgDark}95` }}>
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-t-border backdrop-blur-xl" style={{ background: 'var(--t-bg-base)' }}>
         <div className="flex items-center justify-around py-2 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -428,7 +428,7 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
                 key={item.id}
                 onClick={() => handleNavigate(item.id)}
                 className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all duration-300 min-w-[60px] ${
-                  isActive ? 'text-white' : 'text-white/40'
+                  isActive ? 'text-t-text1' : 'text-t-text3'
                 }`}
                 style={isActive ? { 
                   background: `${theme.primary}30`,

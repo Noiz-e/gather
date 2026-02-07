@@ -183,8 +183,19 @@ const backendProvider = {
 
 // JSON parsing utilities
 function extractJsonFromMarkdown(text: string): string | null {
-  const match = text.match(/```(?:json|JSON)?\s*\n?([\s\S]*?)\n?```/);
-  return match?.[1]?.trim() || null;
+  // Try complete code block first: ```json ... ```
+  const completeMatch = text.match(/```(?:json|JSON)?\s*\n?([\s\S]*?)\n?```/);
+  if (completeMatch) {
+    return completeMatch[1]?.trim() || null;
+  }
+  
+  // Handle incomplete code block (no closing ```), common in streaming
+  const incompleteMatch = text.match(/```(?:json|JSON)?\s*\n?([\s\S]*?)$/);
+  if (incompleteMatch) {
+    return incompleteMatch[1]?.trim() || null;
+  }
+  
+  return null;
 }
 
 function extractJsonBrackets(text: string): string | null {

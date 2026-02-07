@@ -415,24 +415,24 @@ export function MediaLibrary() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-light text-white tracking-wide">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-light text-t-text1 tracking-wide">
             {t.mediaLibrary?.title || 'Media Library'}
           </h1>
-          <p className="text-white/50 mt-1 text-sm md:text-base">
+          <p className="text-t-text3 mt-1 text-sm md:text-base">
             {t.mediaLibrary?.subtitle || 'Manage your images, music, and sound effects'}
           </p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white text-sm font-medium transition-all duration-300 hover:bg-white/20"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-t-card-hover text-t-text1 text-sm font-medium transition-all duration-300 hover:bg-t-surface-m"
           >
             <Upload size={16} />
             {t.mediaLibrary?.upload || 'Upload'}
           </button>
           <button
             onClick={() => { setGenerateType(activeTab); setShowGenerateModal(true); }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-medium transition-all duration-300 hover:scale-105"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-t-text1 text-sm font-medium transition-all duration-300 hover:scale-105"
             style={{ background: theme.primary, boxShadow: `0 0 20px ${theme.glow}` }}
           >
             <Wand2 size={16} />
@@ -452,7 +452,7 @@ export function MediaLibrary() {
 
       {/* Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex gap-2 p-1 rounded-xl bg-white/5 w-fit">
+        <div className="flex gap-2 p-1 rounded-xl bg-t-card w-fit">
           {tabs.map(tab => {
             const Icon = tab.icon;
             return (
@@ -461,15 +461,15 @@ export function MediaLibrary() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
                   activeTab === tab.id 
-                    ? 'text-white' 
-                    : 'text-white/50 hover:text-white/80'
+                    ? 'text-t-text1' 
+                    : 'text-t-text3 hover:text-t-text2'
                 }`}
-                style={activeTab === tab.id ? { background: theme.bgCard, boxShadow: `0 0 20px ${theme.glow}` } : {}}
+                style={activeTab === tab.id ? { background: 'var(--t-bg-card)', boxShadow: `0 0 20px ${theme.glow}` } : {}}
               >
                 <Icon size={16} />
                 {tab.label}
                 {tab.count > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full text-xs bg-white/10">
+                  <span className="px-1.5 py-0.5 rounded-full text-xs bg-t-card-hover">
                     {tab.count}
                   </span>
                 )}
@@ -482,11 +482,11 @@ export function MediaLibrary() {
         <div className="flex items-center gap-2 flex-wrap">
           {/* Project filter */}
           <div className="relative">
-            <FolderOpen size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+            <FolderOpen size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-t-text3" />
             <select
               value={filterProjectId}
               onChange={(e) => setFilterProjectId(e.target.value)}
-              className="pl-9 pr-8 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-white/20 appearance-none cursor-pointer"
+              className="pl-9 pr-8 py-2 rounded-lg bg-t-card border border-t-border text-t-text1 text-sm focus:outline-none focus:border-t-border appearance-none cursor-pointer"
             >
               <option value="" className="bg-gray-900">{t.mediaLibrary?.allProjects || 'All Projects'}</option>
               {projects.map(p => (
@@ -495,25 +495,25 @@ export function MediaLibrary() {
             </select>
           </div>
           <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-t-text3" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t.mediaLibrary?.searchPlaceholder || 'Search...'}
-              className="pl-9 pr-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-white/20 w-48"
+              className="pl-9 pr-4 py-2 rounded-lg bg-t-card border border-t-border text-t-text1 text-sm focus:outline-none focus:border-t-border w-48"
             />
           </div>
-          <div className="flex gap-1 p-1 rounded-lg bg-white/5">
+          <div className="flex gap-1 p-1 rounded-lg bg-t-card">
             <button
               onClick={() => setViewMode('grid')}
-              className={`p-2 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/60'}`}
+              className={`p-2 rounded-md transition-all ${viewMode === 'grid' ? 'bg-t-card-hover text-t-text1' : 'text-t-text3 hover:text-t-text2'}`}
             >
               <Grid size={16} />
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className={`p-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/60'}`}
+              className={`p-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-t-card-hover text-t-text1' : 'text-t-text3 hover:text-t-text2'}`}
             >
               <List size={16} />
             </button>
@@ -523,29 +523,29 @@ export function MediaLibrary() {
 
       {/* Content */}
       {filteredItems.length === 0 ? (
-        <div className="rounded-xl md:rounded-2xl p-8 md:p-12 border border-white/10 text-center" style={{ background: theme.bgCard }}>
+        <div className="rounded-xl md:rounded-2xl p-8 md:p-12 border border-t-border text-center" style={{ background: 'var(--t-bg-card)' }}>
           <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ background: `${theme.primary}20` }}>
-            {activeTab === 'image' ? <Image size={32} className="text-white/40" /> :
-             activeTab === 'bgm' ? <Music size={32} className="text-white/40" /> :
-             <Sparkles size={32} className="text-white/40" />}
+            {activeTab === 'image' ? <Image size={32} className="text-t-text3" /> :
+             activeTab === 'bgm' ? <Music size={32} className="text-t-text3" /> :
+             <Sparkles size={32} className="text-t-text3" />}
           </div>
-          <h3 className="text-white font-serif mb-2">
+          <h3 className="text-t-text1 font-serif mb-2">
             {t.mediaLibrary?.empty?.title || 'No media yet'}
           </h3>
-          <p className="text-white/50 text-sm mb-6">
+          <p className="text-t-text3 text-sm mb-6">
             {t.mediaLibrary?.empty?.description || 'Upload or generate your first media'}
           </p>
           <div className="flex justify-center gap-3">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 rounded-xl bg-white/10 text-white text-sm font-medium transition-all hover:bg-white/20"
+              className="px-4 py-2 rounded-xl bg-t-card-hover text-t-text1 text-sm font-medium transition-all hover:bg-t-surface-m"
             >
               <Upload size={16} className="inline mr-2" />
               {t.mediaLibrary?.upload || 'Upload'}
             </button>
             <button
               onClick={() => { setGenerateType(activeTab); setShowGenerateModal(true); }}
-              className="px-4 py-2 rounded-xl text-white text-sm font-medium transition-all hover:scale-105"
+              className="px-4 py-2 rounded-xl text-t-text1 text-sm font-medium transition-all hover:scale-105"
               style={{ background: theme.primary }}
             >
               <Wand2 size={16} className="inline mr-2" />
@@ -558,8 +558,8 @@ export function MediaLibrary() {
           {filteredItems.map(item => (
             <div
               key={item.id}
-              className="group rounded-xl border border-white/10 overflow-hidden transition-all duration-300 hover:border-white/20"
-              style={{ background: theme.bgCard }}
+              className="group rounded-xl border border-t-border overflow-hidden transition-all duration-300 hover:border-t-border"
+              style={{ background: 'var(--t-bg-card)' }}
             >
               {/* Preview */}
               <div className="aspect-square relative">
@@ -587,7 +587,7 @@ export function MediaLibrary() {
                   {(item.type === 'bgm' || item.type === 'sfx') && (
                     <button
                       onClick={() => togglePlay(item)}
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-white transition-all hover:scale-110"
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-t-text1 transition-all hover:scale-110"
                       style={{ background: theme.primary }}
                     >
                       {playingId === item.id ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
@@ -595,7 +595,7 @@ export function MediaLibrary() {
                   )}
                   <button
                     onClick={() => handleDownload(item)}
-                    className="w-10 h-10 rounded-full flex items-center justify-center bg-white/20 text-white transition-all hover:bg-white/30"
+                    className="w-10 h-10 rounded-full flex items-center justify-center bg-t-surface-m text-t-text1 transition-all hover:bg-t-card"
                   >
                     <Download size={18} />
                   </button>
@@ -609,7 +609,7 @@ export function MediaLibrary() {
 
                 {/* Duration badge */}
                 {item.duration && (
-                  <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full bg-black/60 text-white text-xs">
+                  <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full bg-black/60 text-t-text1 text-xs">
                     {formatDuration(item.duration)}
                   </div>
                 )}
@@ -625,8 +625,8 @@ export function MediaLibrary() {
 
               {/* Info */}
               <div className="p-3">
-                <h4 className="text-white text-sm font-medium truncate">{item.name}</h4>
-                <p className="text-white/40 text-xs mt-1 truncate">{item.description || '-'}</p>
+                <h4 className="text-t-text1 text-sm font-medium truncate">{item.name}</h4>
+                <p className="text-t-text3 text-xs mt-1 truncate">{item.description || '-'}</p>
                 {item.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
                     {item.tags.slice(0, 2).map((tag, i) => (
@@ -638,7 +638,7 @@ export function MediaLibrary() {
                 )}
                 {/* Linked projects */}
                 {item.projectIds && item.projectIds.length > 0 && (
-                  <div className="flex items-center gap-1 mt-2 text-[10px] text-white/40">
+                  <div className="flex items-center gap-1 mt-2 text-[10px] text-t-text3">
                     <Link2 size={10} />
                     {item.projectIds.slice(0, 2).map(pid => {
                       const proj = projects.find(p => p.id === pid);
@@ -656,8 +656,8 @@ export function MediaLibrary() {
           {filteredItems.map(item => (
             <div
               key={item.id}
-              className="flex items-center gap-4 p-4 rounded-xl border border-white/10 transition-all duration-300 hover:border-white/20"
-              style={{ background: theme.bgCard }}
+              className="flex items-center gap-4 p-4 rounded-xl border border-t-border transition-all duration-300 hover:border-t-border"
+              style={{ background: 'var(--t-bg-card)' }}
             >
               {/* Thumbnail */}
               <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
@@ -673,7 +673,7 @@ export function MediaLibrary() {
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-white font-medium truncate">{item.name}</h4>
+                  <h4 className="text-t-text1 font-medium truncate">{item.name}</h4>
                   {item.source === 'generated' && (
                     <span className="px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-1" style={{ background: `${theme.primary}40`, color: theme.primaryLight }}>
                       <Wand2 size={10} />
@@ -681,8 +681,8 @@ export function MediaLibrary() {
                     </span>
                   )}
                 </div>
-                <p className="text-white/50 text-sm truncate">{item.description || '-'}</p>
-                <div className="flex items-center gap-3 mt-1 text-xs text-white/40">
+                <p className="text-t-text3 text-sm truncate">{item.description || '-'}</p>
+                <div className="flex items-center gap-3 mt-1 text-xs text-t-text3">
                   {item.duration && <span>{formatDuration(item.duration)}</span>}
                   {item.size && <span>{formatFileSize(item.size)}</span>}
                   <span>{new Date(item.createdAt).toLocaleDateString()}</span>
@@ -702,19 +702,19 @@ export function MediaLibrary() {
                 )}
                 <button
                   onClick={() => openEditModal(item)}
-                  className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-all"
+                  className="p-2 rounded-lg text-t-text3 hover:text-t-text1 hover:bg-t-card-hover transition-all"
                 >
                   <Edit2 size={16} />
                 </button>
                 <button
                   onClick={() => handleDownload(item)}
-                  className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-all"
+                  className="p-2 rounded-lg text-t-text3 hover:text-t-text1 hover:bg-t-card-hover transition-all"
                 >
                   <Download size={16} />
                 </button>
                 <button
                   onClick={() => handleDelete(item.id)}
-                  className="p-2 rounded-lg text-white/50 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                  className="p-2 rounded-lg text-t-text3 hover:text-red-400 hover:bg-red-500/10 transition-all"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -730,19 +730,19 @@ export function MediaLibrary() {
       {/* Upload Modal */}
       {showUploadModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl p-6 border border-white/10" style={{ background: theme.bgDark }}>
+          <div className="w-full max-w-lg rounded-2xl p-6 border border-t-border" style={{ background: 'var(--t-bg-base)' }}>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-serif text-white">
+              <h2 className="text-xl font-serif text-t-text1">
                 {t.mediaLibrary?.uploadModal?.title || 'Upload Media'}
               </h2>
-              <button onClick={closeUploadModal} className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10">
+              <button onClick={closeUploadModal} className="p-2 rounded-lg text-t-text3 hover:text-t-text1 hover:bg-t-card-hover">
                 <X size={20} />
               </button>
             </div>
 
             {/* Preview */}
             {uploadedFile && (
-              <div className="mb-6 p-4 rounded-xl border border-white/10" style={{ background: `${theme.primary}10` }}>
+              <div className="mb-6 p-4 rounded-xl border border-t-border" style={{ background: `${theme.primary}10` }}>
                 {uploadedFile.mimeType.startsWith('image/') ? (
                   <img src={uploadedFile.dataUrl} alt="Preview" className="w-full h-40 object-contain rounded-lg" />
                 ) : (
@@ -751,8 +751,8 @@ export function MediaLibrary() {
                       {uploadForm.type === 'bgm' ? <Music size={28} style={{ color: theme.primaryLight }} /> : <Sparkles size={28} style={{ color: theme.primaryLight }} />}
                     </div>
                     <div>
-                      <p className="text-white font-medium">{uploadForm.name || 'Audio file'}</p>
-                      <p className="text-white/50 text-sm">
+                      <p className="text-t-text1 font-medium">{uploadForm.name || 'Audio file'}</p>
+                      <p className="text-t-text3 text-sm">
                         {uploadedFile.duration && formatDuration(uploadedFile.duration)} · {formatFileSize(uploadedFile.size)}
                       </p>
                     </div>
@@ -764,21 +764,21 @@ export function MediaLibrary() {
             {/* Form */}
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-white/50 mb-2">{t.mediaLibrary?.form?.name || 'Name'}</label>
+                <label className="block text-sm font-medium text-t-text3 mb-2">{t.mediaLibrary?.form?.name || 'Name'}</label>
                 <input
                   type="text"
                   value={uploadForm.name}
                   onChange={(e) => setUploadForm(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20"
+                  className="w-full px-4 py-3 rounded-xl border border-t-border bg-t-card text-t-text1 focus:outline-none focus:border-t-border"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-white/50 mb-2">{t.mediaLibrary?.form?.type || 'Type'}</label>
+                <label className="block text-sm font-medium text-t-text3 mb-2">{t.mediaLibrary?.form?.type || 'Type'}</label>
                 <select
                   value={uploadForm.type}
                   onChange={(e) => setUploadForm(prev => ({ ...prev, type: e.target.value as MediaType }))}
-                  className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20"
+                  className="w-full px-4 py-3 rounded-xl border border-t-border bg-t-card text-t-text1 focus:outline-none focus:border-t-border"
                 >
                   <option value="image" className="bg-gray-900">Image</option>
                   <option value="bgm" className="bg-gray-900">Background Music</option>
@@ -787,29 +787,29 @@ export function MediaLibrary() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-white/50 mb-2">{t.mediaLibrary?.form?.description || 'Description'}</label>
+                <label className="block text-sm font-medium text-t-text3 mb-2">{t.mediaLibrary?.form?.description || 'Description'}</label>
                 <textarea
                   value={uploadForm.description}
                   onChange={(e) => setUploadForm(prev => ({ ...prev, description: e.target.value }))}
                   rows={2}
-                  className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20 resize-none"
+                  className="w-full px-4 py-3 rounded-xl border border-t-border bg-t-card text-t-text1 focus:outline-none focus:border-t-border resize-none"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-white/50 mb-2">{t.mediaLibrary?.form?.tags || 'Tags'}</label>
+                <label className="block text-sm font-medium text-t-text3 mb-2">{t.mediaLibrary?.form?.tags || 'Tags'}</label>
                 <input
                   type="text"
                   value={uploadForm.tags}
                   onChange={(e) => setUploadForm(prev => ({ ...prev, tags: e.target.value }))}
                   placeholder={t.mediaLibrary?.form?.tagsPlaceholder || 'Separate with commas'}
-                  className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20"
+                  className="w-full px-4 py-3 rounded-xl border border-t-border bg-t-card text-t-text1 focus:outline-none focus:border-t-border"
                 />
               </div>
 
               {/* Project Links */}
               <div>
-                <label className="block text-sm font-medium text-white/50 mb-2">
+                <label className="block text-sm font-medium text-t-text3 mb-2">
                   <Link2 size={14} className="inline mr-1" />
                   {t.mediaLibrary?.form?.linkedProjects || 'Linked Projects'}
                 </label>
@@ -830,8 +830,8 @@ export function MediaLibrary() {
                         }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                           isLinked 
-                            ? 'text-white' 
-                            : 'text-white/50 hover:text-white/70 border border-white/10 hover:border-white/20'
+                            ? 'text-t-text1' 
+                            : 'text-t-text3 hover:text-t-text2 border border-t-border hover:border-t-border'
                         }`}
                         style={isLinked ? { background: theme.primary } : {}}
                       >
@@ -841,7 +841,7 @@ export function MediaLibrary() {
                     );
                   })}
                   {projects.length === 0 && (
-                    <span className="text-white/30 text-sm">{t.mediaLibrary?.noProjects || 'No projects'}</span>
+                    <span className="text-t-text3 text-sm">{t.mediaLibrary?.noProjects || 'No projects'}</span>
                   )}
                 </div>
               </div>
@@ -851,14 +851,14 @@ export function MediaLibrary() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={closeUploadModal}
-                className="flex-1 px-4 py-3 rounded-xl border border-white/10 text-white/70 hover:text-white hover:border-white/20 transition-all"
+                className="flex-1 px-4 py-3 rounded-xl border border-t-border text-t-text2 hover:text-t-text1 hover:border-t-border transition-all"
               >
                 {t.common?.cancel || 'Cancel'}
               </button>
               <button
                 onClick={saveUploadedMedia}
                 disabled={!uploadForm.name.trim()}
-                className="flex-1 px-4 py-3 rounded-xl text-white font-medium transition-all disabled:opacity-50"
+                className="flex-1 px-4 py-3 rounded-xl text-t-text1 font-medium transition-all disabled:opacity-50"
                 style={{ background: theme.primary }}
               >
                 {t.common?.save || 'Save'}
@@ -871,12 +871,12 @@ export function MediaLibrary() {
       {/* Generate Modal */}
       {showGenerateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl p-6 border border-white/10" style={{ background: theme.bgDark }}>
+          <div className="w-full max-w-lg rounded-2xl p-6 border border-t-border" style={{ background: 'var(--t-bg-base)' }}>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-serif text-white">
+              <h2 className="text-xl font-serif text-t-text1">
                 {t.mediaLibrary?.generateModal?.title || 'Generate with AI'}
               </h2>
-              <button onClick={closeGenerateModal} className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10">
+              <button onClick={closeGenerateModal} className="p-2 rounded-lg text-t-text3 hover:text-t-text1 hover:bg-t-card-hover">
                 <X size={20} />
               </button>
             </div>
@@ -884,7 +884,7 @@ export function MediaLibrary() {
             <div className="space-y-4">
               {/* Type selector */}
               <div>
-                <label className="block text-sm font-medium text-white/50 mb-2">{t.mediaLibrary?.form?.type || 'Type'}</label>
+                <label className="block text-sm font-medium text-t-text3 mb-2">{t.mediaLibrary?.form?.type || 'Type'}</label>
                 <div className="flex gap-2">
                   {[
                     { id: 'image' as MediaType, label: t.mediaLibrary?.tabs?.images || 'Image', icon: ImagePlus },
@@ -898,8 +898,8 @@ export function MediaLibrary() {
                         onClick={() => setGenerateType(opt.id)}
                         className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border transition-all ${
                           generateType === opt.id
-                            ? 'border-white/30 text-white'
-                            : 'border-white/10 text-white/50 hover:border-white/20'
+                            ? 'border-t-border text-t-text1'
+                            : 'border-t-border text-t-text3 hover:border-t-border'
                         }`}
                         style={generateType === opt.id ? { background: `${theme.primary}20` } : {}}
                       >
@@ -913,7 +913,7 @@ export function MediaLibrary() {
 
               {/* Prompt */}
               <div>
-                <label className="block text-sm font-medium text-white/50 mb-2">
+                <label className="block text-sm font-medium text-t-text3 mb-2">
                   {t.mediaLibrary?.generateModal?.prompt || 'Describe what you want'}
                 </label>
                 <textarea
@@ -927,14 +927,14 @@ export function MediaLibrary() {
                       ? (t.mediaLibrary?.generateModal?.bgmPlaceholder || 'Calm meditation music with soft piano...')
                       : (t.mediaLibrary?.generateModal?.sfxPlaceholder || 'Gentle bell chime sound...')
                   }
-                  className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20 resize-none"
+                  className="w-full px-4 py-3 rounded-xl border border-t-border bg-t-card text-t-text1 focus:outline-none focus:border-t-border resize-none"
                 />
               </div>
 
               {/* Duration (for audio) */}
               {(generateType === 'bgm' || generateType === 'sfx') && (
                 <div>
-                  <label className="block text-sm font-medium text-white/50 mb-2">
+                  <label className="block text-sm font-medium text-t-text3 mb-2">
                     {t.mediaLibrary?.generateModal?.duration || 'Duration (seconds)'}
                   </label>
                   <input
@@ -943,7 +943,7 @@ export function MediaLibrary() {
                     onChange={(e) => setGenerateDuration(Math.max(5, Math.min(300, parseInt(e.target.value) || 30)))}
                     min={5}
                     max={300}
-                    className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20"
+                    className="w-full px-4 py-3 rounded-xl border border-t-border bg-t-card text-t-text1 focus:outline-none focus:border-t-border"
                   />
                 </div>
               )}
@@ -953,14 +953,14 @@ export function MediaLibrary() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={closeGenerateModal}
-                className="flex-1 px-4 py-3 rounded-xl border border-white/10 text-white/70 hover:text-white hover:border-white/20 transition-all"
+                className="flex-1 px-4 py-3 rounded-xl border border-t-border text-t-text2 hover:text-t-text1 hover:border-t-border transition-all"
               >
                 {t.common?.cancel || 'Cancel'}
               </button>
               <button
                 onClick={handleGenerate}
                 disabled={isGenerating || !generatePrompt.trim()}
-                className="flex-1 px-4 py-3 rounded-xl text-white font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-3 rounded-xl text-t-text1 font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 style={{ background: theme.primary }}
               >
                 {isGenerating ? (
@@ -983,50 +983,50 @@ export function MediaLibrary() {
       {/* Edit Modal */}
       {showEditModal && editingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl p-6 border border-white/10" style={{ background: theme.bgDark }}>
+          <div className="w-full max-w-lg rounded-2xl p-6 border border-t-border" style={{ background: 'var(--t-bg-base)' }}>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-serif text-white">
+              <h2 className="text-xl font-serif text-t-text1">
                 {t.mediaLibrary?.editModal?.title || 'Edit Media'}
               </h2>
-              <button onClick={() => { setShowEditModal(false); setEditingItem(null); }} className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10">
+              <button onClick={() => { setShowEditModal(false); setEditingItem(null); }} className="p-2 rounded-lg text-t-text3 hover:text-t-text1 hover:bg-t-card-hover">
                 <X size={20} />
               </button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-white/50 mb-2">{t.mediaLibrary?.form?.name || 'Name'}</label>
+                <label className="block text-sm font-medium text-t-text3 mb-2">{t.mediaLibrary?.form?.name || 'Name'}</label>
                 <input
                   type="text"
                   value={editingItem.name}
                   onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20"
+                  className="w-full px-4 py-3 rounded-xl border border-t-border bg-t-card text-t-text1 focus:outline-none focus:border-t-border"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-white/50 mb-2">{t.mediaLibrary?.form?.description || 'Description'}</label>
+                <label className="block text-sm font-medium text-t-text3 mb-2">{t.mediaLibrary?.form?.description || 'Description'}</label>
                 <textarea
                   value={editingItem.description}
                   onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
                   rows={3}
-                  className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20 resize-none"
+                  className="w-full px-4 py-3 rounded-xl border border-t-border bg-t-card text-t-text1 focus:outline-none focus:border-t-border resize-none"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-white/50 mb-2">{t.mediaLibrary?.form?.tags || 'Tags'}</label>
+                <label className="block text-sm font-medium text-t-text3 mb-2">{t.mediaLibrary?.form?.tags || 'Tags'}</label>
                 <input
                   type="text"
                   value={editingItem.tags.join(', ')}
                   onChange={(e) => setEditingItem({ ...editingItem, tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) })}
-                  className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20"
+                  className="w-full px-4 py-3 rounded-xl border border-t-border bg-t-card text-t-text1 focus:outline-none focus:border-t-border"
                 />
               </div>
 
               {/* Project Links */}
               <div>
-                <label className="block text-sm font-medium text-white/50 mb-2">
+                <label className="block text-sm font-medium text-t-text3 mb-2">
                   <Link2 size={14} className="inline mr-1" />
                   {t.mediaLibrary?.form?.linkedProjects || 'Linked Projects'}
                 </label>
@@ -1048,8 +1048,8 @@ export function MediaLibrary() {
                         }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                           isLinked 
-                            ? 'text-white' 
-                            : 'text-white/50 hover:text-white/70 border border-white/10 hover:border-white/20'
+                            ? 'text-t-text1' 
+                            : 'text-t-text3 hover:text-t-text2 border border-t-border hover:border-t-border'
                         }`}
                         style={isLinked ? { background: theme.primary } : {}}
                       >
@@ -1059,7 +1059,7 @@ export function MediaLibrary() {
                     );
                   })}
                   {projects.length === 0 && (
-                    <span className="text-white/30 text-sm">{t.mediaLibrary?.noProjects || 'No projects'}</span>
+                    <span className="text-t-text3 text-sm">{t.mediaLibrary?.noProjects || 'No projects'}</span>
                   )}
                 </div>
               </div>
@@ -1068,13 +1068,13 @@ export function MediaLibrary() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => { setShowEditModal(false); setEditingItem(null); }}
-                className="flex-1 px-4 py-3 rounded-xl border border-white/10 text-white/70 hover:text-white hover:border-white/20 transition-all"
+                className="flex-1 px-4 py-3 rounded-xl border border-t-border text-t-text2 hover:text-t-text1 hover:border-t-border transition-all"
               >
                 {t.common?.cancel || 'Cancel'}
               </button>
               <button
                 onClick={saveEditedMedia}
-                className="flex-1 px-4 py-3 rounded-xl text-white font-medium transition-all"
+                className="flex-1 px-4 py-3 rounded-xl text-t-text1 font-medium transition-all"
                 style={{ background: theme.primary }}
               >
                 {t.common?.save || 'Save'}

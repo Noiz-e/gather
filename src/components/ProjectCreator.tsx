@@ -1133,8 +1133,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               onClick={() => handleTemplateSelect(template.id)}
               className={`relative p-3 rounded-xl border text-left transition-all ${
                 isSelected 
-                  ? 'border-white/30 bg-white/10' 
-                  : 'border-white/10 hover:border-white/20 hover:bg-white/5'
+                  ? 'border-t-border bg-t-card-hover' 
+                  : 'border-t-border hover:border-t-border hover:bg-t-card'
               }`}
               style={isSelected ? { borderColor: theme.primary, background: `${theme.primary}15` } : {}}
             >
@@ -1142,38 +1142,38 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               <div className="flex items-center gap-2 mb-2">
                 <div 
                   className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0"
-                  style={{ background: isSelected ? `${theme.primary}30` : 'rgba(255,255,255,0.1)' }}
+                  style={{ background: isSelected ? `${theme.primary}30` : 'var(--t-bg-card-hover)' }}
                 >
-                  <IconComponent size={14} className={isSelected ? '' : 'text-white/60'} style={isSelected ? { color: theme.primaryLight } : {}} />
+                  <IconComponent size={14} className={isSelected ? '' : 'text-t-text2'} style={isSelected ? { color: theme.primaryLight } : {}} />
                 </div>
-                <p className="text-sm text-white font-medium line-clamp-1 flex-1">
+                <p className="text-sm text-t-text1 font-medium flex-1">
                   {language === 'zh' ? template.nameZh : template.name}
                 </p>
               </div>
               {/* Description */}
-              <p className="text-[11px] text-white/50 leading-relaxed">
+              <p className="text-[11px] text-t-text3 leading-relaxed">
                 {language === 'zh' ? template.descriptionZh : template.description}
               </p>
               {/* Media option tags */}
               <div className="flex gap-1 mt-2">
                 {voiceCount === 'multiple' && (
-                  <div className="p-1 rounded bg-white/10" title={language === 'zh' ? '多人' : 'Multi-voice'}>
-                    <Users size={10} className="text-white/40" />
+                  <div className="p-1 rounded bg-t-card-hover" title={language === 'zh' ? '多人' : 'Multi-voice'}>
+                    <Users size={10} className="text-t-text3" />
                   </div>
                 )}
                 {addBgm && (
-                  <div className="p-1 rounded bg-white/10" title="BGM">
-                    <Music size={10} className="text-white/40" />
+                  <div className="p-1 rounded bg-t-card-hover" title="BGM">
+                    <Music size={10} className="text-t-text3" />
                   </div>
                 )}
                 {addSoundEffects && (
-                  <div className="p-1 rounded bg-white/10" title="SFX">
-                    <Volume2 size={10} className="text-white/40" />
+                  <div className="p-1 rounded bg-t-card-hover" title="SFX">
+                    <Volume2 size={10} className="text-t-text3" />
                   </div>
                 )}
                 {hasVisualContent && (
-                  <div className="p-1 rounded bg-white/10" title={language === 'zh' ? '图片' : 'Images'}>
-                    <Image size={10} className="text-white/40" />
+                  <div className="p-1 rounded bg-t-card-hover" title={language === 'zh' ? '图片' : 'Images'}>
+                    <Image size={10} className="text-t-text3" />
                   </div>
                 )}
               </div>
@@ -1182,7 +1182,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   className="absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full flex items-center justify-center"
                   style={{ background: theme.primary }}
                 >
-                  <Check size={12} className="text-white" />
+                  <Check size={12} className="text-t-text1" />
                 </div>
               )}
             </button>
@@ -1192,7 +1192,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
       {/* Optional: Custom Description - always visible */}
       <div>
-        <label className="block text-xs text-white/40 mb-2">
+        <label className="block text-xs text-t-text3 mb-2">
           {language === 'zh' ? '项目描述（可选）' : 'Project description (optional)'}
         </label>
         <textarea
@@ -1202,7 +1202,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             ? '描述您想要创建的音频内容，AI 将根据描述辅助配置...' 
             : 'Describe the audio content you want to create, AI will use this to assist...'}
           rows={2}
-          className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-base text-white placeholder-white/30 focus:outline-none focus:border-white/20 resize-none transition-all"
+          className="w-full px-4 py-3 rounded-xl border border-t-border bg-t-card text-base text-t-text1 placeholder-t-text3 focus:outline-none focus:border-t-border resize-none transition-all"
         />
       </div>
     </div>
@@ -1213,9 +1213,9 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   const renderSpecStep = () => (
     <div className="space-y-4 sm:space-y-6">
       {/* Spec Form */}
-      <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: theme.bgCard }}>
-        <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-          <h4 className="text-base font-medium text-white">
+      <div className="rounded-xl border border-t-border overflow-hidden" style={{ background: 'var(--t-bg-card)' }}>
+        <div className="px-5 py-4 border-b border-t-border flex items-center justify-between">
+          <h4 className="text-base font-medium text-t-text1">
             {language === 'zh' ? '项目规格' : 'Project Specifications'}
           </h4>
           {/* Compact Template Badge */}
@@ -1235,13 +1235,13 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                       return <IconComponent size={12} style={{ color: theme.primaryLight }} />;
                     })()}
                   </div>
-                  <span className="text-sm text-white/70">
+                  <span className="text-sm text-t-text2">
                     {language === 'zh' ? selectedTemplate.nameZh : selectedTemplate.name}
                   </span>
                 </div>
                 <button
                   onClick={() => setCurrentStep(1)}
-                  className="text-xs text-white/40 hover:text-white/60 px-2 py-1 rounded hover:bg-white/10 transition-all"
+                  className="text-xs text-t-text3 hover:text-t-text2 px-2 py-1 rounded hover:bg-t-card-hover transition-all"
                 >
                   {language === 'zh' ? '更换' : 'Change'}
                 </button>
@@ -1253,13 +1253,13 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   style={{ background: `${theme.primary}15` }}
                 >
                   <Sparkles size={12} style={{ color: theme.primaryLight }} />
-                  <span className="text-sm text-white/70">
+                  <span className="text-sm text-t-text2">
                     {language === 'zh' ? '自定义' : 'Custom'}
                   </span>
                 </div>
                 <button
                   onClick={() => setCurrentStep(1)}
-                  className="text-xs text-white/40 hover:text-white/60 px-2 py-1 rounded hover:bg-white/10 transition-all"
+                  className="text-xs text-t-text3 hover:text-t-text2 px-2 py-1 rounded hover:bg-t-card-hover transition-all"
                 >
                   {language === 'zh' ? '更换' : 'Change'}
                 </button>
@@ -1270,7 +1270,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         <div className="p-5 space-y-5">
           {/* Story Title */}
           <div>
-            <label className="block text-sm text-white/50 mb-2">
+            <label className="block text-sm text-t-text3 mb-2">
               {language === 'zh' ? '标题' : 'Title'}
             </label>
             <input
@@ -1278,14 +1278,14 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               value={specData.storyTitle}
               onChange={(e) => updateSpecField('storyTitle', e.target.value)}
               placeholder={language === 'zh' ? '输入项目标题...' : 'Enter project title...'}
-              className="w-full px-4 py-3 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20"
+              className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
             />
           </div>
           {/* Subtitle - Toggle Option */}
           {showSubtitle ? (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm text-white/50">
+                <label className="block text-sm text-t-text3">
                   {language === 'zh' ? '副标题' : 'Subtitle'}
                 </label>
                 <button
@@ -1293,7 +1293,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                     setShowSubtitle(false);
                     updateSpecField('subtitle', '');
                   }}
-                  className="text-sm text-white/40 hover:text-white/60 transition-all"
+                  className="text-sm text-t-text3 hover:text-t-text2 transition-all"
                 >
                   <X size={14} />
                 </button>
@@ -1303,13 +1303,13 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                 value={specData.subtitle}
                 onChange={(e) => updateSpecField('subtitle', e.target.value)}
                 placeholder={language === 'zh' ? '添加副标题或标语...' : 'Add subtitle or tagline...'}
-                className="w-full px-4 py-3 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20"
+                className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
               />
             </div>
           ) : (
             <button
               onClick={() => setShowSubtitle(true)}
-              className="flex items-center gap-2 text-sm text-white/50 hover:text-white/70 transition-all"
+              className="flex items-center gap-2 text-sm text-t-text3 hover:text-t-text2 transition-all"
             >
               <Plus size={14} />
               {language === 'zh' ? '添加副标题' : 'Add Subtitle'}
@@ -1317,45 +1317,45 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           )}
           {/* Target Audience */}
           <div>
-            <label className="block text-sm text-white/50 mb-2">
+            <label className="block text-sm text-t-text3 mb-2">
               {language === 'zh' ? '目标受众' : 'Target Audience'}
             </label>
             <input
               type="text"
               value={specData.targetAudience}
               onChange={(e) => updateSpecField('targetAudience', e.target.value)}
-              className="w-full px-4 py-3 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20"
+              className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
             />
           </div>
           {/* Format and Duration */}
           <div>
-            <label className="block text-sm text-white/50 mb-2">
+            <label className="block text-sm text-t-text3 mb-2">
               {language === 'zh' ? '格式和时长' : 'Format & Duration'}
             </label>
             <input
               type="text"
               value={specData.formatAndDuration}
               onChange={(e) => updateSpecField('formatAndDuration', e.target.value)}
-              className="w-full px-4 py-3 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20"
+              className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
             />
           </div>
           {/* Tone and Expression */}
           <div>
-            <label className="block text-sm text-white/50 mb-2">
+            <label className="block text-sm text-t-text3 mb-2">
               {language === 'zh' ? '风格和表达' : 'Tone & Expression'}
             </label>
             <input
               type="text"
               value={specData.toneAndExpression}
               onChange={(e) => updateSpecField('toneAndExpression', e.target.value)}
-              className="w-full px-4 py-3 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20"
+              className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
             />
           </div>
           {/* Voice Count & Media Options */}
           <div className="flex flex-wrap items-start gap-6">
             {/* Voice Count Toggle */}
             <div>
-              <label className="block text-sm text-white/50 mb-2">
+              <label className="block text-sm text-t-text3 mb-2">
                 {language === 'zh' ? '声音' : 'Voice'}
               </label>
               <div className="flex gap-2">
@@ -1363,8 +1363,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   onClick={() => setTemplateConfig(prev => ({ ...prev, voiceCount: 'single' }))}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                     templateConfig.voiceCount === 'single'
-                      ? 'text-white'
-                      : 'text-white/50 border border-white/10 hover:border-white/20'
+                      ? 'text-t-text1'
+                      : 'text-t-text3 border border-t-border hover:border-t-border'
                   }`}
                   style={templateConfig.voiceCount === 'single' ? { background: theme.primary } : {}}
                 >
@@ -1375,8 +1375,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   onClick={() => setTemplateConfig(prev => ({ ...prev, voiceCount: 'multiple' }))}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                     templateConfig.voiceCount === 'multiple'
-                      ? 'text-white'
-                      : 'text-white/50 border border-white/10 hover:border-white/20'
+                      ? 'text-t-text1'
+                      : 'text-t-text3 border border-t-border hover:border-t-border'
                   }`}
                   style={templateConfig.voiceCount === 'multiple' ? { background: theme.primary } : {}}
                 >
@@ -1389,7 +1389,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
             {/* Media Options */}
             <div>
-              <label className="block text-sm text-white/50 mb-2">
+              <label className="block text-sm text-t-text3 mb-2">
                 {language === 'zh' ? '媒体' : 'Media'}
               </label>
               <div className="flex gap-2">
@@ -1397,8 +1397,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   onClick={() => updateSpecField('addBgm', !specData.addBgm)}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
                     specData.addBgm
-                      ? 'text-white'
-                      : 'text-white/40 border border-white/10 hover:border-white/20'
+                      ? 'text-t-text1'
+                      : 'text-t-text3 border border-t-border hover:border-t-border'
                   }`}
                   style={specData.addBgm ? { background: theme.primary } : {}}
                 >
@@ -1409,8 +1409,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   onClick={() => updateSpecField('addSoundEffects', !specData.addSoundEffects)}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
                     specData.addSoundEffects
-                      ? 'text-white'
-                      : 'text-white/40 border border-white/10 hover:border-white/20'
+                      ? 'text-t-text1'
+                      : 'text-t-text3 border border-t-border hover:border-t-border'
                   }`}
                   style={specData.addSoundEffects ? { background: theme.primary } : {}}
                 >
@@ -1421,8 +1421,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   onClick={() => updateSpecField('hasVisualContent', !specData.hasVisualContent)}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
                     specData.hasVisualContent
-                      ? 'text-white'
-                      : 'text-white/40 border border-white/10 hover:border-white/20'
+                      ? 'text-t-text1'
+                      : 'text-t-text3 border border-t-border hover:border-t-border'
                   }`}
                   style={specData.hasVisualContent ? { background: theme.primary } : {}}
                 >
@@ -1442,7 +1442,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     <div className="space-y-4 sm:space-y-6">
       {/* First Episode Banner */}
       <div 
-        className="flex items-center gap-3 px-5 py-4 rounded-xl border border-white/10"
+        className="flex items-center gap-3 px-5 py-4 rounded-xl border border-t-border"
         style={{ background: `${theme.primary}10` }}
       >
         <div 
@@ -1452,10 +1452,10 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           <Sparkles size={18} style={{ color: theme.primaryLight }} />
         </div>
         <div>
-          <p className="text-sm font-medium text-white/90">
+          <p className="text-sm font-medium text-t-text1">
             {t.projectCreator.firstEpisodeBanner}
           </p>
-          <p className="text-xs text-white/50 mt-0.5">
+          <p className="text-xs text-t-text3 mt-0.5">
             {t.projectCreator.firstEpisodeHint}
           </p>
         </div>
@@ -1463,16 +1463,16 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
       {/* Text Input with File Attachment */}
       <div>
-        <label className="block text-base font-medium text-white/70 mb-3 flex items-center justify-end gap-2">
-          <span className="text-white/40 font-normal text-sm">
+        <label className="block text-base font-medium text-t-text2 mb-3 flex items-center justify-end gap-2">
+          <span className="text-t-text3 font-normal text-sm">
             {language === 'zh' ? '⌘+Enter 快速分析' : '⌘+Enter to analyze'}
           </span>
         </label>
         <div 
           className={`relative rounded-xl border transition-all ${
             isDragging 
-              ? 'border-white/40 bg-white/10' 
-              : 'border-white/10 bg-white/5'
+              ? 'border-t-border bg-t-card-hover' 
+              : 'border-t-border bg-t-card'
           }`}
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
@@ -1487,11 +1487,11 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               ? '粘贴或输入您的内容...\n\n例如：书籍章节、故事文本、播客脚本等' 
               : 'Paste or enter your content...\n\nExample: Book chapter, story text, podcast script, etc.'}
             rows={8}
-            className="w-full px-5 pt-4 pb-3 bg-transparent text-base text-white placeholder-white/30 focus:outline-none resize-none"
+            className="w-full px-5 pt-4 pb-3 bg-transparent text-base text-t-text1 placeholder-t-text3 focus:outline-none resize-none"
           />
           
           {/* Attachment Area */}
-          <div className="px-5 pb-4 pt-2 border-t border-white/5">
+          <div className="px-5 pb-4 pt-2 border-t border-t-border-lt">
             <input
               ref={fileInputRef}
               type="file"
@@ -1507,15 +1507,15 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                 {contentInput.uploadedFiles.map((file, index) => (
                   <div 
                     key={index}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg border border-white/10"
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg border border-t-border"
                     style={{ background: `${theme.primary}10` }}
                   >
                     <FileText size={16} style={{ color: theme.primaryLight }} />
-                    <span className="flex-1 text-sm text-white truncate">{file.name}</span>
-                    <span className="text-xs text-white/40">{(file.size / 1024).toFixed(1)}KB</span>
+                    <span className="flex-1 text-sm text-t-text1 truncate">{file.name}</span>
+                    <span className="text-xs text-t-text3">{(file.size / 1024).toFixed(1)}KB</span>
                     <button
                       onClick={() => removeUploadedFile(index)}
-                      className="p-1 rounded hover:bg-white/10 text-white/40 hover:text-red-400 transition-all"
+                      className="p-1 rounded hover:bg-t-card-hover text-t-text3 hover:text-red-400 transition-all"
                     >
                       <X size={14} />
                     </button>
@@ -1527,7 +1527,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             {/* Add Attachment Button */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-white/50 hover:text-white/70 hover:bg-white/5 transition-all"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-t-text3 hover:text-t-text2 hover:bg-t-card transition-all"
             >
               <Upload size={16} />
               <span>
@@ -1540,8 +1540,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           
           {/* Drag Overlay */}
           {isDragging && (
-            <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/5 backdrop-blur-sm pointer-events-none">
-              <div className="flex flex-col items-center gap-2 text-white/70">
+            <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-t-card backdrop-blur-sm pointer-events-none">
+              <div className="flex flex-col items-center gap-2 text-t-text2">
                 <Upload size={36} />
                 <span className="text-base font-medium">
                   {language === 'zh' ? '放开以上传' : 'Drop to upload'}
@@ -1557,7 +1557,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         <button
           onClick={analyzeWithGemini}
           disabled={isAnalyzing}
-          className={`w-full flex items-center justify-center gap-2 px-5 py-4 rounded-xl text-base text-white/70 border border-white/10 font-medium transition-all hover:bg-white/5 ${
+          className={`w-full flex items-center justify-center gap-2 px-5 py-4 rounded-xl text-base text-t-text2 border border-t-border font-medium transition-all hover:bg-t-card ${
             isAnalyzing ? 'animate-pulse' : ''
           }`}
         >
@@ -1585,7 +1585,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         <button
           onClick={generateScript}
           disabled={isGeneratingScript}
-          className="w-full flex items-center justify-center gap-3 px-5 py-5 rounded-xl text-base text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-3 px-5 py-5 rounded-xl text-base text-t-text1 font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: theme.primary }}
         >
           <Sparkles size={22} />
@@ -1604,8 +1604,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               <Loader2 size={20} className="animate-spin" style={{ color: theme.primaryLight }} />
             </div>
             <div>
-              <p className="text-base text-white font-medium">{t.projectCreator.generating}</p>
-              <p className="text-sm text-white/50">
+              <p className="text-base text-t-text1 font-medium">{t.projectCreator.generating}</p>
+              <p className="text-sm text-t-text3">
                 {language === 'zh' 
                   ? `AI 正在编写脚本... (${streamingParsed.completeSections.length} ${streamingParsed.completeSections.length === 1 ? '段' : '段'}已完成)`
                   : `AI is writing the script... (${streamingParsed.completeSections.length} section${streamingParsed.completeSections.length === 1 ? '' : 's'} complete)`
@@ -1616,22 +1616,22 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           
           {/* Progressive streaming content - show parsed sections */}
           <div 
-            className="rounded-xl border border-white/10 p-5 max-h-[400px] overflow-auto space-y-3"
-            style={{ background: theme.bgCard }}
+            className="rounded-xl border border-t-border p-5 max-h-[400px] overflow-auto space-y-3"
+            style={{ background: 'var(--t-bg-card)' }}
           >
             {/* Completed sections */}
             {streamingParsed.completeSections.map((section, index) => (
               <div 
                 key={section.id || index}
-                className="rounded-lg border border-white/10 p-4 animate-fade-in"
-                style={{ background: 'rgba(255,255,255,0.03)' }}
+                className="rounded-lg border border-t-border p-4 animate-fade-in"
+                style={{ background: 'var(--t-bg-card)' }}
               >
                 <div className="flex items-center gap-2 mb-2">
                   <Check size={16} className="text-green-400" />
-                  <h5 className="text-sm font-medium text-white">{section.name}</h5>
+                  <h5 className="text-sm font-medium text-t-text1">{section.name}</h5>
                 </div>
-                <p className="text-xs text-white/60 mb-2">{section.description}</p>
-                <div className="flex items-center gap-4 text-xs text-white/40">
+                <p className="text-xs text-t-text2 mb-2">{section.description}</p>
+                <div className="flex items-center gap-4 text-xs text-t-text3">
                   <span>{section.timeline?.length || 0} {language === 'zh' ? '个片段' : 'segments'}</span>
                   {section.timeline?.[0] && (
                     <span>{section.timeline[0].timeStart} - {section.timeline[section.timeline.length - 1]?.timeEnd}</span>
@@ -1643,22 +1643,22 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             {/* Partial section being streamed */}
             {streamingParsed.partialSection && (
               <div 
-                className="rounded-lg border border-white/20 p-4"
+                className="rounded-lg border border-t-border p-4"
                 style={{ background: `${theme.primary}15`, borderColor: `${theme.primary}40` }}
               >
                 <div className="flex items-center gap-2 mb-2">
                   <Loader2 size={14} className="animate-spin" style={{ color: theme.primaryLight }} />
-                  <h5 className="text-sm font-medium text-white">
+                  <h5 className="text-sm font-medium text-t-text1">
                     {streamingParsed.partialSection.name || (language === 'zh' ? '正在生成...' : 'Generating...')}
                   </h5>
                 </div>
                 {streamingParsed.partialSection.description && (
-                  <p className="text-xs text-white/60 mb-2">{streamingParsed.partialSection.description}</p>
+                  <p className="text-xs text-t-text2 mb-2">{streamingParsed.partialSection.description}</p>
                 )}
                 {streamingParsed.partialSection.timeline && streamingParsed.partialSection.timeline.length > 0 && (
-                  <div className="text-xs text-white/40">
+                  <div className="text-xs text-t-text3">
                     {streamingParsed.partialSection.timeline.length} {language === 'zh' ? '个片段' : 'segments'}
-                    <span className="inline-block w-1.5 h-3 ml-1 bg-white/60 animate-pulse" />
+                    <span className="inline-block w-1.5 h-3 ml-1 bg-t-card animate-pulse" />
                   </div>
                 )}
               </div>
@@ -1666,7 +1666,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             
             {/* Show waiting state if no sections yet */}
             {streamingParsed.completeSections.length === 0 && !streamingParsed.partialSection && (
-              <div className="flex items-center justify-center py-8 text-white/40">
+              <div className="flex items-center justify-center py-8 text-t-text3">
                 <Loader2 size={20} className="animate-spin mr-2" />
                 <span className="text-sm">{language === 'zh' ? '正在解析脚本结构...' : 'Parsing script structure...'}</span>
               </div>
@@ -1678,11 +1678,11 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       {/* Regenerate Button */}
       {scriptSections.length > 0 && (
         <div className="flex items-center justify-between">
-          <h4 className="text-base text-white font-medium">{t.projectCreator.scriptLabel}</h4>
+          <h4 className="text-base text-t-text1 font-medium">{t.projectCreator.scriptLabel}</h4>
           <button
             onClick={generateScript}
             disabled={isGeneratingScript}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-base text-white/70 hover:text-white transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-base text-t-text2 hover:text-t-text1 transition-all"
             style={{ background: `${theme.primary}30` }}
           >
             <RefreshCw size={16} className={isGeneratingScript ? 'animate-spin' : ''} />
@@ -1695,20 +1695,20 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       {scriptSections.map((section) => (
         <div 
           key={section.id} 
-          className="rounded-xl border border-white/10 overflow-hidden"
-          style={{ background: theme.bgCard }}
+          className="rounded-xl border border-t-border overflow-hidden"
+          style={{ background: 'var(--t-bg-card)' }}
         >
           <div 
-            className="px-5 py-4 border-b border-white/10 cursor-pointer flex items-center justify-between"
+            className="px-5 py-4 border-b border-t-border cursor-pointer flex items-center justify-between"
             onClick={() => setEditingSection(editingSection === section.id ? null : section.id)}
           >
             <div>
-              <h4 className="text-base font-medium text-white">{section.name}</h4>
-              <p className="text-sm text-white/50">{section.description}</p>
+              <h4 className="text-base font-medium text-t-text1">{section.name}</h4>
+              <p className="text-sm text-t-text3">{section.description}</p>
             </div>
             <ChevronRight 
               size={22} 
-              className={`text-white/50 transition-transform ${editingSection === section.id ? 'rotate-90' : ''}`} 
+              className={`text-t-text3 transition-transform ${editingSection === section.id ? 'rotate-90' : ''}`} 
             />
           </div>
           
@@ -1717,13 +1717,13 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               {/* Cover Image Description */}
               {specData.hasVisualContent && (
                 <div>
-                  <label className="block text-sm text-white/50 mb-2">{t.projectCreator.cover}</label>
+                  <label className="block text-sm text-t-text3 mb-2">{t.projectCreator.cover}</label>
                   <input
                     type="text"
                     value={section.coverImageDescription || ''}
                     onChange={(e) => updateSectionCover(section.id, e.target.value)}
                     placeholder={t.projectCreator.describeCover}
-                    className="w-full px-4 py-3 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20"
+                    className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
                   />
                 </div>
               )}
@@ -1733,32 +1733,32 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                 {section.timeline.map((item, itemIndex) => (
                   <div 
                     key={item.id} 
-                    className="rounded-lg border border-white/10 p-4 space-y-4"
-                    style={{ background: 'rgba(255,255,255,0.02)' }}
+                    className="rounded-lg border border-t-border p-4 space-y-4"
+                    style={{ background: 'var(--t-bg-card)' }}
                   >
                     {/* Header: Time + Delete */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-white/40 w-5">{itemIndex + 1}</span>
+                        <span className="text-xs text-t-text3 w-5">{itemIndex + 1}</span>
                         <input
                           type="text"
                           value={item.timeStart}
                           onChange={(e) => updateTimelineItem(section.id, item.id, 'timeStart', e.target.value)}
                           placeholder="00:00"
-                          className="w-16 px-3 py-2 rounded border border-white/10 bg-white/5 text-white text-sm focus:outline-none"
+                          className="w-16 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none"
                         />
-                        <span className="text-white/30 text-sm">-</span>
+                        <span className="text-t-text3 text-sm">-</span>
                         <input
                           type="text"
                           value={item.timeEnd}
                           onChange={(e) => updateTimelineItem(section.id, item.id, 'timeEnd', e.target.value)}
                           placeholder="00:15"
-                          className="w-16 px-3 py-2 rounded border border-white/10 bg-white/5 text-white text-sm focus:outline-none"
+                          className="w-16 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none"
                         />
                       </div>
                       <button
                         onClick={() => removeTimelineItem(section.id, item.id)}
-                        className="p-2 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-all"
+                        className="p-2 rounded hover:bg-red-500/20 text-t-text3 hover:text-red-400 transition-all"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -1766,7 +1766,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                     
                     {/* Lines (Speaker + Line pairs) */}
                     <div className="space-y-3">
-                      <label className="block text-xs text-white/40">{t.projectCreator.lines}</label>
+                      <label className="block text-xs text-t-text3">{t.projectCreator.lines}</label>
                       {(item.lines || []).map((scriptLine, lineIndex) => (
                         <div key={lineIndex} className="flex items-start gap-3">
                           <input 
@@ -1774,18 +1774,18 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                             value={scriptLine.speaker} 
                             onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
                             placeholder={t.projectCreator.speaker}
-                            className="w-28 px-3 py-2 rounded border border-white/10 bg-white/5 text-white text-sm focus:outline-none flex-shrink-0" 
+                            className="w-28 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none flex-shrink-0" 
                           />
                           <textarea 
                             value={scriptLine.line} 
                             onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
                             placeholder={t.projectCreator.lineContent}
                             rows={2}
-                            className="flex-1 px-3 py-2 rounded border border-white/10 bg-white/5 text-white text-sm focus:outline-none resize-none" 
+                            className="flex-1 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none resize-none" 
                           />
                           <button 
                             onClick={() => removeScriptLine(section.id, item.id, lineIndex)} 
-                            className="p-2 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 flex-shrink-0"
+                            className="p-2 rounded hover:bg-red-500/20 text-t-text3 hover:text-red-400 flex-shrink-0"
                           >
                             <X size={14} />
                           </button>
@@ -1793,7 +1793,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                       ))}
                       <button 
                         onClick={() => addScriptLine(section.id, item.id)} 
-                        className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/60"
+                        className="flex items-center gap-1.5 text-xs text-t-text3 hover:text-t-text2"
                       >
                         <Plus size={12} />{t.projectCreator.addLine}
                       </button>
@@ -1802,13 +1802,13 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                     {/* Sound/Music - only show if BGM or SFX is enabled */}
                     {(specData.addBgm || specData.addSoundEffects) && (
                       <div>
-                        <label className="block text-xs text-white/40 mb-2">{t.projectCreator.soundMusic}</label>
+                        <label className="block text-xs text-t-text3 mb-2">{t.projectCreator.soundMusic}</label>
                         <input
                           type="text"
                           value={item.soundMusic}
                           onChange={(e) => updateTimelineItem(section.id, item.id, 'soundMusic', e.target.value)}
                           placeholder={t.projectCreator.bgmSoundEffects}
-                          className="w-full px-4 py-3 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20"
+                          className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
                         />
                       </div>
                     )}
@@ -1819,7 +1819,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               {/* Add Timeline Item */}
               <button
                 onClick={() => addTimelineItem(section.id)}
-                className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-all"
+                className="flex items-center gap-2 text-sm text-t-text3 hover:text-t-text1 transition-all"
               >
                 <Plus size={16} />
                 {t.projectCreator.addSegment}
@@ -1847,10 +1847,10 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               <Mic2 size={20} className="sm:hidden" style={{ color: theme.primaryLight }} />
               <Mic2 size={32} className="hidden sm:block" style={{ color: theme.primaryLight }} />
             </div>
-            <h3 className="text-base sm:text-xl font-medium text-white mb-1 sm:mb-2">
+            <h3 className="text-base sm:text-xl font-medium text-t-text1 mb-1 sm:mb-2">
               {language === 'zh' ? '角色音色配置' : 'Character Voice Configuration'}
             </h3>
-            <p className="text-sm sm:text-base text-white/50">
+            <p className="text-sm sm:text-base text-t-text3">
               {language === 'zh' 
                 ? '为每个角色选择音色，确认后开始语音合成' 
                 : 'Assign voices to each character, then start synthesis'}
@@ -1859,9 +1859,9 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
           {/* Character voice assignment list */}
           {extractedCharacters.length > 0 && (
-            <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: theme.bgCard }}>
-              <div className="px-5 py-3 border-b border-white/10 flex items-center justify-between">
-                <span className="text-sm text-white/50">
+            <div className="rounded-xl border border-t-border overflow-hidden" style={{ background: 'var(--t-bg-card)' }}>
+              <div className="px-5 py-3 border-b border-t-border flex items-center justify-between">
+                <span className="text-sm text-t-text3">
                   {language === 'zh' ? '角色音色分配' : 'Character Voice Assignment'}
                 </span>
                 <div className="flex items-center gap-3">
@@ -1880,7 +1880,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                     )}
                     {language === 'zh' ? 'AI 推荐音色' : 'Recommend with AI'}
                   </button>
-                  <span className="text-xs text-white/40">
+                  <span className="text-xs text-t-text3">
                     {extractedCharacters.length} {language === 'zh' ? '个角色' : 'characters'}
                   </span>
                 </div>
@@ -1901,16 +1901,16 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   const hasAssignment = assignedSystemVoice || assignedCustomVoice;
                   
                   return (
-                    <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg bg-white/5 border border-white/5">
+                    <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg bg-t-card border border-t-border-lt">
                       <div className="flex items-center gap-3 sm:gap-4">
-                        <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full flex items-center justify-center bg-white/10 flex-shrink-0">
-                          <User size={16} className="sm:hidden text-white/60" />
-                          <User size={20} className="hidden sm:block text-white/60" />
+                        <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full flex items-center justify-center bg-t-card-hover flex-shrink-0">
+                          <User size={16} className="sm:hidden text-t-text2" />
+                          <User size={20} className="hidden sm:block text-t-text2" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm sm:text-base text-white font-medium truncate">{char.name}</p>
+                          <p className="text-sm sm:text-base text-t-text1 font-medium truncate">{char.name}</p>
                           {char.description && (
-                            <p className="text-xs sm:text-sm text-white/40 truncate">{char.description}</p>
+                            <p className="text-xs sm:text-sm text-t-text3 truncate">{char.description}</p>
                           )}
                         </div>
                       </div>
@@ -1918,8 +1918,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                         <select
                           value={assignedVoiceId || ''}
                           onChange={(e) => assignVoiceToCharacter(index, e.target.value)}
-                          className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg border border-white/10 bg-white/5 text-sm sm:text-base text-white focus:outline-none focus:border-white/20 min-w-0 sm:min-w-[160px] flex-1 sm:flex-none"
-                          style={{ background: hasAssignment ? `${theme.primary}15` : 'rgba(255,255,255,0.05)' }}
+                          className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg border border-t-border bg-t-card text-sm sm:text-base text-t-text1 focus:outline-none focus:border-t-border min-w-0 sm:min-w-[160px] flex-1 sm:flex-none"
+                          style={{ background: hasAssignment ? `${theme.primary}15` : 'var(--t-bg-card)' }}
                         >
                           <option value="" className="bg-gray-900">
                             {language === 'zh' ? '选择音色...' : 'Select voice...'}
@@ -1951,7 +1951,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                             setUploadingForCharIndex(index);
                             voiceUploadRef.current?.click();
                           }}
-                          className="p-2.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-all"
+                          className="p-2.5 rounded-lg text-t-text3 hover:text-t-text1 hover:bg-t-card-hover transition-all"
                           title={language === 'zh' ? '上传音色文件' : 'Upload voice file'}
                         >
                           <Upload size={18} />
@@ -1963,8 +1963,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                             disabled={loadingVoiceId === assignedSystemVoice.id}
                             className={`p-2.5 rounded-lg transition-all ${
                               playingVoiceId === assignedSystemVoice.id 
-                                ? 'text-white' 
-                                : 'text-white/50 hover:text-white hover:bg-white/10'
+                                ? 'text-t-text1' 
+                                : 'text-t-text3 hover:text-t-text1 hover:bg-t-card-hover'
                             }`}
                             style={playingVoiceId === assignedSystemVoice.id ? { background: theme.primary } : {}}
                             title={language === 'zh' ? '试听' : 'Preview'}
@@ -1988,7 +1988,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
           {/* No characters message */}
           {extractedCharacters.length === 0 && (
-            <div className="text-center py-6 sm:py-10 text-white/40">
+            <div className="text-center py-6 sm:py-10 text-t-text3">
               <User size={28} className="sm:hidden mx-auto mb-2 opacity-50" />
               <User size={40} className="hidden sm:block mx-auto mb-3 opacity-50" />
               <p>{language === 'zh' ? '未检测到角色' : 'No characters detected'}</p>
@@ -1998,12 +1998,12 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           {/* Voice studio hint */}
           {availableVoices.length === 0 && (
             <div 
-              className="p-4 rounded-xl border border-white/10 flex items-start gap-3"
+              className="p-4 rounded-xl border border-t-border flex items-start gap-3"
               style={{ background: `${theme.primary}10` }}
             >
               <Sparkles size={20} className="flex-shrink-0 mt-0.5" style={{ color: theme.primaryLight }} />
               <div>
-                <p className="text-sm text-white/70">
+                <p className="text-sm text-t-text2">
                   {language === 'zh' 
                     ? '您可以在"音色工作室"中创建自定义音色，或使用系统默认音色。' 
                     : 'You can create custom voices in Voice Studio, or use system default voices.'}
@@ -2016,7 +2016,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           <button
             onClick={startVoiceGeneration}
             disabled={extractedCharacters.length === 0}
-            className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-xl text-base text-white font-medium transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-xl text-base text-t-text1 font-medium transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             style={{ background: theme.primary }}
           >
             <Mic2 size={22} />
@@ -2034,7 +2034,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     return (
       <div className="space-y-4 sm:space-y-6">
         {/* Overall progress header — compact */}
-        <div className="flex items-center gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-white/10" style={{ background: `${theme.primary}10` }}>
+        <div className="flex items-center gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-t-border" style={{ background: `${theme.primary}10` }}>
           <div 
             className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
             style={{ background: `${theme.primary}25` }}
@@ -2046,10 +2046,10 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white/90">
+            <p className="text-sm font-medium text-t-text1">
               {language === 'zh' ? '逐段语音生成' : 'Voice Generation'}
             </p>
-            <p className="text-xs text-white/50">
+            <p className="text-xs text-t-text3">
               {allCompleted 
                 ? (language === 'zh' ? '所有段落已完成' : 'All sections completed')
                 : `${completedSections}/${scriptSections.length} ${language === 'zh' ? '段落已完成' : 'sections completed'}`
@@ -2069,15 +2069,15 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               <div 
                 key={section.id}
                 className={`rounded-xl border overflow-hidden transition-all ${
-                  isCurrentSection ? 'border-white/30' : 'border-white/10'
+                  isCurrentSection ? 'border-t-border' : 'border-t-border'
                 }`}
-                style={{ background: theme.bgCard }}
+                style={{ background: 'var(--t-bg-card)' }}
               >
                 {/* Section header */}
                 <div 
                   className={`px-5 py-4 flex items-center gap-4 ${
                     status.status === 'completed' && status.audioSegments.length > 0 
-                      ? 'cursor-pointer hover:bg-white/5 transition-colors' 
+                      ? 'cursor-pointer hover:bg-t-card transition-colors' 
                       : ''
                   }`}
                   onClick={() => {
@@ -2110,7 +2110,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                           ? `${theme.primary}20` 
                           : status.status === 'error'
                             ? 'rgba(239, 68, 68, 0.2)'
-                            : 'rgba(255,255,255,0.05)'
+                            : 'var(--t-bg-card)'
                     }}
                   >
                     {status.status === 'completed' ? (
@@ -2120,14 +2120,14 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                     ) : status.status === 'error' ? (
                       <X size={20} className="text-red-400" />
                     ) : (
-                      <span className="text-white/40 text-sm font-medium">{index + 1}</span>
+                      <span className="text-t-text3 text-sm font-medium">{index + 1}</span>
                     )}
                   </div>
                   
                   {/* Section info */}
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-base font-medium text-white truncate">{section.name}</h4>
-                    <p className="text-sm text-white/40">
+                    <h4 className="text-base font-medium text-t-text1 truncate">{section.name}</h4>
+                    <p className="text-sm text-t-text3">
                       {lineCount} {language === 'zh' ? '条对话' : 'lines'}
                       {status.status === 'completed' && status.audioSegments.length > 0 && (
                         <span className="ml-2 text-green-400">
@@ -2170,7 +2170,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                           generateVoiceForSection(section);
                         }}
                         disabled={voiceGeneration.status === 'processing'}
-                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/10 transition-all disabled:opacity-50"
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-t-text2 hover:text-t-text1 hover:bg-t-card-hover transition-all disabled:opacity-50"
                         title={language === 'zh' ? '重新生成' : 'Regenerate'}
                       >
                         <RefreshCw size={16} />
@@ -2181,7 +2181,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                     {status.status === 'completed' && status.audioSegments.length > 0 && (
                       <ChevronDown 
                         size={18} 
-                        className={`text-white/40 transition-transform duration-200 ${
+                        className={`text-t-text3 transition-transform duration-200 ${
                           expandedVoiceSections.has(section.id) ? 'rotate-180' : ''
                         }`} 
                       />
@@ -2192,7 +2192,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                 {/* Progress bar for processing sections */}
                 {status.status === 'processing' && (
                   <div className="px-5 pb-4">
-                    <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-t-card-hover overflow-hidden">
                       <div 
                         className="h-full rounded-full transition-all duration-300"
                         style={{ width: `${status.progress}%`, background: theme.primary }}
@@ -2210,15 +2210,15 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                 
                 {/* Expanded audio segment list for completed sections */}
                 {status.status === 'completed' && status.audioSegments.length > 0 && expandedVoiceSections.has(section.id) && (
-                  <div className="border-t border-white/5">
-                    <div className="divide-y divide-white/5">
+                  <div className="border-t border-t-border-lt">
+                    <div className="divide-y divide-t-border-lt">
                       {status.audioSegments.map((audio, audioIndex) => {
                         const segId = `${section.id}-${audioIndex}`;
                         const isPlaying = playingSegmentId === segId;
                         return (
                           <div 
                             key={audioIndex}
-                            className="px-5 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
+                            className="px-5 py-3 flex items-center gap-3 hover:bg-t-card transition-colors"
                           >
                             {/* Play/Pause button */}
                             <button
@@ -2254,7 +2254,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                               style={{ background: isPlaying ? theme.primary : `${theme.primary}30` }}
                             >
                               {isPlaying ? (
-                                <Pause size={14} className="text-white" />
+                                <Pause size={14} className="text-t-text1" />
                               ) : (
                                 <Play size={14} className="ml-0.5" style={{ color: theme.primaryLight }} />
                               )}
@@ -2262,12 +2262,12 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                             
                             {/* Segment info */}
                             <div className="flex-1 min-w-0">
-                              <span className="text-sm font-medium text-white/80">{audio.speaker}</span>
-                              <p className="text-xs text-white/40 truncate mt-0.5">{audio.text}</p>
+                              <span className="text-sm font-medium text-t-text2">{audio.speaker}</span>
+                              <p className="text-xs text-t-text3 truncate mt-0.5">{audio.text}</p>
                             </div>
                             
                             {/* Line index */}
-                            <span className="text-xs text-white/20 flex-shrink-0">#{audio.lineIndex + 1}</span>
+                            <span className="text-xs text-t-text3 flex-shrink-0">#{audio.lineIndex + 1}</span>
                           </div>
                         );
                       })}
@@ -2284,7 +2284,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           <button
             onClick={performVoiceGeneration}
             disabled={voiceGeneration.status === 'processing'}
-            className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-xl text-base text-white font-medium transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-xl text-base text-t-text1 font-medium transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             style={{ background: `${theme.primary}80` }}
           >
             {voiceGeneration.status === 'processing' ? (
@@ -2325,10 +2325,10 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               </>
             )}
           </div>
-          <h3 className="text-base sm:text-xl font-medium text-white mb-1 sm:mb-2">
+          <h3 className="text-base sm:text-xl font-medium text-t-text1 mb-1 sm:mb-2">
             {language === 'zh' ? '媒体制作' : 'Media Production'}
           </h3>
-          <p className="text-sm sm:text-base text-white/50">
+          <p className="text-sm sm:text-base text-t-text3">
             {mediaProduction.status === 'completed' 
               ? (language === 'zh' ? '媒体制作完成' : 'Media production complete')
               : mediaProduction.currentTask || (language === 'zh' ? '准备中...' : 'Preparing...')
@@ -2338,11 +2338,11 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
         {/* Progress bar */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm text-white/50">
+          <div className="flex items-center justify-between text-sm text-t-text3">
             <span>{language === 'zh' ? '进度' : 'Progress'}</span>
             <span>{mediaProduction.progress}%</span>
           </div>
-          <div className="h-3 rounded-full bg-white/10 overflow-hidden">
+          <div className="h-3 rounded-full bg-t-card-hover overflow-hidden">
             <div 
               className="h-full rounded-full transition-all duration-500"
               style={{ width: `${mediaProduction.progress}%`, background: theme.primary }}
@@ -2354,12 +2354,12 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         <div className="grid grid-cols-3 gap-2 sm:gap-4">
           {hasBgm && (
             <div 
-              className="p-3 sm:p-5 rounded-xl border border-white/10 text-center"
-              style={{ background: theme.bgCard }}
+              className="p-3 sm:p-5 rounded-xl border border-t-border text-center"
+              style={{ background: 'var(--t-bg-card)' }}
             >
               <Music size={20} className="sm:hidden mx-auto mb-2" style={{ color: theme.primaryLight }} />
               <Music size={28} className="hidden sm:block mx-auto mb-3" style={{ color: theme.primaryLight }} />
-              <p className="text-xs sm:text-sm text-white/70">BGM</p>
+              <p className="text-xs sm:text-sm text-t-text2">BGM</p>
               {mediaProduction.progress > 33 && (
                 <Check size={14} className="mx-auto mt-1 sm:mt-2" style={{ color: theme.primaryLight }} />
               )}
@@ -2367,12 +2367,12 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           )}
           {hasSfx && (
             <div 
-              className="p-3 sm:p-5 rounded-xl border border-white/10 text-center"
-              style={{ background: theme.bgCard }}
+              className="p-3 sm:p-5 rounded-xl border border-t-border text-center"
+              style={{ background: 'var(--t-bg-card)' }}
             >
               <Volume2 size={20} className="sm:hidden mx-auto mb-2" style={{ color: theme.primaryLight }} />
               <Volume2 size={28} className="hidden sm:block mx-auto mb-3" style={{ color: theme.primaryLight }} />
-              <p className="text-xs sm:text-sm text-white/70">SFX</p>
+              <p className="text-xs sm:text-sm text-t-text2">SFX</p>
               {mediaProduction.progress > 66 && (
                 <Check size={14} className="mx-auto mt-1 sm:mt-2" style={{ color: theme.primaryLight }} />
               )}
@@ -2380,19 +2380,19 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           )}
           {hasImages && (
             <div 
-              className="p-3 sm:p-5 rounded-xl border border-white/10 text-center"
-              style={{ background: theme.bgCard }}
+              className="p-3 sm:p-5 rounded-xl border border-t-border text-center"
+              style={{ background: 'var(--t-bg-card)' }}
             >
               <Image size={20} className="sm:hidden mx-auto mb-2" style={{ color: theme.primaryLight }} />
               <Image size={28} className="hidden sm:block mx-auto mb-3" style={{ color: theme.primaryLight }} />
-              <p className="text-xs sm:text-sm text-white/70">{language === 'zh' ? '图片' : 'Images'}</p>
+              <p className="text-xs sm:text-sm text-t-text2">{language === 'zh' ? '图片' : 'Images'}</p>
               {mediaProduction.progress === 100 && (
                 <Check size={14} className="mx-auto mt-1 sm:mt-2" style={{ color: theme.primaryLight }} />
               )}
             </div>
           )}
           {!hasBgm && !hasSfx && !hasImages && (
-            <div className="col-span-3 text-center py-6 sm:py-10 text-white/40 text-sm sm:text-base">
+            <div className="col-span-3 text-center py-6 sm:py-10 text-t-text3 text-sm sm:text-base">
               {language === 'zh' ? '此模板不需要额外媒体' : 'No additional media for this template'}
             </div>
           )}
@@ -2456,10 +2456,10 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               </>
             )}
           </div>
-          <h3 className="text-base sm:text-xl font-medium text-white mb-1 sm:mb-2">
+          <h3 className="text-base sm:text-xl font-medium text-t-text1 mb-1 sm:mb-2">
             {language === 'zh' ? '混音与编辑' : 'Mixing & Editing'}
           </h3>
-          <p className="text-sm sm:text-base text-white/50">
+          <p className="text-sm sm:text-base text-t-text3">
             {mixingError 
               ? (language === 'zh' ? `混音失败: ${mixingError}` : `Mixing failed: ${mixingError}`)
               : mixingEditing.status === 'completed' && mixedOutput
@@ -2472,11 +2472,11 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         {/* Progress bar (show during processing) */}
         {mixingEditing.status === 'processing' && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm text-white/50">
+            <div className="flex items-center justify-between text-sm text-t-text3">
               <span>{language === 'zh' ? '进度' : 'Progress'}</span>
               <span>{mixingEditing.progress}%</span>
             </div>
-            <div className="h-3 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-3 rounded-full bg-t-card-hover overflow-hidden">
               <div 
                 className="h-full rounded-full transition-all duration-500"
                 style={{ width: `${mixingEditing.progress}%`, background: theme.primary }}
@@ -2488,15 +2488,15 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         {/* Audio Player when complete */}
         {mixingEditing.status === 'completed' && mixedOutput && (
           <div 
-            className="rounded-xl p-5 border border-white/10"
-            style={{ background: theme.bgCard }}
+            className="rounded-xl p-5 border border-t-border"
+            style={{ background: 'var(--t-bg-card)' }}
           >
             <div className="flex items-center gap-2 mb-4">
               <Music size={18} style={{ color: theme.primaryLight }} />
-              <span className="text-white text-base font-medium">
+              <span className="text-t-text1 text-base font-medium">
                 {language === 'zh' ? '最终音频' : 'Final Audio'}
               </span>
-              <span className="text-white/40 text-sm ml-auto">
+              <span className="text-t-text3 text-sm ml-auto">
                 {formatDuration(mixedOutput.durationMs)}
               </span>
             </div>
@@ -2513,7 +2513,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             <div className="flex gap-3">
               <button
                 onClick={handlePlayMixedAudio}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-white text-sm font-medium transition-all hover:opacity-90"
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-t-text1 text-sm font-medium transition-all hover:opacity-90"
                 style={{ background: theme.primary }}
               >
                 <Play size={16} />
@@ -2521,7 +2521,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               </button>
               <button
                 onClick={handleDownloadMixedAudio}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-white text-sm font-medium border border-white/20 transition-all hover:bg-white/10"
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-t-text1 text-sm font-medium border border-t-border transition-all hover:bg-t-card-hover"
               >
                 <Save size={16} />
                 {language === 'zh' ? '下载' : 'Download'}
@@ -2534,7 +2534,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         {mixingError && (
           <button
             onClick={() => performMixing()}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-white text-sm font-medium transition-all hover:opacity-90"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-t-text1 text-sm font-medium transition-all hover:opacity-90"
             style={{ background: theme.primary }}
           >
             <RefreshCw size={16} />
@@ -2545,14 +2545,14 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         {/* Visual preview (if applicable) */}
         {mixingEditing.status === 'completed' && specData.hasVisualContent && (
           <div 
-            className="rounded-xl p-5 border border-white/10"
-            style={{ background: theme.bgCard }}
+            className="rounded-xl p-5 border border-t-border"
+            style={{ background: 'var(--t-bg-card)' }}
           >
             <div className="flex items-center gap-2 mb-4">
               <Image size={18} style={{ color: theme.primaryLight }} />
-              <span className="text-white text-base font-medium">{language === 'zh' ? '视觉预览' : 'Visual Preview'}</span>
+              <span className="text-t-text1 text-base font-medium">{language === 'zh' ? '视觉预览' : 'Visual Preview'}</span>
             </div>
-            <div className="h-14 rounded-lg flex items-center justify-center text-white/40 text-sm" style={{ background: `${theme.primary}10` }}>
+            <div className="h-14 rounded-lg flex items-center justify-center text-t-text3 text-sm" style={{ background: `${theme.primary}10` }}>
               {language === 'zh' ? '即将推出' : 'Coming soon'}
             </div>
           </div>
@@ -2576,16 +2576,16 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     <div className="space-y-4 sm:space-y-6">
       {/* Audio Preview */}
       <div 
-        className="rounded-xl p-3 sm:p-5 border border-white/10"
-        style={{ background: theme.bgCard }}
+        className="rounded-xl p-3 sm:p-5 border border-t-border"
+        style={{ background: 'var(--t-bg-card)' }}
       >
         <div className="flex items-center gap-2 mb-4">
           <Headphones size={18} style={{ color: theme.primaryLight }} />
-          <span className="text-white text-base font-medium">
+          <span className="text-t-text1 text-base font-medium">
             {language === 'zh' ? '最终预览' : 'Final Preview'}
           </span>
           {mixedOutput && (
-            <span className="text-white/40 text-sm ml-auto">
+            <span className="text-t-text3 text-sm ml-auto">
               {formatDuration(mixedOutput.durationMs)}
             </span>
           )}
@@ -2604,7 +2604,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             {/* Download button */}
             <button
               onClick={handleDownloadFinal}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-white text-sm font-medium border border-white/20 transition-all hover:bg-white/10"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-t-text1 text-sm font-medium border border-t-border transition-all hover:bg-t-card-hover"
             >
               <Save size={16} />
               {language === 'zh' ? '下载音频' : 'Download Audio'}
@@ -2612,7 +2612,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           </>
         ) : (
           <div className="py-4 text-center space-y-3">
-            <p className="text-white/40 text-sm">
+            <p className="text-t-text3 text-sm">
               {production.mixingEditing.error
                 ? (language === 'zh' ? `混音失败: ${production.mixingEditing.error}` : `Mixing failed: ${production.mixingEditing.error}`)
                 : (language === 'zh' ? '没有可用的音频' : 'No audio available')
@@ -2624,7 +2624,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                 dispatch(actions.setMixingError(''));
                 setTimeout(() => performMixing(), 100);
               }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all hover:scale-105"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-t-text1 transition-all hover:scale-105"
               style={{ background: theme.primary }}
             >
               <RefreshCw size={16} />
@@ -2636,7 +2636,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
       {/* Project summary */}
       <div 
-        className="rounded-xl p-4 sm:p-6 border border-white/10"
+        className="rounded-xl p-4 sm:p-6 border border-t-border"
         style={{ background: `${theme.primary}10` }}
       >
         <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-5">
@@ -2648,19 +2648,19 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             <ReligionIcon size={28} color={theme.primaryLight} className="hidden sm:block" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-lg sm:text-2xl font-serif text-white truncate">{specData.storyTitle}</h3>
+            <h3 className="text-lg sm:text-2xl font-serif text-t-text1 truncate">{specData.storyTitle}</h3>
             {specData.subtitle && (
-              <p className="text-sm sm:text-base text-white/70 italic truncate">{specData.subtitle}</p>
+              <p className="text-sm sm:text-base text-t-text2 italic truncate">{specData.subtitle}</p>
             )}
-            <p className="text-xs sm:text-base text-white/50 truncate">
+            <p className="text-xs sm:text-base text-t-text3 truncate">
               {specData.targetAudience} · {specData.formatAndDuration}
             </p>
           </div>
         </div>
 
         <div className="space-y-3 sm:space-y-4 text-sm sm:text-base">
-          <p className="text-white/70 line-clamp-1">{specData.toneAndExpression}</p>
-          <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-white/60 flex-wrap">
+          <p className="text-t-text2 line-clamp-1">{specData.toneAndExpression}</p>
+          <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-t-text2 flex-wrap">
             <span>{scriptSections.length} {language === 'zh' ? '段落' : 'sections'}</span>
             <span>·</span>
             <span>{extractedCharacters.length} {language === 'zh' ? '角色' : 'characters'}</span>
@@ -2693,10 +2693,10 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
         {/* Template badge */}
         {selectedTemplate && (
-          <div className="mt-5 pt-5 border-t border-white/10">
-            <div className="flex items-center gap-2 text-sm text-white/40">
+          <div className="mt-5 pt-5 border-t border-t-border">
+            <div className="flex items-center gap-2 text-sm text-t-text3">
               <span>{language === 'zh' ? '模板:' : 'Template:'}</span>
-              <span className="text-white/60">
+              <span className="text-t-text2">
                 {language === 'zh' ? selectedTemplate.nameZh : selectedTemplate.name}
               </span>
             </div>
@@ -2704,7 +2704,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         )}
       </div>
 
-      <p className="text-center text-white/40 text-sm">
+      <p className="text-center text-t-text3 text-sm">
         {language === 'zh' ? '点击下方按钮保存项目' : 'Click the button below to save your project'}
       </p>
     </div>
@@ -2832,11 +2832,11 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div 
-        className="rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-slide-up border border-white/10"
-        style={{ background: theme.bgDark }}
+        className="rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-slide-up border border-t-border"
+        style={{ background: 'var(--t-bg-base)' }}
       >
         {/* Header */}
-        <div className="px-4 sm:px-8 py-3 sm:py-5 flex items-center justify-between border-b border-white/10">
+        <div className="px-4 sm:px-8 py-3 sm:py-5 flex items-center justify-between border-b border-t-border">
           <div className="flex items-center gap-3 sm:gap-4">
             <div 
               className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -2846,14 +2846,14 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               <ReligionIcon size={24} color={theme.primaryLight} className="hidden sm:block" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base sm:text-xl font-serif text-white truncate">{t.projectCreator.title}</h2>
-              <p className="text-xs sm:text-sm text-white/50 truncate">
+              <h2 className="text-base sm:text-xl font-serif text-t-text1 truncate">{t.projectCreator.title}</h2>
+              <p className="text-xs sm:text-sm text-t-text3 truncate">
                 {t.projectCreator.step} {currentStep} / {STEPS.length} · {STEPS[currentStep - 1]?.title}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 sm:p-2 hover:bg-white/10 rounded-lg transition-colors flex-shrink-0">
-            <X className="text-white/50" size={20} />
+          <button onClick={onClose} className="p-1.5 sm:p-2 hover:bg-t-card-hover rounded-lg transition-colors flex-shrink-0">
+            <X className="text-t-text3" size={20} />
           </button>
         </div>
 
@@ -2861,12 +2861,12 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         {/* Draft Restored Banner */}
         {draftBanner?.visible && (
           <div 
-            className="mx-4 sm:mx-8 mt-3 sm:mt-4 px-3 sm:px-4 py-2 sm:py-3 rounded-xl flex items-center justify-between border border-white/10 animate-slide-up gap-2"
+            className="mx-4 sm:mx-8 mt-3 sm:mt-4 px-3 sm:px-4 py-2 sm:py-3 rounded-xl flex items-center justify-between border border-t-border animate-slide-up gap-2"
             style={{ background: `${theme.primary}15` }}
           >
             <div className="flex items-center gap-3">
               <RefreshCw size={16} style={{ color: theme.primaryLight }} />
-              <span className="text-sm text-white/80">
+              <span className="text-sm text-t-text2">
                 {language === 'zh' 
                   ? `已恢复上次的草稿（${new Date(draftBanner.savedAt).toLocaleString('zh-CN')}）` 
                   : `Draft restored from ${new Date(draftBanner.savedAt).toLocaleString()}`
@@ -2876,7 +2876,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             <div className="flex items-center gap-2">
               <button
                 onClick={handleDiscardDraft}
-                className="text-xs px-3 py-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                className="text-xs px-3 py-1.5 rounded-lg text-t-text3 hover:text-t-text1 hover:bg-t-card-hover transition-colors"
               >
                 {language === 'zh' ? '放弃草稿' : 'Discard'}
               </button>
@@ -2897,7 +2897,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         </div>
 
         {/* Bottom Progress Light Beam with Steps */}
-        <div className="relative h-2.5 overflow-visible bg-white/5">
+        <div className="relative h-2.5 overflow-visible bg-t-card">
           {/* Step segments (hover areas) */}
           <div className="absolute inset-0 flex z-10">
             {STEPS.map((step, index) => {
@@ -2906,7 +2906,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               return (
                 <div 
                   key={step.id}
-                  className="relative flex-1 cursor-pointer transition-all hover:bg-white/5"
+                  className="relative flex-1 cursor-pointer transition-all hover:bg-t-card"
                   onMouseEnter={() => {
                     setHoveredStep(step.id);
                     setShowProgressTooltip(true);
@@ -2921,7 +2921,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   {index < STEPS.length - 1 && (
                     <div 
                       className="absolute right-0 top-0 bottom-0 w-px"
-                      style={{ background: 'rgba(255,255,255,0.08)' }}
+                      style={{ background: 'var(--t-border)' }}
                     />
                   )}
                 </div>
@@ -2980,8 +2980,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                       isCurrent ? 'w-6 h-6' : 'w-5 h-5'
                     } ${isHovered ? 'scale-110' : ''}`}
                     style={{
-                      background: isCompleted || isCurrent ? theme.primary : 'rgba(255,255,255,0.15)',
-                      color: isCompleted || isCurrent ? 'white' : 'rgba(255,255,255,0.4)',
+                      background: isCompleted || isCurrent ? theme.primary : 'var(--t-bg-card-hover)',
+                      color: isCompleted || isCurrent ? 'var(--t-text-1)' : 'var(--t-text-3)',
                       boxShadow: isCurrent ? `0 0 12px ${theme.primary}80` : isHovered ? `0 0 8px ${theme.primary}40` : 'none',
                       border: isHovered ? `1px solid ${theme.primaryLight}` : 'none'
                     }}
@@ -3005,7 +3005,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               <div 
                 className="px-5 py-4 rounded-xl border backdrop-blur-xl shadow-2xl min-w-[240px]"
                 style={{ 
-                  background: `${theme.bgDark}f5`,
+                  background: 'var(--t-bg-base)',
                   borderColor: `${theme.primary}40`,
                   boxShadow: `0 10px 40px ${theme.primary}20, 0 0 0 1px ${theme.primary}10`
                 }}
@@ -3015,14 +3015,14 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   <div
                     className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold"
                     style={{
-                      background: currentStep >= hoveredStep ? theme.primary : 'rgba(255,255,255,0.15)',
-                      color: 'white'
+                      background: currentStep >= hoveredStep ? theme.primary : 'var(--t-bg-card-hover)',
+                      color: 'var(--t-text-1)'
                     }}
                   >
                     {currentStep > hoveredStep ? <Check size={16} /> : hoveredStep}
                   </div>
                   <div className="flex-1">
-                    <div className="font-semibold text-white text-base">
+                    <div className="font-semibold text-t-text1 text-base">
                       {STEPS[hoveredStep - 1]?.title}
                     </div>
                   </div>
@@ -3032,7 +3032,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                     </div>
                   )}
                 </div>
-                <div className="text-sm text-white/80 mb-4 leading-relaxed">
+                <div className="text-sm text-t-text2 mb-4 leading-relaxed">
                   {STEPS[hoveredStep - 1]?.description}
                 </div>
                 
@@ -3042,14 +3042,14 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                     {currentStep === hoveredStep ? (
                       <>
                         <Loader2 size={14} className="animate-spin" style={{ color: theme.primaryLight }} />
-                        <span className="text-white/70">
+                        <span className="text-t-text2">
                           {t.projectCreator.inProgress}
                         </span>
                       </>
                     ) : (
                       <>
                         <Check size={14} style={{ color: theme.primaryLight }} />
-                        <span className="text-white/70">
+                        <span className="text-t-text2">
                           {t.projectCreator.completed}
                         </span>
                       </>
@@ -3059,12 +3059,12 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                 
                 {/* Overall progress */}
                 {currentStep === hoveredStep && (
-                  <div className="mt-3 pt-3 border-t border-white/10">
-                    <div className="flex items-center justify-between text-xs text-white/60 mb-1">
+                  <div className="mt-3 pt-3 border-t border-t-border">
+                    <div className="flex items-center justify-between text-xs text-t-text2 mb-1">
                       <span>{t.projectCreator.overall}</span>
-                      <span className="font-medium text-white">{Math.round(getProgressPercentage())}%</span>
+                      <span className="font-medium text-t-text1">{Math.round(getProgressPercentage())}%</span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-white/60">
+                    <div className="flex items-center gap-1.5 text-xs text-t-text2">
                       <span>⏱</span>
                       <span>
                         {t.projectCreator.estimated}
@@ -3089,10 +3089,10 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         </div>
 
         {/* Footer */}
-        <div className="px-8 py-5 border-t border-white/10 flex items-center justify-between">
+        <div className="px-8 py-5 border-t border-t-border flex items-center justify-between">
           <button
             onClick={currentStep === 1 ? onClose : handleBack}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-base text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-base text-t-text2 hover:text-t-text1 hover:bg-t-card transition-colors"
           >
             <ChevronLeft size={22} />
             {currentStep === 1 ? t.projectCreator.buttons.cancel : t.projectCreator.buttons.back}
@@ -3103,7 +3103,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             {currentStep >= 3 && specData.storyTitle.trim().length > 0 && (
               <button
                 onClick={handleSkipAndSave}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-base text-white/50 hover:text-white hover:bg-white/10 transition-colors border border-white/10"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-base text-t-text3 hover:text-t-text1 hover:bg-t-card-hover transition-colors border border-t-border"
               >
                 {language === 'zh' ? '跳过，稍后继续' : 'Skip for now'}
               </button>
@@ -3115,7 +3115,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                 <button
                   onClick={handleNext}
                   disabled={isProcessingNext}
-                  className={`flex items-center gap-2 px-8 py-2.5 rounded-lg text-base text-white font-medium transition-all hover:scale-105 ${
+                  className={`flex items-center gap-2 px-8 py-2.5 rounded-lg text-base text-t-text1 font-medium transition-all hover:scale-105 ${
                     isProcessingNext ? 'animate-pulse' : ''
                   }`}
                   style={{ 

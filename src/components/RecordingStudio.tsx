@@ -101,32 +101,32 @@ export function RecordingStudio() {
     <div className="space-y-4 md:space-y-8 animate-fade-in">
       {/* Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-light text-white tracking-wide">{t.voiceStudio.title}</h1>
-        <p className="text-white/50 mt-1 text-sm md:text-base">{t.voiceStudio.subtitle}</p>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-light text-t-text1 tracking-wide">{t.voiceStudio.title}</h1>
+        <p className="text-t-text3 mt-1 text-sm md:text-base">{t.voiceStudio.subtitle}</p>
       </div>
 
       {/* Project Selection */}
-      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 border border-white/10" style={{ background: theme.bgCard }}>
-        <h2 className="text-base md:text-lg font-serif text-white mb-3 md:mb-4">{t.voiceStudio.selectProject}</h2>
+      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 border border-t-border" style={{ background: 'var(--t-bg-card)' }}>
+        <h2 className="text-base md:text-lg font-serif text-t-text1 mb-3 md:mb-4">{t.voiceStudio.selectProject}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
           <div>
-            <label className="block text-xs md:text-sm font-medium text-white/50 mb-1.5 md:mb-2">{t.voiceStudio.podcastProject}</label>
+            <label className="block text-xs md:text-sm font-medium text-t-text3 mb-1.5 md:mb-2">{t.voiceStudio.podcastProject}</label>
             <select
               value={selectedProject}
               onChange={(e) => { setSelectedProject(e.target.value); setSelectedEpisode(''); }}
-              className="w-full px-3 md:px-4 py-2.5 md:py-3 rounded-lg md:rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20 text-sm md:text-base"
+              className="w-full px-3 md:px-4 py-2.5 md:py-3 rounded-lg md:rounded-xl border border-t-border bg-t-card text-t-text1 focus:outline-none focus:border-t-border text-sm md:text-base"
             >
               <option value="" className="bg-gray-900">{t.voiceStudio.selectProjectPlaceholder}</option>
               {myProjects.map((project) => (<option key={project.id} value={project.id} className="bg-gray-900">{project.title}</option>))}
             </select>
           </div>
           <div>
-            <label className="block text-xs md:text-sm font-medium text-white/50 mb-1.5 md:mb-2">{t.voiceStudio.episode}</label>
+            <label className="block text-xs md:text-sm font-medium text-t-text3 mb-1.5 md:mb-2">{t.voiceStudio.episode}</label>
             <select
               value={selectedEpisode}
               onChange={(e) => setSelectedEpisode(e.target.value)}
               disabled={!selectedProject}
-              className="w-full px-3 md:px-4 py-2.5 md:py-3 rounded-lg md:rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20 disabled:opacity-50 text-sm md:text-base"
+              className="w-full px-3 md:px-4 py-2.5 md:py-3 rounded-lg md:rounded-xl border border-t-border bg-t-card text-t-text1 focus:outline-none focus:border-t-border disabled:opacity-50 text-sm md:text-base"
             >
               <option value="" className="bg-gray-900">{t.voiceStudio.selectEpisodePlaceholder}</option>
               {episodes.map((episode, index) => (<option key={episode.id} value={episode.id} className="bg-gray-900">#{index + 1}: {episode.title}</option>))}
@@ -136,7 +136,7 @@ export function RecordingStudio() {
       </div>
 
       {/* Recording Interface */}
-      <div className="rounded-xl md:rounded-2xl p-4 sm:p-6 lg:p-12 border border-white/10 relative overflow-hidden" style={{ background: theme.bgCard }}>
+      <div className="rounded-xl md:rounded-2xl p-4 sm:p-6 lg:p-12 border border-t-border relative overflow-hidden" style={{ background: 'var(--t-bg-card)' }}>
         {/* Ambient glow */}
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] md:w-[400px] h-[200px] md:h-[400px] rounded-full blur-[60px] md:blur-[100px] opacity-20" style={{ background: isRecording ? theme.primary : 'transparent' }} />
@@ -144,10 +144,10 @@ export function RecordingStudio() {
 
         {/* Timer Display */}
         <div className="text-center mb-6 md:mb-12 relative">
-          <div className="text-4xl sm:text-5xl md:text-7xl font-mono font-light tracking-wider" style={{ color: theme.textOnDark }}>
+          <div className="text-4xl sm:text-5xl md:text-7xl font-mono font-light tracking-wider text-t-text1">
             {formatTime(duration)}
           </div>
-          <p className="text-white/40 mt-2 md:mt-4 text-xs md:text-sm tracking-widest uppercase">{getStatusText()}</p>
+          <p className="text-t-text3 mt-2 md:mt-4 text-xs md:text-sm tracking-widest uppercase">{getStatusText()}</p>
         </div>
 
         {/* Waveform */}
@@ -176,7 +176,7 @@ export function RecordingStudio() {
           {!isRecording && !audioUrl && (
             <button
               onClick={startRecording}
-              className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center text-white transition-all duration-300 hover:scale-110 active:scale-95"
+              className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center text-t-text1 transition-all duration-300 hover:scale-110 active:scale-95"
               style={{ background: theme.primary, boxShadow: `0 0 40px ${theme.glow}` }}
             >
               <Mic size={28} className="md:hidden" />
@@ -186,11 +186,11 @@ export function RecordingStudio() {
 
           {isRecording && (
             <>
-              <button onClick={togglePause} className="w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center text-white transition-all hover:scale-110 active:scale-95" style={{ background: `${theme.primary}80` }}>
+              <button onClick={togglePause} className="w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center text-t-text1 transition-all hover:scale-110 active:scale-95" style={{ background: `${theme.primary}80` }}>
                 {isPaused ? <Play size={20} className="md:hidden" /> : <Pause size={20} className="md:hidden" />}
                 {isPaused ? <Play size={24} className="hidden md:block" /> : <Pause size={24} className="hidden md:block" />}
               </button>
-              <button onClick={stopRecording} className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center text-white bg-red-500 transition-all hover:scale-110 active:scale-95" style={{ boxShadow: '0 0 40px rgba(239, 68, 68, 0.4)' }}>
+              <button onClick={stopRecording} className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center text-t-text1 bg-red-500 transition-all hover:scale-110 active:scale-95" style={{ boxShadow: '0 0 40px rgba(239, 68, 68, 0.4)' }}>
                 <Square size={28} className="md:hidden" />
                 <Square size={36} className="hidden md:block" />
               </button>
@@ -199,13 +199,13 @@ export function RecordingStudio() {
 
           {audioUrl && !isRecording && (
             <>
-              <button onClick={clearRecording} className="w-11 h-11 md:w-14 md:h-14 rounded-full flex items-center justify-center text-white bg-white/10 hover:bg-white/20 transition-all hover:scale-110 active:scale-95">
+              <button onClick={clearRecording} className="w-11 h-11 md:w-14 md:h-14 rounded-full flex items-center justify-center text-t-text1 bg-t-card-hover hover:bg-t-surface-m transition-all hover:scale-110 active:scale-95">
                 <Trash2 size={18} className="md:hidden" />
                 <Trash2 size={20} className="hidden md:block" />
               </button>
               <button
                 onClick={() => { if (audioRef.current) audioRef.current.paused ? audioRef.current.play() : audioRef.current.pause(); }}
-                className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center text-white transition-all hover:scale-110 active:scale-95"
+                className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center text-t-text1 transition-all hover:scale-110 active:scale-95"
                 style={{ background: theme.primary, boxShadow: `0 0 40px ${theme.glow}` }}
               >
                 <Play size={28} className="md:hidden" />
@@ -227,9 +227,9 @@ export function RecordingStudio() {
       </div>
 
       {/* Tips */}
-      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 border border-white/10" style={{ background: `${theme.primary}10` }}>
-        <h3 className="font-serif text-white mb-2 md:mb-3 text-sm md:text-base">💡 {t.voiceStudio.tips.title}</h3>
-        <ul className="space-y-1.5 md:space-y-2 text-xs md:text-sm text-white/60">
+      <div className="rounded-xl md:rounded-2xl p-4 md:p-6 border border-t-border" style={{ background: `${theme.primary}10` }}>
+        <h3 className="font-serif text-t-text1 mb-2 md:mb-3 text-sm md:text-base">💡 {t.voiceStudio.tips.title}</h3>
+        <ul className="space-y-1.5 md:space-y-2 text-xs md:text-sm text-t-text2">
           {t.voiceStudio.tips.list.map((tip: string, i: number) => (<li key={i}>• {tip}</li>))}
         </ul>
       </div>

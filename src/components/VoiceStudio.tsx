@@ -325,20 +325,20 @@ export function VoiceStudio() {
     <div className="space-y-4 md:space-y-8 animate-fade-in">
       {/* Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-light text-white tracking-wide">{t.voiceStudio.title}</h1>
-        <p className="text-white/50 mt-1 text-sm md:text-base">{t.voiceStudio.subtitle}</p>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-light text-t-text1 tracking-wide">{t.voiceStudio.title}</h1>
+        <p className="text-t-text3 mt-1 text-sm md:text-base">{t.voiceStudio.subtitle}</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 p-1 rounded-xl bg-white/5 w-fit">
+      <div className="flex gap-2 p-1 rounded-xl bg-t-card w-fit">
         <button
           onClick={() => setActiveTab('record')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
             activeTab === 'record' 
-              ? 'text-white' 
-              : 'text-white/50 hover:text-white/80'
+              ? 'text-t-text1' 
+              : 'text-t-text3 hover:text-t-text2'
           }`}
-          style={activeTab === 'record' ? { background: theme.bgCard, boxShadow: `0 0 20px ${theme.glow}` } : {}}
+          style={activeTab === 'record' ? { background: 'var(--t-bg-card)', boxShadow: `0 0 20px ${theme.glow}` } : {}}
         >
           <Mic size={16} />
           {t.voiceStudio.tabs.record}
@@ -347,10 +347,10 @@ export function VoiceStudio() {
           onClick={() => setActiveTab('characters')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
             activeTab === 'characters' 
-              ? 'text-white' 
-              : 'text-white/50 hover:text-white/80'
+              ? 'text-t-text1' 
+              : 'text-t-text3 hover:text-t-text2'
           }`}
-          style={activeTab === 'characters' ? { background: theme.bgCard, boxShadow: `0 0 20px ${theme.glow}` } : {}}
+          style={activeTab === 'characters' ? { background: 'var(--t-bg-card)', boxShadow: `0 0 20px ${theme.glow}` } : {}}
         >
           <AudioWaveform size={16} />
           {t.voiceStudio.tabs.characters}
@@ -361,7 +361,7 @@ export function VoiceStudio() {
       {activeTab === 'record' && (
         <>
           {/* Recording Interface */}
-          <div className="rounded-xl md:rounded-2xl p-4 sm:p-6 lg:p-12 border border-white/10 relative overflow-hidden" style={{ background: theme.bgCard }}>
+          <div className="rounded-xl md:rounded-2xl p-4 sm:p-6 lg:p-12 border border-t-border relative overflow-hidden" style={{ background: 'var(--t-bg-card)' }}>
             {/* Ambient glow */}
             <div className="absolute inset-0 pointer-events-none">
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] md:w-[400px] h-[200px] md:h-[400px] rounded-full blur-[60px] md:blur-[100px] opacity-20" style={{ background: isRecording ? theme.primary : 'transparent' }} />
@@ -369,10 +369,10 @@ export function VoiceStudio() {
 
             {/* Timer Display */}
             <div className="text-center mb-6 md:mb-12 relative">
-              <div className="text-4xl sm:text-5xl md:text-7xl font-mono font-light tracking-wider" style={{ color: theme.textOnDark }}>
+              <div className="text-4xl sm:text-5xl md:text-7xl font-mono font-light tracking-wider text-t-text1">
                 {formatTime(duration)}
               </div>
-              <p className="text-white/40 mt-2 md:mt-4 text-xs md:text-sm tracking-widest uppercase">{getStatusText()}</p>
+              <p className="text-t-text3 mt-2 md:mt-4 text-xs md:text-sm tracking-widest uppercase">{getStatusText()}</p>
             </div>
 
             {/* Waveform */}
@@ -401,7 +401,7 @@ export function VoiceStudio() {
               {!isRecording && !audioUrl && (
                 <button
                   onClick={startRecording}
-                  className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center text-white transition-all duration-300 hover:scale-110 active:scale-95"
+                  className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center text-t-text1 transition-all duration-300 hover:scale-110 active:scale-95"
                   style={{ background: theme.primary, boxShadow: `0 0 40px ${theme.glow}` }}
                 >
                   <Mic size={28} className="md:hidden" />
@@ -411,11 +411,11 @@ export function VoiceStudio() {
 
               {isRecording && (
                 <>
-                  <button onClick={togglePause} className="w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center text-white transition-all hover:scale-110 active:scale-95" style={{ background: `${theme.primary}80` }}>
+                  <button onClick={togglePause} className="w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center text-t-text1 transition-all hover:scale-110 active:scale-95" style={{ background: `${theme.primary}80` }}>
                     {isPaused ? <Play size={20} className="md:hidden" /> : <Pause size={20} className="md:hidden" />}
                     {isPaused ? <Play size={24} className="hidden md:block" /> : <Pause size={24} className="hidden md:block" />}
                   </button>
-                  <button onClick={stopRecording} className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center text-white bg-red-500 transition-all hover:scale-110 active:scale-95" style={{ boxShadow: '0 0 40px rgba(239, 68, 68, 0.4)' }}>
+                  <button onClick={stopRecording} className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center text-t-text1 bg-red-500 transition-all hover:scale-110 active:scale-95" style={{ boxShadow: '0 0 40px rgba(239, 68, 68, 0.4)' }}>
                     <Square size={28} className="md:hidden" />
                     <Square size={36} className="hidden md:block" />
                   </button>
@@ -424,13 +424,13 @@ export function VoiceStudio() {
 
               {audioUrl && !isRecording && (
                 <>
-                  <button onClick={clearRecording} className="w-11 h-11 md:w-14 md:h-14 rounded-full flex items-center justify-center text-white bg-white/10 hover:bg-white/20 transition-all hover:scale-110 active:scale-95">
+                  <button onClick={clearRecording} className="w-11 h-11 md:w-14 md:h-14 rounded-full flex items-center justify-center text-t-text1 bg-t-card-hover hover:bg-t-surface-m transition-all hover:scale-110 active:scale-95">
                     <Trash2 size={18} className="md:hidden" />
                     <Trash2 size={20} className="hidden md:block" />
                   </button>
                   <button
                     onClick={() => { if (audioRef.current) audioRef.current.paused ? audioRef.current.play() : audioRef.current.pause(); }}
-                    className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center text-white transition-all hover:scale-110 active:scale-95"
+                    className="w-20 h-20 md:w-24 md:h-24 rounded-full flex items-center justify-center text-t-text1 transition-all hover:scale-110 active:scale-95"
                     style={{ background: theme.primary, boxShadow: `0 0 40px ${theme.glow}` }}
                   >
                     <Play size={28} className="md:hidden" />
@@ -452,9 +452,9 @@ export function VoiceStudio() {
           </div>
 
           {/* Tips */}
-          <div className="rounded-xl md:rounded-2xl p-4 md:p-6 border border-white/10" style={{ background: `${theme.primary}10` }}>
-            <h3 className="font-serif text-white mb-2 md:mb-3 text-sm md:text-base">💡 {t.voiceStudio.tips.title}</h3>
-            <ul className="space-y-1.5 md:space-y-2 text-xs md:text-sm text-white/60">
+          <div className="rounded-xl md:rounded-2xl p-4 md:p-6 border border-t-border" style={{ background: `${theme.primary}10` }}>
+            <h3 className="font-serif text-t-text1 mb-2 md:mb-3 text-sm md:text-base">💡 {t.voiceStudio.tips.title}</h3>
+            <ul className="space-y-1.5 md:space-y-2 text-xs md:text-sm text-t-text2">
               {t.voiceStudio.tips.list.map((tip, i) => (<li key={i}>• {tip}</li>))}
             </ul>
           </div>
@@ -467,17 +467,17 @@ export function VoiceStudio() {
           {/* Characters Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h2 className="text-lg md:text-xl font-serif text-white">{t.voiceStudio.characters.title}</h2>
-              <p className="text-white/50 text-sm">{t.voiceStudio.characters.subtitle}</p>
+              <h2 className="text-lg md:text-xl font-serif text-t-text1">{t.voiceStudio.characters.title}</h2>
+              <p className="text-t-text3 text-sm">{t.voiceStudio.characters.subtitle}</p>
             </div>
             <div className="flex items-center gap-2">
               {/* Project filter */}
               <div className="relative">
-                <FolderOpen size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+                <FolderOpen size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-t-text3" />
                 <select
                   value={filterProjectId}
                   onChange={(e) => setFilterProjectId(e.target.value)}
-                  className="pl-9 pr-8 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-white/20 appearance-none cursor-pointer"
+                  className="pl-9 pr-8 py-2 rounded-lg bg-t-card border border-t-border text-t-text1 text-sm focus:outline-none focus:border-t-border appearance-none cursor-pointer"
                 >
                   <option value="" className="bg-gray-900">{t.voiceStudio?.allProjects || 'All Projects'}</option>
                   {projects.map(p => (
@@ -487,7 +487,7 @@ export function VoiceStudio() {
               </div>
               <button
                 onClick={() => openCharacterEditor()}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-medium transition-all duration-300 hover:scale-105"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-t-text1 text-sm font-medium transition-all duration-300 hover:scale-105"
                 style={{ background: theme.primary, boxShadow: `0 0 20px ${theme.glow}` }}
               >
                 <Plus size={16} />
@@ -498,15 +498,15 @@ export function VoiceStudio() {
 
           {/* Characters Grid */}
           {filteredCharacters.length === 0 ? (
-            <div className="rounded-xl md:rounded-2xl p-8 md:p-12 border border-white/10 text-center" style={{ background: theme.bgCard }}>
+            <div className="rounded-xl md:rounded-2xl p-8 md:p-12 border border-t-border text-center" style={{ background: 'var(--t-bg-card)' }}>
               <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ background: `${theme.primary}20` }}>
-                <User size={32} className="text-white/40" />
+                <User size={32} className="text-t-text3" />
               </div>
-              <h3 className="text-white font-serif mb-2">{t.voiceStudio.characters.noCharacters}</h3>
-              <p className="text-white/50 text-sm mb-6">{t.voiceStudio.characters.createFirst}</p>
+              <h3 className="text-t-text1 font-serif mb-2">{t.voiceStudio.characters.noCharacters}</h3>
+              <p className="text-t-text3 text-sm mb-6">{t.voiceStudio.characters.createFirst}</p>
               <button
                 onClick={() => openCharacterEditor()}
-                className="px-6 py-3 rounded-xl text-white text-sm font-medium transition-all duration-300 hover:scale-105"
+                className="px-6 py-3 rounded-xl text-t-text1 text-sm font-medium transition-all duration-300 hover:scale-105"
                 style={{ background: theme.primary }}
               >
                 <Plus size={16} className="inline mr-2" />
@@ -518,8 +518,8 @@ export function VoiceStudio() {
               {filteredCharacters.map((character) => (
                 <div
                   key={character.id}
-                  className="rounded-xl p-4 border border-white/10 transition-all duration-300 hover:border-white/20"
-                  style={{ background: theme.bgCard }}
+                  className="rounded-xl p-4 border border-t-border transition-all duration-300 hover:border-t-border"
+                  style={{ background: 'var(--t-bg-card)' }}
                 >
                   <div className="flex items-start gap-3">
                     <div 
@@ -533,8 +533,8 @@ export function VoiceStudio() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-white font-medium truncate">{character.name}</h3>
-                      <p className="text-white/50 text-sm line-clamp-2">{character.description}</p>
+                      <h3 className="text-t-text1 font-medium truncate">{character.name}</h3>
+                      <p className="text-t-text3 text-sm line-clamp-2">{character.description}</p>
                     </div>
                   </div>
                   
@@ -546,7 +546,7 @@ export function VoiceStudio() {
                         </span>
                       ))}
                       {character.tags.length > 3 && (
-                        <span className="px-2 py-0.5 rounded-full text-xs text-white/40">+{character.tags.length - 3}</span>
+                        <span className="px-2 py-0.5 rounded-full text-xs text-t-text3">+{character.tags.length - 3}</span>
                       )}
                     </div>
                   )}
@@ -554,7 +554,7 @@ export function VoiceStudio() {
 
                   {/* Linked projects */}
                   {character.projectIds && character.projectIds.length > 0 && (
-                    <div className="flex items-center gap-1 mt-2 text-xs text-white/40">
+                    <div className="flex items-center gap-1 mt-2 text-xs text-t-text3">
                       <Link2 size={12} />
                       {character.projectIds.slice(0, 2).map((pid, i) => {
                         const proj = projects.find(p => p.id === pid);
@@ -569,7 +569,7 @@ export function VoiceStudio() {
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2 mt-4 pt-3 border-t border-white/5">
+                  <div className="flex items-center gap-2 mt-4 pt-3 border-t border-t-border-lt">
                     {character.audioSampleUrl && (
                       <button
                         onClick={() => playCharacterSample(character)}
@@ -583,13 +583,13 @@ export function VoiceStudio() {
                     <div className="flex-1" />
                     <button
                       onClick={() => openCharacterEditor(character)}
-                      className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-all"
+                      className="p-2 rounded-lg text-t-text3 hover:text-t-text1 hover:bg-t-card-hover transition-all"
                     >
                       <Edit2 size={14} />
                     </button>
                     <button
                       onClick={() => deleteCharacter(character.id)}
-                      className="p-2 rounded-lg text-white/50 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                      className="p-2 rounded-lg text-t-text3 hover:text-red-400 hover:bg-red-500/10 transition-all"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -612,16 +612,16 @@ export function VoiceStudio() {
       {showCharacterEditor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div 
-            className="w-full max-w-lg rounded-2xl p-6 border border-white/10 max-h-[90vh] overflow-y-auto"
-            style={{ background: theme.bgDark }}
+            className="w-full max-w-lg rounded-2xl p-6 border border-t-border max-h-[90vh] overflow-y-auto"
+            style={{ background: 'var(--t-bg-base)' }}
           >
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-serif text-white">
+              <h2 className="text-xl font-serif text-t-text1">
                 {editingCharacter ? t.voiceStudio.characters.edit : t.voiceStudio.characters.addNew}
               </h2>
               <button
                 onClick={() => { setShowCharacterEditor(false); setAudioUploaded(false); }}
-                className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-all"
+                className="p-2 rounded-lg text-t-text3 hover:text-t-text1 hover:bg-t-card-hover transition-all"
               >
                 <X size={20} />
               </button>
@@ -631,7 +631,7 @@ export function VoiceStudio() {
             {!editingCharacter && !audioUploaded && !isAnalyzing && (
               <div className="text-center">
                 <div 
-                  className="rounded-2xl border-2 border-dashed border-white/20 p-8 cursor-pointer hover:border-white/40 transition-all"
+                  className="rounded-2xl border-2 border-dashed border-t-border p-8 cursor-pointer hover:border-t-border transition-all"
                   onClick={() => audioInputRef.current?.click()}
                   onDrop={handleDrop}
                   onDragOver={(e) => e.preventDefault()}
@@ -642,9 +642,9 @@ export function VoiceStudio() {
                   >
                     <Upload size={28} style={{ color: theme.primaryLight }} />
                   </div>
-                  <h3 className="text-white font-medium mb-2">{t.voiceStudio.characters.uploadVoiceFirst}</h3>
-                  <p className="text-white/50 text-sm mb-4">{t.voiceStudio.characters.uploadVoiceHint}</p>
-                  <p className="text-white/30 text-xs">{t.voiceStudio.characters.dragDropHint}</p>
+                  <h3 className="text-t-text1 font-medium mb-2">{t.voiceStudio.characters.uploadVoiceFirst}</h3>
+                  <p className="text-t-text3 text-sm mb-4">{t.voiceStudio.characters.uploadVoiceHint}</p>
+                  <p className="text-t-text3 text-xs">{t.voiceStudio.characters.dragDropHint}</p>
                 </div>
                 <input
                   ref={audioInputRef}
@@ -655,7 +655,7 @@ export function VoiceStudio() {
                 />
                 <button
                   onClick={() => { setShowCharacterEditor(false); }}
-                  className="mt-6 px-6 py-2 text-white/50 hover:text-white/80 transition-all text-sm"
+                  className="mt-6 px-6 py-2 text-t-text3 hover:text-t-text2 transition-all text-sm"
                 >
                   {t.voiceStudio.characters.cancel}
                 </button>
@@ -671,8 +671,8 @@ export function VoiceStudio() {
                 >
                   <AudioWaveform size={28} style={{ color: theme.primaryLight }} />
                 </div>
-                <h3 className="text-white font-medium mb-2">{t.voiceStudio.characters.analyzing}</h3>
-                <p className="text-white/50 text-sm">{t.voiceStudio.characters.analyzingHint}</p>
+                <h3 className="text-t-text1 font-medium mb-2">{t.voiceStudio.characters.analyzing}</h3>
+                <p className="text-t-text3 text-sm">{t.voiceStudio.characters.analyzingHint}</p>
               </div>
             )}
 
@@ -683,7 +683,7 @@ export function VoiceStudio() {
                   {/* Audio Sample Preview */}
                   {characterForm.audioSampleUrl && (
                     <div 
-                      className="rounded-xl p-4 border border-white/10"
+                      className="rounded-xl p-4 border border-t-border"
                       style={{ background: `${theme.primary}10` }}
                     >
                       <div className="flex items-center justify-between">
@@ -693,17 +693,17 @@ export function VoiceStudio() {
                             className="w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-105"
                             style={{ background: theme.primary }}
                           >
-                            {isPlayingPreview ? <Pause size={18} className="text-white" /> : <Play size={18} className="text-white ml-0.5" />}
+                            {isPlayingPreview ? <Pause size={18} className="text-t-text1" /> : <Play size={18} className="text-t-text1 ml-0.5" />}
                           </button>
                           <div>
-                            <p className="text-white text-sm font-medium">{t.voiceStudio.characters.audioSample}</p>
-                            <p className="text-white/50 text-xs">{t.voiceStudio.characters.analysisComplete}</p>
+                            <p className="text-t-text1 text-sm font-medium">{t.voiceStudio.characters.audioSample}</p>
+                            <p className="text-t-text3 text-xs">{t.voiceStudio.characters.analysisComplete}</p>
                           </div>
                         </div>
                         {!editingCharacter && (
                           <button
                             onClick={resetAudioUpload}
-                            className="px-3 py-1.5 rounded-lg text-xs text-white/50 hover:text-white hover:bg-white/10 transition-all"
+                            className="px-3 py-1.5 rounded-lg text-xs text-t-text3 hover:text-t-text1 hover:bg-t-card-hover transition-all"
                           >
                             {t.voiceStudio.characters.reupload}
                           </button>
@@ -719,45 +719,45 @@ export function VoiceStudio() {
 
                   {/* Name */}
                   <div>
-                    <label className="block text-sm font-medium text-white/50 mb-2">{t.voiceStudio.characters.name}</label>
+                    <label className="block text-sm font-medium text-t-text3 mb-2">{t.voiceStudio.characters.name}</label>
                     <input
                       type="text"
                       value={characterForm.name}
                       onChange={(e) => setCharacterForm({ ...characterForm, name: e.target.value })}
                       placeholder={t.voiceStudio.characters.namePlaceholder}
-                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20"
+                      className="w-full px-4 py-3 rounded-xl border border-t-border bg-t-card text-t-text1 focus:outline-none focus:border-t-border"
                     />
                   </div>
 
                   {/* Description */}
                   <div>
-                    <label className="block text-sm font-medium text-white/50 mb-2">{t.voiceStudio.characters.description}</label>
+                    <label className="block text-sm font-medium text-t-text3 mb-2">{t.voiceStudio.characters.description}</label>
                     <textarea
                       value={characterForm.description}
                       onChange={(e) => setCharacterForm({ ...characterForm, description: e.target.value })}
                       placeholder={t.voiceStudio.characters.descriptionPlaceholder}
                       rows={3}
-                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20 resize-none"
+                      className="w-full px-4 py-3 rounded-xl border border-t-border bg-t-card text-t-text1 focus:outline-none focus:border-t-border resize-none"
                     />
                   </div>
 
                   {/* Tags */}
                   <div>
-                    <label className="block text-sm font-medium text-white/50 mb-2">{t.voiceStudio.characters.tags}</label>
+                    <label className="block text-sm font-medium text-t-text3 mb-2">{t.voiceStudio.characters.tags}</label>
                     <input
                       type="text"
                       value={characterForm.tags}
                       onChange={(e) => setCharacterForm({ ...characterForm, tags: e.target.value })}
                       placeholder={t.voiceStudio.characters.tagsPlaceholder}
-                      className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white focus:outline-none focus:border-white/20"
+                      className="w-full px-4 py-3 rounded-xl border border-t-border bg-t-card text-t-text1 focus:outline-none focus:border-t-border"
                     />
                   </div>
 
                   {/* Avatar Upload */}
                   <div>
-                    <label className="block text-sm font-medium text-white/50 mb-2">{t.voiceStudio.characters.avatar}</label>
+                    <label className="block text-sm font-medium text-t-text3 mb-2">{t.voiceStudio.characters.avatar}</label>
                     <button
-                      className="w-full px-4 py-3 rounded-xl border border-dashed border-white/20 text-white/50 hover:border-white/40 hover:text-white/70 transition-all flex items-center justify-center gap-2"
+                      className="w-full px-4 py-3 rounded-xl border border-dashed border-t-border text-t-text3 hover:border-t-border hover:text-t-text2 transition-all flex items-center justify-center gap-2"
                     >
                       <Upload size={16} />
                       {t.voiceStudio.characters.uploadAvatar}
@@ -766,7 +766,7 @@ export function VoiceStudio() {
 
                   {/* Linked Projects */}
                   <div>
-                    <label className="block text-sm font-medium text-white/50 mb-2">
+                    <label className="block text-sm font-medium text-t-text3 mb-2">
                       <Link2 size={14} className="inline mr-1" />
                       {t.voiceStudio?.characters?.linkedProjects || 'Linked Projects'}
                     </label>
@@ -787,8 +787,8 @@ export function VoiceStudio() {
                             }}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                               isLinked 
-                                ? 'text-white' 
-                                : 'text-white/50 hover:text-white/70 border border-white/10 hover:border-white/20'
+                                ? 'text-t-text1' 
+                                : 'text-t-text3 hover:text-t-text2 border border-t-border hover:border-t-border'
                             }`}
                             style={isLinked ? { background: theme.primary } : {}}
                           >
@@ -798,7 +798,7 @@ export function VoiceStudio() {
                         );
                       })}
                       {projects.length === 0 && (
-                        <span className="text-white/30 text-sm">{t.voiceStudio?.noProjects || 'No projects'}</span>
+                        <span className="text-t-text3 text-sm">{t.voiceStudio?.noProjects || 'No projects'}</span>
                       )}
                     </div>
                   </div>
@@ -808,14 +808,14 @@ export function VoiceStudio() {
                 <div className="flex gap-3 mt-6">
                   <button
                     onClick={() => { setShowCharacterEditor(false); setAudioUploaded(false); }}
-                    className="flex-1 px-4 py-3 rounded-xl border border-white/10 text-white/70 hover:text-white hover:border-white/20 transition-all"
+                    className="flex-1 px-4 py-3 rounded-xl border border-t-border text-t-text2 hover:text-t-text1 hover:border-t-border transition-all"
                   >
                     {t.voiceStudio.characters.cancel}
                   </button>
                   <button
                     onClick={saveCharacter}
                     disabled={!characterForm.name.trim()}
-                    className="flex-1 px-4 py-3 rounded-xl text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 px-4 py-3 rounded-xl text-t-text1 font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ background: theme.primary }}
                   >
                     {t.voiceStudio.characters.save}

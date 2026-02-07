@@ -949,8 +949,8 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         <div 
           className={`relative rounded-xl border transition-all ${
             isDragging 
-              ? 'border-white/40 bg-white/10' 
-              : 'border-white/10 bg-white/5'
+              ? 'border-t-border bg-t-card-hover' 
+              : 'border-t-border bg-t-card'
           }`}
           onDragEnter={handleDragEnter}
           onDragLeave={handleDragLeave}
@@ -964,11 +964,11 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               ? '粘贴或输入您的内容...\n\n例如：书籍章节、故事文本、播客脚本等' 
               : 'Paste or enter your content...\n\nExample: Book chapter, story text, podcast script, etc.'}
             rows={8}
-            className="w-full px-5 pt-4 pb-3 bg-transparent text-base text-white placeholder-white/30 focus:outline-none resize-none"
+            className="w-full px-5 pt-4 pb-3 bg-transparent text-base text-t-text1 placeholder-t-text3 focus:outline-none resize-none"
           />
           
           {/* Attachment Area */}
-          <div className="px-5 pb-4 pt-2 border-t border-white/5">
+          <div className="px-5 pb-4 pt-2 border-t border-t-border-lt">
             <input
               ref={fileInputRef}
               type="file"
@@ -984,15 +984,15 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                 {uploadedFiles.map((file, index) => (
                   <div 
                     key={index}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg border border-white/10"
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg border border-t-border"
                     style={{ background: `${theme.primary}10` }}
                   >
                     <FileText size={16} style={{ color: theme.primaryLight }} />
-                    <span className="flex-1 text-sm text-white truncate">{file.name}</span>
-                    <span className="text-xs text-white/40">{(file.size / 1024).toFixed(1)}KB</span>
+                    <span className="flex-1 text-sm text-t-text1 truncate">{file.name}</span>
+                    <span className="text-xs text-t-text3">{(file.size / 1024).toFixed(1)}KB</span>
                     <button
                       onClick={() => removeUploadedFile(index)}
-                      className="p-1 rounded hover:bg-white/10 text-white/40 hover:text-red-400 transition-all"
+                      className="p-1 rounded hover:bg-t-card-hover text-t-text3 hover:text-red-400 transition-all"
                     >
                       <X size={14} />
                     </button>
@@ -1004,7 +1004,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
             {/* Add Attachment Button */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-white/50 hover:text-white/70 hover:bg-white/5 transition-all"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-t-text3 hover:text-t-text2 hover:bg-t-card transition-all"
             >
               <Upload size={16} />
               <span>
@@ -1017,8 +1017,8 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
           
           {/* Drag Overlay */}
           {isDragging && (
-            <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/5 backdrop-blur-sm pointer-events-none">
-              <div className="flex flex-col items-center gap-2 text-white/70">
+            <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-t-card backdrop-blur-sm pointer-events-none">
+              <div className="flex flex-col items-center gap-2 text-t-text2">
                 <Upload size={36} />
                 <span className="text-base font-medium">
                   {language === 'zh' ? '放开以上传' : 'Drop to upload'}
@@ -1041,7 +1041,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         <button
           onClick={generateScript}
           disabled={isGeneratingScript}
-          className="w-full flex items-center justify-center gap-3 px-5 py-5 rounded-xl text-base text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-3 px-5 py-5 rounded-xl text-base text-t-text1 font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: theme.primary }}
         >
           <Sparkles size={22} />
@@ -1060,8 +1060,8 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               <Loader2 size={20} className="animate-spin" style={{ color: theme.primaryLight }} />
             </div>
             <div>
-              <p className="text-base text-white font-medium">{t.projectCreator.generating}</p>
-              <p className="text-sm text-white/50">
+              <p className="text-base text-t-text1 font-medium">{t.projectCreator.generating}</p>
+              <p className="text-sm text-t-text3">
                 {language === 'zh' 
                   ? 'AI 正在编写脚本...'
                   : 'AI is writing the script...'
@@ -1073,10 +1073,10 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
           {/* Streaming content preview */}
           {streamingText && (
             <div 
-              className="rounded-xl border border-white/10 p-5 max-h-[400px] overflow-auto"
-              style={{ background: theme.bgCard }}
+              className="rounded-xl border border-t-border p-5 max-h-[400px] overflow-auto"
+              style={{ background: 'var(--t-bg-card)' }}
             >
-              <pre className="text-sm text-white/70 whitespace-pre-wrap font-mono">
+              <pre className="text-sm text-t-text2 whitespace-pre-wrap font-mono">
                 {streamingText.slice(0, 1000)}{streamingText.length > 1000 ? '...' : ''}
               </pre>
             </div>
@@ -1084,7 +1084,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
 
           {/* Waiting state */}
           {!streamingText && (
-            <div className="flex items-center justify-center py-8 text-white/40">
+            <div className="flex items-center justify-center py-8 text-t-text3">
               <Loader2 size={20} className="animate-spin mr-2" />
               <span className="text-sm">{language === 'zh' ? '正在解析脚本结构...' : 'Parsing script structure...'}</span>
             </div>
@@ -1095,11 +1095,11 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       {/* Regenerate Button - shown when sections exist */}
       {scriptSections.length > 0 && (
         <div className="flex items-center justify-between">
-          <h4 className="text-base text-white font-medium">{t.projectCreator.scriptLabel}</h4>
+          <h4 className="text-base text-t-text1 font-medium">{t.projectCreator.scriptLabel}</h4>
           <button
             onClick={generateScript}
             disabled={isGeneratingScript}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-base text-white/70 hover:text-white transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-base text-t-text2 hover:text-t-text1 transition-all"
             style={{ background: `${theme.primary}30` }}
           >
             <RefreshCw size={16} className={isGeneratingScript ? 'animate-spin' : ''} />
@@ -1112,20 +1112,20 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       {scriptSections.map((section) => (
         <div 
           key={section.id} 
-          className="rounded-xl border border-white/10 overflow-hidden"
-          style={{ background: theme.bgCard }}
+          className="rounded-xl border border-t-border overflow-hidden"
+          style={{ background: 'var(--t-bg-card)' }}
         >
           <div 
-            className="px-5 py-4 border-b border-white/10 cursor-pointer flex items-center justify-between"
+            className="px-5 py-4 border-b border-t-border cursor-pointer flex items-center justify-between"
             onClick={() => setEditingSection(editingSection === section.id ? null : section.id)}
           >
             <div>
-              <h4 className="text-base font-medium text-white">{section.name}</h4>
-              <p className="text-sm text-white/50">{section.description}</p>
+              <h4 className="text-base font-medium text-t-text1">{section.name}</h4>
+              <p className="text-sm text-t-text3">{section.description}</p>
             </div>
             <ChevronRight 
               size={22} 
-              className={`text-white/50 transition-transform ${editingSection === section.id ? 'rotate-90' : ''}`} 
+              className={`text-t-text3 transition-transform ${editingSection === section.id ? 'rotate-90' : ''}`} 
             />
           </div>
           
@@ -1134,13 +1134,13 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               {/* Cover Image Description */}
               {spec?.hasVisualContent && (
                 <div>
-                  <label className="block text-sm text-white/50 mb-2">{t.projectCreator.cover}</label>
+                  <label className="block text-sm text-t-text3 mb-2">{t.projectCreator.cover}</label>
                   <input
                     type="text"
                     value={section.coverImageDescription || ''}
                     onChange={(e) => updateSectionInfo(section.id, 'coverImageDescription', e.target.value)}
                     placeholder={t.projectCreator.describeCover}
-                    className="w-full px-4 py-3 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20"
+                    className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
                   />
                 </div>
               )}
@@ -1150,32 +1150,31 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                 {section.timeline.map((item: ScriptTimelineItem, itemIndex: number) => (
                   <div 
                     key={item.id} 
-                    className="rounded-lg border border-white/10 p-4 space-y-4"
-                    style={{ background: 'rgba(255,255,255,0.02)' }}
+                    className="rounded-lg border border-t-border p-4 space-y-4 bg-t-card"
                   >
                     {/* Header: Time + Delete */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-white/40 w-5">{itemIndex + 1}</span>
+                        <span className="text-xs text-t-text3 w-5">{itemIndex + 1}</span>
                         <input
                           type="text"
                           value={item.timeStart}
                           onChange={(e) => updateTimelineItem(section.id, item.id, 'timeStart', e.target.value)}
                           placeholder="00:00"
-                          className="w-16 px-3 py-2 rounded border border-white/10 bg-white/5 text-white text-sm focus:outline-none"
+                          className="w-16 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none"
                         />
-                        <span className="text-white/30 text-sm">-</span>
+                        <span className="text-t-text3 text-sm">-</span>
                         <input
                           type="text"
                           value={item.timeEnd}
                           onChange={(e) => updateTimelineItem(section.id, item.id, 'timeEnd', e.target.value)}
                           placeholder="00:15"
-                          className="w-16 px-3 py-2 rounded border border-white/10 bg-white/5 text-white text-sm focus:outline-none"
+                          className="w-16 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none"
                         />
                       </div>
                       <button
                         onClick={() => removeTimelineItem(section.id, item.id)}
-                        className="p-2 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-all"
+                        className="p-2 rounded hover:bg-red-500/20 text-t-text3 hover:text-red-400 transition-all"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -1183,7 +1182,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                     
                     {/* Lines (Speaker + Line pairs) */}
                     <div className="space-y-3">
-                      <label className="block text-xs text-white/40">{t.projectCreator.lines}</label>
+                      <label className="block text-xs text-t-text3">{t.projectCreator.lines}</label>
                       {(item.lines || []).map((scriptLine, lineIndex) => (
                         <div key={lineIndex} className="flex items-start gap-3">
                           <input 
@@ -1191,18 +1190,18 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                             value={scriptLine.speaker} 
                             onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
                             placeholder={t.projectCreator.speaker}
-                            className="w-28 px-3 py-2 rounded border border-white/10 bg-white/5 text-white text-sm focus:outline-none flex-shrink-0" 
+                            className="w-28 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none flex-shrink-0" 
                           />
                           <textarea 
                             value={scriptLine.line} 
                             onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
                             placeholder={t.projectCreator.lineContent}
                             rows={2}
-                            className="flex-1 px-3 py-2 rounded border border-white/10 bg-white/5 text-white text-sm focus:outline-none resize-none" 
+                            className="flex-1 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none resize-none" 
                           />
                           <button 
                             onClick={() => removeScriptLine(section.id, item.id, lineIndex)} 
-                            className="p-2 rounded hover:bg-red-500/20 text-white/40 hover:text-red-400 flex-shrink-0"
+                            className="p-2 rounded hover:bg-red-500/20 text-t-text3 hover:text-red-400 flex-shrink-0"
                           >
                             <X size={14} />
                           </button>
@@ -1210,7 +1209,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                       ))}
                       <button 
                         onClick={() => addScriptLine(section.id, item.id)} 
-                        className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/60"
+                        className="flex items-center gap-1.5 text-xs text-t-text3 hover:text-t-text2"
                       >
                         <Plus size={12} />{t.projectCreator.addLine}
                       </button>
@@ -1219,13 +1218,13 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                     {/* Sound/Music */}
                     {(spec?.addBgm || spec?.addSoundEffects) && (
                       <div>
-                        <label className="block text-xs text-white/40 mb-2">{t.projectCreator.soundMusic}</label>
+                        <label className="block text-xs text-t-text3 mb-2">{t.projectCreator.soundMusic}</label>
                         <input
                           type="text"
                           value={item.soundMusic}
                           onChange={(e) => updateTimelineItem(section.id, item.id, 'soundMusic', e.target.value)}
                           placeholder={t.projectCreator.bgmSoundEffects}
-                          className="w-full px-4 py-3 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20"
+                          className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
                         />
                       </div>
                     )}
@@ -1236,7 +1235,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               {/* Add Timeline Item */}
               <button
                 onClick={() => addTimelineItem(section.id)}
-                className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-all"
+                className="flex items-center gap-2 text-sm text-t-text3 hover:text-t-text1 transition-all"
               >
                 <Plus size={16} />
                 {t.projectCreator.addSegment}
@@ -1265,10 +1264,10 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
             >
               <Mic2 size={32} style={{ color: theme.primaryLight }} />
             </div>
-            <h3 className="text-xl font-medium text-white mb-2">
+            <h3 className="text-xl font-medium text-t-text1 mb-2">
               {language === 'zh' ? '角色音色配置' : 'Character Voice Configuration'}
             </h3>
-            <p className="text-base text-white/50">
+            <p className="text-base text-t-text3">
               {language === 'zh' 
                 ? '为每个角色选择音色，确认后开始语音合成' 
                 : 'Assign voices to each character, then start synthesis'}
@@ -1277,9 +1276,9 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
 
           {/* Character voice assignment list */}
           {characters.length > 0 && (
-            <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: theme.bgCard }}>
-              <div className="px-5 py-3 border-b border-white/10 flex items-center justify-between">
-                <span className="text-sm text-white/50">
+            <div className="rounded-xl border border-t-border overflow-hidden" style={{ background: 'var(--t-bg-card)' }}>
+              <div className="px-5 py-3 border-b border-t-border flex items-center justify-between">
+                <span className="text-sm text-t-text3">
                   {language === 'zh' ? '角色音色分配' : 'Character Voice Assignment'}
                 </span>
                 <div className="flex items-center gap-3">
@@ -1298,7 +1297,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                     )}
                     {language === 'zh' ? 'AI 推荐音色' : 'Recommend with AI'}
                   </button>
-                  <span className="text-xs text-white/40">
+                  <span className="text-xs text-t-text3">
                     {characters.length} {language === 'zh' ? '个角色' : 'characters'}
                   </span>
                 </div>
@@ -1311,22 +1310,22 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                   const hasAssignment = assignedSystemVoice || assignedCustomVoice;
                   
                   return (
-                    <div key={index} className="flex items-center gap-4 p-4 rounded-lg bg-white/5 border border-white/5">
-                      <div className="w-12 h-12 rounded-full flex items-center justify-center bg-white/10">
-                        <User size={20} className="text-white/60" />
+                    <div key={index} className="flex items-center gap-4 p-4 rounded-lg bg-t-card border border-t-border-lt">
+                      <div className="w-12 h-12 rounded-full flex items-center justify-center bg-t-card-hover">
+                        <User size={20} className="text-t-text2" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-base text-white font-medium truncate">{char.name}</p>
+                        <p className="text-base text-t-text1 font-medium truncate">{char.name}</p>
                         {char.description && (
-                          <p className="text-sm text-white/40 truncate">{char.description}</p>
+                          <p className="text-sm text-t-text3 truncate">{char.description}</p>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
                         <select
                           value={assignedVoiceId || ''}
                           onChange={(e) => assignVoiceToCharacter(index, e.target.value)}
-                          className="px-4 py-2.5 rounded-lg border border-white/10 bg-white/5 text-base text-white focus:outline-none focus:border-white/20 min-w-[160px]"
-                          style={{ background: hasAssignment ? `${theme.primary}15` : 'rgba(255,255,255,0.05)' }}
+                          className="px-4 py-2.5 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border min-w-[160px]"
+                          style={{ background: hasAssignment ? `${theme.primary}15` : 'var(--t-bg-card)' }}
                         >
                           <option value="" className="bg-gray-900">
                             {language === 'zh' ? '选择音色...' : 'Select voice...'}
@@ -1356,8 +1355,8 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                             disabled={loadingVoiceId === assignedSystemVoice.id}
                             className={`p-2.5 rounded-lg transition-all ${
                               playingVoiceId === assignedSystemVoice.id 
-                                ? 'text-white' 
-                                : 'text-white/50 hover:text-white hover:bg-white/10'
+                                ? 'text-t-text1' 
+                                : 'text-t-text3 hover:text-t-text1 hover:bg-t-card-hover'
                             }`}
                             style={playingVoiceId === assignedSystemVoice.id ? { background: theme.primary } : {}}
                             title={language === 'zh' ? '试听' : 'Preview'}
@@ -1381,7 +1380,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
 
           {/* No characters message */}
           {characters.length === 0 && (
-            <div className="text-center py-10 text-white/40">
+            <div className="text-center py-10 text-t-text3">
               <User size={40} className="mx-auto mb-3 opacity-50" />
               <p>{language === 'zh' ? '未检测到角色' : 'No characters detected'}</p>
             </div>
@@ -1390,12 +1389,12 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
           {/* Voice studio hint */}
           {availableVoices.length === 0 && (
             <div 
-              className="p-4 rounded-xl border border-white/10 flex items-start gap-3"
+              className="p-4 rounded-xl border border-t-border flex items-start gap-3"
               style={{ background: `${theme.primary}10` }}
             >
               <Sparkles size={20} className="flex-shrink-0 mt-0.5" style={{ color: theme.primaryLight }} />
               <div>
-                <p className="text-sm text-white/70">
+                <p className="text-sm text-t-text2">
                   {language === 'zh' 
                     ? '您可以在"音色工作室"中创建自定义音色，或使用系统默认音色。' 
                     : 'You can create custom voices in Voice Studio, or use system default voices.'}
@@ -1427,10 +1426,10 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               <Mic2 size={32} className={voiceGeneration.status === 'processing' ? 'animate-pulse' : ''} style={{ color: theme.primaryLight }} />
             )}
           </div>
-          <h3 className="text-xl font-medium text-white mb-2">
+          <h3 className="text-xl font-medium text-t-text1 mb-2">
             {language === 'zh' ? '逐段语音生成' : 'Section-by-Section Voice Generation'}
           </h3>
-          <p className="text-base text-white/50">
+          <p className="text-base text-t-text3">
             {allCompleted 
               ? (language === 'zh' ? '所有段落已完成' : 'All sections completed')
               : `${completedSections}/${scriptSections.length} ${language === 'zh' ? '段落已完成' : 'sections completed'}`
@@ -1449,15 +1448,15 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               <div 
                 key={section.id}
                 className={`rounded-xl border overflow-hidden transition-all ${
-                  isCurrentSection ? 'border-white/30' : 'border-white/10'
+                  isCurrentSection ? 'border-t-border' : 'border-t-border'
                 }`}
-                style={{ background: theme.bgCard }}
+                style={{ background: 'var(--t-bg-card)' }}
               >
                 {/* Section header */}
                 <div 
                   className={`px-5 py-4 flex items-center gap-4 ${
                     status.status === 'completed' && status.audioSegments.length > 0 
-                      ? 'cursor-pointer hover:bg-white/5 transition-colors' 
+                      ? 'cursor-pointer hover:bg-t-card transition-colors' 
                       : ''
                   }`}
                   onClick={() => {
@@ -1489,7 +1488,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                           ? `${theme.primary}20` 
                           : status.status === 'error'
                             ? 'rgba(239, 68, 68, 0.2)'
-                            : 'rgba(255,255,255,0.05)'
+                            : 'var(--t-bg-card)'
                     }}
                   >
                     {status.status === 'completed' ? (
@@ -1499,14 +1498,14 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                     ) : status.status === 'error' ? (
                       <X size={20} className="text-red-400" />
                     ) : (
-                      <span className="text-white/40 text-sm font-medium">{index + 1}</span>
+                      <span className="text-t-text3 text-sm font-medium">{index + 1}</span>
                     )}
                   </div>
                   
                   {/* Section info */}
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-base font-medium text-white truncate">{section.name}</h4>
-                    <p className="text-sm text-white/40">
+                    <h4 className="text-base font-medium text-t-text1 truncate">{section.name}</h4>
+                    <p className="text-sm text-t-text3">
                       {lineCount} {language === 'zh' ? '条对话' : 'lines'}
                       {status.status === 'completed' && status.audioSegments.length > 0 && (
                         <span className="ml-2 text-green-400">
@@ -1546,7 +1545,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                           generateVoiceForSection(section);
                         }}
                         disabled={voiceGeneration.status === 'processing'}
-                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-white/60 hover:text-white hover:bg-white/10 transition-all disabled:opacity-50"
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-t-text2 hover:text-t-text1 hover:bg-t-card-hover transition-all disabled:opacity-50"
                         title={language === 'zh' ? '重新生成' : 'Regenerate'}
                       >
                         <RefreshCw size={16} />
@@ -1556,7 +1555,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                     {status.status === 'completed' && status.audioSegments.length > 0 && (
                       <ChevronDown 
                         size={18} 
-                        className={`text-white/40 transition-transform duration-200 ${
+                        className={`text-t-text3 transition-transform duration-200 ${
                           expandedVoiceSections.has(section.id) ? 'rotate-180' : ''
                         }`} 
                       />
@@ -1567,7 +1566,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                 {/* Progress bar for processing sections */}
                 {status.status === 'processing' && (
                   <div className="px-5 pb-4">
-                    <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-1.5 rounded-full bg-t-card-hover overflow-hidden">
                       <div 
                         className="h-full rounded-full transition-all duration-300"
                         style={{ width: `${status.progress}%`, background: theme.primary }}
@@ -1585,15 +1584,15 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                 
                 {/* Expanded audio segment list */}
                 {status.status === 'completed' && status.audioSegments.length > 0 && expandedVoiceSections.has(section.id) && (
-                  <div className="border-t border-white/5">
-                    <div className="divide-y divide-white/5">
+                  <div className="border-t border-t-border-lt">
+                    <div className="divide-y divide-t-border-lt">
                       {status.audioSegments.map((audio, audioIndex) => {
                         const segId = `${section.id}-${audioIndex}`;
                         const isPlaying = playingSegmentId === segId;
                         return (
                           <div 
                             key={audioIndex}
-                            className="px-5 py-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
+                            className="px-5 py-3 flex items-center gap-3 hover:bg-t-card transition-colors"
                           >
                             <button
                               onClick={() => {
@@ -1626,18 +1625,18 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                               style={{ background: isPlaying ? theme.primary : `${theme.primary}30` }}
                             >
                               {isPlaying ? (
-                                <Pause size={14} className="text-white" />
+                                <Pause size={14} className="text-t-text1" />
                               ) : (
                                 <Play size={14} className="ml-0.5" style={{ color: theme.primaryLight }} />
                               )}
                             </button>
                             
                             <div className="flex-1 min-w-0">
-                              <span className="text-sm font-medium text-white/80">{audio.speaker}</span>
-                              <p className="text-xs text-white/40 truncate mt-0.5">{audio.text}</p>
+                              <span className="text-sm font-medium text-t-text2">{audio.speaker}</span>
+                              <p className="text-xs text-t-text3 truncate mt-0.5">{audio.text}</p>
                             </div>
                             
-                            <span className="text-xs text-white/20 flex-shrink-0">#{audio.lineIndex + 1}</span>
+                            <span className="text-xs text-t-text3 flex-shrink-0">#{audio.lineIndex + 1}</span>
                           </div>
                         );
                       })}
@@ -1654,7 +1653,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
           <button
             onClick={performVoiceGeneration}
             disabled={voiceGeneration.status === 'processing'}
-            className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-xl text-base text-white font-medium transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-xl text-base text-t-text1 font-medium transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             style={{ background: `${theme.primary}80` }}
           >
             {voiceGeneration.status === 'processing' ? (
@@ -1691,10 +1690,10 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               <Music size={40} className={mediaProduction.status === 'processing' ? 'animate-pulse' : ''} style={{ color: theme.primaryLight }} />
             )}
           </div>
-          <h3 className="text-xl font-medium text-white mb-2">
+          <h3 className="text-xl font-medium text-t-text1 mb-2">
             {language === 'zh' ? '媒体制作' : 'Media Production'}
           </h3>
-          <p className="text-base text-white/50">
+          <p className="text-base text-t-text3">
             {mediaProduction.status === 'completed' 
               ? (language === 'zh' ? '媒体制作完成' : 'Media production complete')
               : mediaProduction.currentTask || (language === 'zh' ? '准备中...' : 'Preparing...')
@@ -1704,11 +1703,11 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
 
         {/* Progress bar */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm text-white/50">
+          <div className="flex items-center justify-between text-sm text-t-text3">
             <span>{language === 'zh' ? '进度' : 'Progress'}</span>
             <span>{mediaProduction.progress}%</span>
           </div>
-          <div className="h-3 rounded-full bg-white/10 overflow-hidden">
+          <div className="h-3 rounded-full bg-t-card-hover overflow-hidden">
             <div 
               className="h-full rounded-full transition-all duration-500"
               style={{ width: `${mediaProduction.progress}%`, background: theme.primary }}
@@ -1720,11 +1719,11 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         <div className="grid grid-cols-3 gap-4">
           {hasBgm && (
             <div 
-              className="p-5 rounded-xl border border-white/10 text-center"
-              style={{ background: theme.bgCard }}
+              className="p-5 rounded-xl border border-t-border text-center"
+              style={{ background: 'var(--t-bg-card)' }}
             >
               <Music size={28} className="mx-auto mb-3" style={{ color: theme.primaryLight }} />
-              <p className="text-sm text-white/70">BGM</p>
+              <p className="text-sm text-t-text2">BGM</p>
               {mediaProduction.progress > 33 && (
                 <Check size={16} className="mx-auto mt-2" style={{ color: theme.primaryLight }} />
               )}
@@ -1732,11 +1731,11 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
           )}
           {hasSfx && (
             <div 
-              className="p-5 rounded-xl border border-white/10 text-center"
-              style={{ background: theme.bgCard }}
+              className="p-5 rounded-xl border border-t-border text-center"
+              style={{ background: 'var(--t-bg-card)' }}
             >
               <Volume2 size={28} className="mx-auto mb-3" style={{ color: theme.primaryLight }} />
-              <p className="text-sm text-white/70">SFX</p>
+              <p className="text-sm text-t-text2">SFX</p>
               {mediaProduction.progress > 66 && (
                 <Check size={16} className="mx-auto mt-2" style={{ color: theme.primaryLight }} />
               )}
@@ -1744,18 +1743,18 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
           )}
           {hasImages && (
             <div 
-              className="p-5 rounded-xl border border-white/10 text-center"
-              style={{ background: theme.bgCard }}
+              className="p-5 rounded-xl border border-t-border text-center"
+              style={{ background: 'var(--t-bg-card)' }}
             >
               <Image size={28} className="mx-auto mb-3" style={{ color: theme.primaryLight }} />
-              <p className="text-sm text-white/70">{language === 'zh' ? '图片' : 'Images'}</p>
+              <p className="text-sm text-t-text2">{language === 'zh' ? '图片' : 'Images'}</p>
               {mediaProduction.progress === 100 && (
                 <Check size={16} className="mx-auto mt-2" style={{ color: theme.primaryLight }} />
               )}
             </div>
           )}
           {!hasBgm && !hasSfx && !hasImages && (
-            <div className="col-span-3 text-center py-10 text-white/40 text-base">
+            <div className="col-span-3 text-center py-10 text-t-text3 text-base">
               {language === 'zh' ? '此项目不需要额外媒体' : 'No additional media needed'}
             </div>
           )}
@@ -1802,10 +1801,10 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               <Sliders size={40} className={mixingEditing.status === 'processing' ? 'animate-pulse' : ''} style={{ color: theme.primaryLight }} />
             )}
           </div>
-          <h3 className="text-xl font-medium text-white mb-2">
+          <h3 className="text-xl font-medium text-t-text1 mb-2">
             {language === 'zh' ? '混音与编辑' : 'Mixing & Editing'}
           </h3>
-          <p className="text-base text-white/50">
+          <p className="text-base text-t-text3">
             {mixingError 
               ? (language === 'zh' ? `混音失败: ${mixingError}` : `Mixing failed: ${mixingError}`)
               : mixingEditing.status === 'completed' && mixedOutput
@@ -1818,11 +1817,11 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         {/* Progress bar */}
         {mixingEditing.status === 'processing' && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm text-white/50">
+            <div className="flex items-center justify-between text-sm text-t-text3">
               <span>{language === 'zh' ? '进度' : 'Progress'}</span>
               <span>{mixingEditing.progress}%</span>
             </div>
-            <div className="h-3 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-3 rounded-full bg-t-card-hover overflow-hidden">
               <div 
                 className="h-full rounded-full transition-all duration-500"
                 style={{ width: `${mixingEditing.progress}%`, background: theme.primary }}
@@ -1834,15 +1833,15 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         {/* Audio Player when complete */}
         {mixingEditing.status === 'completed' && mixedOutput && (
           <div 
-            className="rounded-xl p-5 border border-white/10"
-            style={{ background: theme.bgCard }}
+            className="rounded-xl p-5 border border-t-border"
+            style={{ background: 'var(--t-bg-card)' }}
           >
             <div className="flex items-center gap-2 mb-4">
               <Music size={18} style={{ color: theme.primaryLight }} />
-              <span className="text-white text-base font-medium">
+              <span className="text-t-text1 text-base font-medium">
                 {language === 'zh' ? '最终音频' : 'Final Audio'}
               </span>
-              <span className="text-white/40 text-sm ml-auto">
+              <span className="text-t-text3 text-sm ml-auto">
                 {formatDuration(mixedOutput.durationMs)}
               </span>
             </div>
@@ -1857,7 +1856,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
             <div className="flex gap-3">
               <button
                 onClick={handlePlayMixedAudio}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-white text-sm font-medium transition-all hover:opacity-90"
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-t-text1 text-sm font-medium transition-all hover:opacity-90"
                 style={{ background: theme.primary }}
               >
                 <Play size={16} />
@@ -1865,7 +1864,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               </button>
               <button
                 onClick={handleDownloadMixedAudio}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-white text-sm font-medium border border-white/20 transition-all hover:bg-white/10"
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-t-text1 text-sm font-medium border border-t-border transition-all hover:bg-t-card-hover"
               >
                 <Save size={16} />
                 {language === 'zh' ? '下载' : 'Download'}
@@ -1878,7 +1877,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         {mixingError && (
           <button
             onClick={() => performMixing()}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-white text-sm font-medium transition-all hover:opacity-90"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-t-text1 text-sm font-medium transition-all hover:opacity-90"
             style={{ background: theme.primary }}
           >
             <RefreshCw size={16} />
@@ -1889,14 +1888,14 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         {/* Visual preview */}
         {mixingEditing.status === 'completed' && spec?.hasVisualContent && (
           <div 
-            className="rounded-xl p-5 border border-white/10"
-            style={{ background: theme.bgCard }}
+            className="rounded-xl p-5 border border-t-border"
+            style={{ background: 'var(--t-bg-card)' }}
           >
             <div className="flex items-center gap-2 mb-4">
               <Image size={18} style={{ color: theme.primaryLight }} />
-              <span className="text-white text-base font-medium">{language === 'zh' ? '视觉预览' : 'Visual Preview'}</span>
+              <span className="text-t-text1 text-base font-medium">{language === 'zh' ? '视觉预览' : 'Visual Preview'}</span>
             </div>
-            <div className="h-14 rounded-lg flex items-center justify-center text-white/40 text-sm" style={{ background: `${theme.primary}10` }}>
+            <div className="h-14 rounded-lg flex items-center justify-center text-t-text3 text-sm" style={{ background: `${theme.primary}10` }}>
               {language === 'zh' ? '即将推出' : 'Coming soon'}
             </div>
           </div>
@@ -1918,17 +1917,17 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         >
           <Check size={40} style={{ color: theme.primaryLight }} />
         </div>
-        <h3 className="text-xl font-medium text-white mb-2">
+        <h3 className="text-xl font-medium text-t-text1 mb-2">
           {language === 'zh' ? '准备就绪！' : 'Ready to Save!'}
         </h3>
-        <p className="text-base text-white/50">
+        <p className="text-base text-t-text3">
           {language === 'zh' ? '确认以下信息并保存剧集' : 'Confirm the details below and save your episode'}
         </p>
       </div>
 
       {/* Episode summary */}
       <div 
-        className="rounded-xl p-6 border border-white/10"
+        className="rounded-xl p-6 border border-t-border"
         style={{ background: `${theme.primary}10` }}
       >
         <div className="flex items-center gap-4 mb-5">
@@ -1939,16 +1938,16 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
             <ReligionIcon size={28} color={theme.primaryLight} />
           </div>
           <div className="flex-1">
-            <h3 className="text-2xl font-serif text-white">{title}</h3>
-            <p className="text-base text-white/50">{project.title}</p>
+            <h3 className="text-2xl font-serif text-t-text1">{title}</h3>
+            <p className="text-base text-t-text3">{project.title}</p>
           </div>
         </div>
 
         <div className="space-y-4 text-base">
           {description && (
-            <p className="text-white/70 line-clamp-2">{description}</p>
+            <p className="text-t-text2 line-clamp-2">{description}</p>
           )}
-          <div className="flex items-center gap-4 text-sm text-white/60">
+          <div className="flex items-center gap-4 text-sm text-t-text2">
             <span>{scriptSections.length} {language === 'zh' ? '段落' : 'sections'}</span>
             <span>·</span>
             <span>{characters.length} {language === 'zh' ? '角色' : 'characters'}</span>
@@ -1980,7 +1979,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         </div>
       </div>
 
-      <p className="text-center text-white/40 text-sm">
+      <p className="text-center text-t-text3 text-sm">
         {language === 'zh' ? '点击下方按钮保存剧集' : 'Click the button below to save your episode'}
       </p>
     </div>
@@ -2004,11 +2003,11 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div 
-        className="rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-slide-up border border-white/10"
-        style={{ background: theme.bgDark }}
+        className="rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-slide-up border border-t-border"
+        style={{ background: 'var(--t-bg-base)' }}
       >
         {/* Header */}
-        <div className="px-8 py-5 flex items-center justify-between border-b border-white/10">
+        <div className="px-8 py-5 flex items-center justify-between border-b border-t-border">
           <div className="flex items-center gap-4">
             <div 
               className="w-12 h-12 rounded-xl flex items-center justify-center"
@@ -2017,14 +2016,14 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               <ReligionIcon size={24} color={theme.primaryLight} />
             </div>
             <div>
-              <h2 className="text-xl font-serif text-white">{t.episodeEditor.createTitle}</h2>
-              <p className="text-sm text-white/50">
+              <h2 className="text-xl font-serif text-t-text1">{t.episodeEditor.createTitle}</h2>
+              <p className="text-sm text-t-text3">
                 {project.title} · {t.projectCreator.step} {currentStep} / {STEPS.length} · {STEPS[currentStep - 1]?.title}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-            <X className="text-white/50" size={24} />
+          <button onClick={onClose} className="p-2 hover:bg-t-card-hover rounded-lg transition-colors">
+            <X className="text-t-text3" size={24} />
           </button>
         </div>
 
@@ -2034,7 +2033,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         </div>
 
         {/* Progress Bar */}
-        <div className="relative h-1.5 bg-white/5">
+        <div className="relative h-1.5 bg-t-card">
           <div 
             className="absolute inset-y-0 left-0 transition-all duration-500"
             style={{ 
@@ -2045,10 +2044,10 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         </div>
 
         {/* Footer */}
-        <div className="px-8 py-5 border-t border-white/10 flex items-center justify-between">
+        <div className="px-8 py-5 border-t border-t-border flex items-center justify-between">
           <button
             onClick={currentStep === 1 ? onClose : handleBack}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-base text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-base text-t-text2 hover:text-t-text1 hover:bg-t-card transition-colors"
           >
             <ChevronLeft size={22} />
             {currentStep === 1 ? t.projectCreator.buttons.cancel : t.projectCreator.buttons.back}
@@ -2059,7 +2058,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
             {currentStep >= 2 && scriptSections.length > 0 && (
               <button
                 onClick={handleSkipAndSave}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-base text-white/50 hover:text-white hover:bg-white/10 transition-colors border border-white/10"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-base text-t-text3 hover:text-t-text1 hover:bg-t-card-hover transition-colors border border-t-border"
               >
                 {language === 'zh' ? '跳过，稍后继续' : 'Skip for now'}
               </button>
@@ -2070,7 +2069,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               <button
                 onClick={startVoiceGeneration}
                 disabled={characters.length === 0 || characters.some(c => !c.assignedVoiceId)}
-                className="flex items-center gap-2 px-8 py-2.5 rounded-lg text-base text-white font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                className="flex items-center gap-2 px-8 py-2.5 rounded-lg text-base text-t-text1 font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                 style={{ background: theme.primary }}
               >
                 <Mic2 size={22} />
@@ -2083,7 +2082,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                 <button
                   onClick={handleNext}
                   disabled={isProcessingNext}
-                  className={`flex items-center gap-2 px-8 py-2.5 rounded-lg text-base text-white font-medium transition-all hover:scale-105 ${
+                  className={`flex items-center gap-2 px-8 py-2.5 rounded-lg text-base text-t-text1 font-medium transition-all hover:scale-105 ${
                     isProcessingNext ? 'animate-pulse' : ''
                   }`}
                   style={{ background: theme.primary }}
