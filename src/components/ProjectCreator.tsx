@@ -32,7 +32,10 @@ import {
 } from './ProjectCreator/reducer';
 import { PROJECT_TEMPLATES, getAudioMixConfig } from './ProjectCreator/templates';
 import { loadVoiceCharacters, addVoiceCharacter } from '../utils/voiceStorage';
+import { loadMediaItems, addMediaItem } from '../utils/mediaStorage';
+import type { MediaItem } from '../types';
 import type { LandingData } from './Landing';
+import { VoicePickerModal } from './VoicePickerModal';
 
 // Icon mapping for templates (basic + advanced)
 const TemplateIconMap: Record<string, LucideIcon> = {
@@ -97,9 +100,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
   const [isRecommendingVoices, setIsRecommendingVoices] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  // Voice upload state
-  const voiceUploadRef = useRef<HTMLInputElement | null>(null);
-  const [uploadingForCharIndex, setUploadingForCharIndex] = useState<number | null>(null);
+  // Voice picker modal state
+  const [voicePickerCharIndex, setVoicePickerCharIndex] = useState<number | null>(null);
   // Expanded sections for viewing generated audio
   const [expandedVoiceSections, setExpandedVoiceSections] = useState<Set<string>>(new Set());
   // Track currently playing audio segment: "sectionId-lineIndex"
@@ -355,47 +357,6 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     dispatch(actions.assignVoiceToCharacter(characterIndex, voiceId));
   }, []);
 
-  // Handle voice file upload for a character
-  const handleVoiceFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || uploadingForCharIndex === null) return;
-
-    const charIndex = uploadingForCharIndex;
-    const char = extractedCharacters[charIndex];
-    if (!char) return;
-
-    try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
-      const voiceName = char.name || file.name.replace(/\.[^.]+$/, '');
-      const updatedVoices = addVoiceCharacter(availableVoices, {
-        name: voiceName,
-        description: language === 'zh'
-          ? '上传的音色'
-          : 'Uploaded voice',
-        refAudioDataUrl: dataUrl,
-        audioSampleUrl: dataUrl,
-        tags: ['uploaded'],
-      });
-
-      const newVoice = updatedVoices[updatedVoices.length - 1];
-      setAvailableVoices(updatedVoices);
-      assignVoiceToCharacter(charIndex, newVoice.id);
-    } catch (error) {
-      console.error('Failed to upload voice file:', error);
-      alert(language === 'zh' ? '上传音色文件失败' : 'Failed to upload voice file');
-    } finally {
-      setUploadingForCharIndex(null);
-      if (voiceUploadRef.current) {
-        voiceUploadRef.current.value = '';
-      }
-    }
-  }, [uploadingForCharIndex, extractedCharacters, availableVoices, language, assignVoiceToCharacter]);
 
   // AI recommend voices for all characters (Gemini Flash)
   const recommendVoicesForAll = useCallback(async () => {
@@ -699,6 +660,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   };
 
   // Media production using real APIs (BGM, SFX, Images)
+  // Note: projectId is not available yet during creation, so we use a temporary ID
+  // and will link media to project after project is created
   const performMediaProduction = async () => {
     const tasks: { type: string; label: string }[] = [];
     if (specData.addBgm) tasks.push({ type: 'bgm', label: language === 'zh' ? '生成背景音乐' : 'Generating BGM' });
@@ -709,6 +672,9 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       dispatch(actions.updateProductionPhase('media-production', 'completed', 100));
       return;
     }
+    
+    // Load current media items for adding new ones
+    let mediaItems = loadMediaItems();
     
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
@@ -727,12 +693,44 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             audioData: bgmResult.audioData,
             mimeType: bgmResult.mimeType
           }));
+          
+          // Save BGM to media library (projectIds will be updated after project creation)
+          const bgmItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
+            name: `${projectTitle || 'Project'} - BGM`,
+            description: specData.toneAndExpression || 'Background music',
+            type: 'bgm',
+            mimeType: bgmResult.mimeType,
+            dataUrl: `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`,
+            duration: 30,
+            tags: ['generated', 'bgm'],
+            projectIds: [], // Will be linked after project creation
+            source: 'generated',
+            prompt: specData.toneAndExpression || ''
+          };
+          mediaItems = addMediaItem(mediaItems, bgmItem);
+          console.log(`Added BGM to media library`);
         } else if (task.type === 'sfx') {
           // Generate sound effects from script instructions
           for (const section of scriptSections) {
             for (const item of section.timeline) {
               if (item.soundMusic?.trim()) {
-                await api.generateSoundEffect(item.soundMusic, 5);
+                const sfxResult = await api.generateSoundEffect(item.soundMusic, 5);
+                
+                // Save SFX to media library
+                const sfxItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
+                  name: `${section.name} - SFX`,
+                  description: item.soundMusic,
+                  type: 'sfx',
+                  mimeType: sfxResult.mimeType,
+                  dataUrl: `data:${sfxResult.mimeType};base64,${sfxResult.audioData}`,
+                  duration: 5,
+                  tags: ['generated', 'sfx'],
+                  projectIds: [], // Will be linked after project creation
+                  source: 'generated',
+                  prompt: item.soundMusic
+                };
+                mediaItems = addMediaItem(mediaItems, sfxItem);
+                console.log(`Added SFX to media library`);
               }
             }
           }
@@ -740,7 +738,22 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           // Generate cover images for sections
           for (const section of scriptSections) {
             if (section.coverImageDescription?.trim()) {
-              await api.generateCoverImage(section.coverImageDescription);
+              const imageResult = await api.generateCoverImage(section.coverImageDescription);
+              
+              // Save image to media library
+              const imageItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
+                name: `${section.name} - Cover`,
+                description: section.coverImageDescription,
+                type: 'image',
+                mimeType: imageResult.mimeType || 'image/png',
+                dataUrl: imageResult.imageUrl,
+                tags: ['generated', 'cover'],
+                projectIds: [], // Will be linked after project creation
+                source: 'generated',
+                prompt: section.coverImageDescription
+              };
+              mediaItems = addMediaItem(mediaItems, imageItem);
+              console.log(`Added image to media library`);
             }
           }
         }
@@ -892,6 +905,36 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         audioDurationMs: production.mixingEditing.output?.durationMs,
       } : undefined,
     });
+    
+    // Link generated media to the newly created project
+    // Find recently generated media items (created in this session) and link them to the project
+    const mediaItems = loadMediaItems();
+    const recentMediaItems = mediaItems.filter(item => {
+      // Check if this is a recently generated item (within last hour) without project association
+      const createdAt = new Date(item.createdAt).getTime();
+      const oneHourAgo = Date.now() - 60 * 60 * 1000;
+      return item.source === 'generated' && 
+             createdAt > oneHourAgo && 
+             (!item.projectIds || item.projectIds.length === 0);
+    });
+    
+    if (recentMediaItems.length > 0) {
+      // Update media items to link to this project
+      const updatedMediaItems = mediaItems.map(item => {
+        if (recentMediaItems.some(r => r.id === item.id)) {
+          return {
+            ...item,
+            projectIds: [project.id],
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return item;
+      });
+      // Save updated media items
+      localStorage.setItem('gather-media-library', JSON.stringify(updatedMediaItems));
+      console.log(`Linked ${recentMediaItems.length} media items to project ${project.id}`);
+    }
+    
     // Clear draft on successful save
     clearDraft();
     onSuccess(project.id);
@@ -1885,14 +1928,6 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   </span>
                 </div>
               </div>
-              {/* Hidden voice file upload input */}
-              <input
-                ref={voiceUploadRef}
-                type="file"
-                accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a,.aac"
-                onChange={handleVoiceFileUpload}
-                className="hidden"
-              />
               <div className="p-4 space-y-3">
                 {extractedCharacters.map((char, index) => {
                   const assignedVoiceId = char.assignedVoiceId;
@@ -1915,46 +1950,21 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                         </div>
                       </div>
                       <div className="flex items-center gap-2 pl-12 sm:pl-0">
-                        <select
-                          value={assignedVoiceId || ''}
-                          onChange={(e) => assignVoiceToCharacter(index, e.target.value)}
-                          className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg border border-t-border bg-t-card text-sm sm:text-base text-t-text1 focus:outline-none focus:border-t-border min-w-0 sm:min-w-[160px] flex-1 sm:flex-none"
-                          style={{ background: hasAssignment ? `${theme.primary}15` : 'var(--t-bg-card)' }}
-                        >
-                          <option value="" className="bg-gray-900">
-                            {language === 'zh' ? '选择音色...' : 'Select voice...'}
-                          </option>
-                          {/* System voices from Gemini TTS */}
-                          {systemVoices.length > 0 && (
-                            <optgroup label={language === 'zh' ? '系统音色' : 'System Voices'}>
-                              {systemVoices.map((voice) => (
-                                <option key={voice.id} value={voice.id} className="bg-gray-900">
-                                  {voice.name} - {language === 'zh' ? voice.descriptionZh : voice.description}
-                                </option>
-                              ))}
-                            </optgroup>
-                          )}
-                          {/* Custom voices from Voice Studio */}
-                          {availableVoices.length > 0 && (
-                            <optgroup label={language === 'zh' ? '自定义音色' : 'Custom Voices'}>
-                              {availableVoices.map((voice) => (
-                                <option key={voice.id} value={voice.id} className="bg-gray-900">
-                                  {voice.name}
-                                </option>
-                              ))}
-                            </optgroup>
-                          )}
-                        </select>
-                        {/* Upload voice file button */}
                         <button
-                          onClick={() => {
-                            setUploadingForCharIndex(index);
-                            voiceUploadRef.current?.click();
+                          onClick={() => setVoicePickerCharIndex(index)}
+                          className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg border text-sm sm:text-base font-medium transition-all hover:scale-105 flex items-center gap-2 min-w-0 sm:min-w-[160px] flex-1 sm:flex-none"
+                          style={{ 
+                            background: hasAssignment ? `${theme.primary}15` : 'var(--t-bg-card)',
+                            borderColor: hasAssignment ? theme.primary : 'var(--t-border)',
+                            color: hasAssignment ? theme.primaryLight : 'var(--t-text-2)',
                           }}
-                          className="p-2.5 rounded-lg text-t-text3 hover:text-t-text1 hover:bg-t-card-hover transition-all"
-                          title={language === 'zh' ? '上传音色文件' : 'Upload voice file'}
                         >
-                          <Upload size={18} />
+                          <Volume2 size={16} className="flex-shrink-0" />
+                          <span className="truncate">
+                            {hasAssignment 
+                              ? (assignedSystemVoice?.name || assignedCustomVoice?.name || '')
+                              : (language === 'zh' ? '选择音色...' : 'Select voice...')}
+                          </span>
                         </button>
                         {/* Play button for assigned voice */}
                         {assignedSystemVoice && (
@@ -2022,6 +2032,54 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             <Mic2 size={22} />
             {language === 'zh' ? '确认并开始语音合成' : 'Confirm & Start Voice Synthesis'}
           </button>
+
+          {/* Voice Picker Modal */}
+          {voicePickerCharIndex !== null && extractedCharacters[voicePickerCharIndex] && (
+            <VoicePickerModal
+              character={extractedCharacters[voicePickerCharIndex]}
+              systemVoices={systemVoices}
+              customVoices={availableVoices}
+              playingVoiceId={playingVoiceId}
+              loadingVoiceId={loadingVoiceId}
+              isRecommending={isRecommendingVoices}
+              onAssign={(voiceId) => {
+                assignVoiceToCharacter(voicePickerCharIndex, voiceId);
+              }}
+              onPlayVoice={playVoiceSample}
+              onCreateVoice={async (name, description, file) => {
+                const charIndex = voicePickerCharIndex;
+                try {
+                  // Read file as data URL
+                  const dataUrl = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                  });
+
+                  // Create new voice character
+                  const updatedVoices = addVoiceCharacter(availableVoices, {
+                    name: name,
+                    description: description || (language === 'zh' ? '自定义音色' : 'Custom voice'),
+                    refAudioDataUrl: dataUrl,
+                    audioSampleUrl: dataUrl,
+                    tags: ['uploaded'],
+                  });
+
+                  const newVoice = updatedVoices[updatedVoices.length - 1];
+                  setAvailableVoices(updatedVoices);
+                  
+                  // Auto-assign to character
+                  assignVoiceToCharacter(charIndex, newVoice.id);
+                } catch (error) {
+                  console.error('Failed to create voice:', error);
+                  alert(language === 'zh' ? '创建音色失败' : 'Failed to create voice');
+                  throw error;
+                }
+              }}
+              onClose={() => setVoicePickerCharIndex(null)}
+            />
+          )}
         </div>
       );
     }

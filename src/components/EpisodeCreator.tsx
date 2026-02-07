@@ -15,7 +15,10 @@ import { buildScriptGenerationPrompt } from '../services/llm/prompts';
 import * as api from '../services/api';
 import { loadVoiceCharacters } from '../utils/voiceStorage';
 import { getAudioMixConfig } from './ProjectCreator/templates';
+import { VoicePickerModal } from './VoicePickerModal';
 import type { SectionVoiceAudio, SectionVoiceStatus, ProductionProgress, MixedAudioOutput } from './ProjectCreator/reducer';
+import { loadMediaItems, addMediaItem } from '../utils/mediaStorage';
+import type { MediaItem } from '../types';
 
 interface EpisodeCreatorProps {
   project: Project;
@@ -72,6 +75,8 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
   const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
   const [isRecommendingVoices, setIsRecommendingVoices] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Voice picker modal state
+  const [voicePickerCharIndex, setVoicePickerCharIndex] = useState<number | null>(null);
   
   // Voice generation UI
   const [expandedVoiceSections, setExpandedVoiceSections] = useState<Set<string>>(new Set());
@@ -710,6 +715,9 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       return;
     }
     
+    // Load current media items for adding new ones
+    let mediaItems = loadMediaItems();
+    
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
       updateProductionPhase('media-production', 'processing', Math.round((i / tasks.length) * 100), task.label);
@@ -725,18 +733,65 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
             audioData: bgmResult.audioData,
             mimeType: bgmResult.mimeType
           });
+          
+          // Save BGM to media library and link to project
+          const bgmItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
+            name: `${title} - BGM`,
+            description: spec?.toneAndExpression || 'Background music',
+            type: 'bgm',
+            mimeType: bgmResult.mimeType,
+            dataUrl: `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`,
+            duration: 30,
+            tags: ['generated', 'bgm'],
+            projectIds: [project.id],
+            source: 'generated',
+            prompt: spec?.toneAndExpression || ''
+          };
+          mediaItems = addMediaItem(mediaItems, bgmItem);
+          console.log(`Added BGM to media library for project ${project.id}`);
         } else if (task.type === 'sfx') {
           for (const section of scriptSections) {
             for (const item of section.timeline) {
               if (item.soundMusic?.trim()) {
-                await api.generateSoundEffect(item.soundMusic, 5);
+                const sfxResult = await api.generateSoundEffect(item.soundMusic, 5);
+                
+                // Save SFX to media library and link to project
+                const sfxItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
+                  name: `${section.name} - SFX`,
+                  description: item.soundMusic,
+                  type: 'sfx',
+                  mimeType: sfxResult.mimeType,
+                  dataUrl: `data:${sfxResult.mimeType};base64,${sfxResult.audioData}`,
+                  duration: 5,
+                  tags: ['generated', 'sfx'],
+                  projectIds: [project.id],
+                  source: 'generated',
+                  prompt: item.soundMusic
+                };
+                mediaItems = addMediaItem(mediaItems, sfxItem);
+                console.log(`Added SFX to media library for project ${project.id}`);
               }
             }
           }
         } else if (task.type === 'images') {
           for (const section of scriptSections) {
             if (section.coverImageDescription?.trim()) {
-              await api.generateCoverImage(section.coverImageDescription);
+              const imageResult = await api.generateCoverImage(section.coverImageDescription);
+              
+              // Save image to media library and link to project
+              const imageItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
+                name: `${section.name} - Cover`,
+                description: section.coverImageDescription,
+                type: 'image',
+                mimeType: imageResult.mimeType || 'image/png',
+                dataUrl: imageResult.imageUrl,
+                tags: ['generated', 'cover'],
+                projectIds: [project.id],
+                source: 'generated',
+                prompt: section.coverImageDescription
+              };
+              mediaItems = addMediaItem(mediaItems, imageItem);
+              console.log(`Added image to media library for project ${project.id}`);
             }
           }
         }
@@ -847,13 +902,29 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       assignedVoiceId: char.assignedVoiceId,
     }));
 
+    // Get mixed audio output if available
+    const mixedOutput = production.mixingEditing.output;
+    
+    // Determine stage based on production progress
+    let stage: 'planning' | 'scripting' | 'recording' | 'editing' | 'review' | 'published' = 'scripting';
+    if (mixedOutput?.audioData) {
+      stage = 'review'; // Has final audio, ready for review
+    } else if (production.voiceGeneration.status === 'completed') {
+      stage = 'editing'; // Voice done, in editing phase
+    } else if (scriptSections.length > 0) {
+      stage = 'scripting'; // Has script
+    }
+
     addEpisode(project.id, {
       title: title || `Episode ${project.episodes.length + 1}`,
       description,
       script: '',
       scriptSections,
       characters: episodeCharacters,
-      stage: 'scripting',
+      audioData: mixedOutput?.audioData,
+      audioMimeType: mixedOutput?.mimeType,
+      audioDurationMs: mixedOutput?.durationMs,
+      stage,
       notes: '',
     });
 
@@ -1321,34 +1392,22 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <select
-                          value={assignedVoiceId || ''}
-                          onChange={(e) => assignVoiceToCharacter(index, e.target.value)}
-                          className="px-4 py-2.5 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border min-w-[160px]"
-                          style={{ background: hasAssignment ? `${theme.primary}15` : 'var(--t-bg-card)' }}
+                        <button
+                          onClick={() => setVoicePickerCharIndex(index)}
+                          className="px-4 py-2.5 rounded-lg border text-base font-medium transition-all hover:scale-105 flex items-center gap-2 min-w-[160px]"
+                          style={{ 
+                            background: hasAssignment ? `${theme.primary}15` : 'var(--t-bg-card)',
+                            borderColor: hasAssignment ? theme.primary : 'var(--t-border)',
+                            color: hasAssignment ? theme.primaryLight : 'var(--t-text-2)',
+                          }}
                         >
-                          <option value="" className="bg-gray-900">
-                            {language === 'zh' ? '选择音色...' : 'Select voice...'}
-                          </option>
-                          {systemVoices.length > 0 && (
-                            <optgroup label={language === 'zh' ? '系统音色' : 'System Voices'}>
-                              {systemVoices.map((voice) => (
-                                <option key={voice.id} value={voice.id} className="bg-gray-900">
-                                  {voice.name} - {language === 'zh' ? voice.descriptionZh : voice.description}
-                                </option>
-                              ))}
-                            </optgroup>
-                          )}
-                          {availableVoices.length > 0 && (
-                            <optgroup label={language === 'zh' ? '自定义音色' : 'Custom Voices'}>
-                              {availableVoices.map((voice) => (
-                                <option key={voice.id} value={voice.id} className="bg-gray-900">
-                                  {voice.name}
-                                </option>
-                              ))}
-                            </optgroup>
-                          )}
-                        </select>
+                          <Volume2 size={16} className="flex-shrink-0" />
+                          <span className="truncate">
+                            {hasAssignment 
+                              ? (assignedSystemVoice?.name || assignedCustomVoice?.name || '')
+                              : (language === 'zh' ? '选择音色...' : 'Select voice...')}
+                          </span>
+                        </button>
                         {assignedSystemVoice && (
                           <button 
                             onClick={() => playVoiceSample(assignedSystemVoice.id)}
@@ -1401,6 +1460,61 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                 </p>
               </div>
             </div>
+          )}
+
+          {/* Voice Picker Modal */}
+          {voicePickerCharIndex !== null && characters[voicePickerCharIndex] && (
+            <VoicePickerModal
+              character={characters[voicePickerCharIndex]}
+              systemVoices={systemVoices}
+              customVoices={availableVoices}
+              playingVoiceId={playingVoiceId}
+              loadingVoiceId={loadingVoiceId}
+              isRecommending={isRecommendingVoices}
+              onAssign={(voiceId) => {
+                assignVoiceToCharacter(voicePickerCharIndex, voiceId);
+              }}
+              onPlayVoice={playVoiceSample}
+              onCreateVoice={async (name, description, file) => {
+                const charIndex = voicePickerCharIndex;
+                try {
+                  // Read file as data URL
+                  const dataUrl = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                  });
+
+                  // Create new voice character using the utility function
+                  const updatedVoices = loadVoiceCharacters();
+                  const newVoice: VoiceCharacter = {
+                    id: crypto.randomUUID(),
+                    name: name,
+                    description: description || (language === 'zh' ? '自定义音色' : 'Custom voice'),
+                    refAudioDataUrl: dataUrl,
+                    audioSampleUrl: dataUrl,
+                    tags: ['uploaded'],
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  };
+
+                  const allVoices = [...updatedVoices, newVoice];
+                  // Save using localStorage
+                  localStorage.setItem('gather-voice-characters', JSON.stringify(allVoices));
+                  
+                  setAvailableVoices(allVoices);
+                  
+                  // Auto-assign to character
+                  assignVoiceToCharacter(charIndex, newVoice.id);
+                } catch (error) {
+                  console.error('Failed to create voice:', error);
+                  alert(language === 'zh' ? '创建音色失败' : 'Failed to create voice');
+                  throw error;
+                }
+              }}
+              onClose={() => setVoicePickerCharIndex(null)}
+            />
           )}
 
         </div>
