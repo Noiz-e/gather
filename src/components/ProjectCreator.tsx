@@ -696,7 +696,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           
           // Save BGM to media library (projectIds will be updated after project creation)
           const bgmItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
-            name: `${projectTitle || 'Project'} - BGM`,
+            name: `Project - BGM`,
             description: specData.toneAndExpression || 'Background music',
             type: 'bgm',
             mimeType: bgmResult.mimeType,
@@ -746,7 +746,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                 description: section.coverImageDescription,
                 type: 'image',
                 mimeType: imageResult.mimeType || 'image/png',
-                dataUrl: imageResult.imageUrl,
+                dataUrl: imageResult.imageData,
                 tags: ['generated', 'cover'],
                 projectIds: [], // Will be linked after project creation
                 source: 'generated',

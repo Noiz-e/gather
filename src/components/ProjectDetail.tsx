@@ -282,9 +282,6 @@ export function ProjectDetail({ project, onBack, onEditEpisode, onCreateEpisode 
               const totalLines = hasScript
                 ? episode.scriptSections!.reduce((acc, s) => acc + s.timeline.reduce((a, tl) => a + tl.lines.length, 0), 0)
                 : 0;
-              const totalSegments = hasScript
-                ? episode.scriptSections!.reduce((acc, s) => acc + s.timeline.length, 0)
-                : 0;
 
               return (
                 <div key={episode.id} className="rounded-lg md:rounded-xl border border-t-border-lt hover:border-t-border transition-all" style={{ background: `${theme.primary}05` }}>

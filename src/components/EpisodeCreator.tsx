@@ -784,7 +784,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                 description: section.coverImageDescription,
                 type: 'image',
                 mimeType: imageResult.mimeType || 'image/png',
-                dataUrl: imageResult.imageUrl,
+                dataUrl: imageResult.imageData,
                 tags: ['generated', 'cover'],
                 projectIds: [project.id],
                 source: 'generated',
