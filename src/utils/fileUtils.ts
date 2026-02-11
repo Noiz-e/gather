@@ -105,7 +105,7 @@ export interface CollectResult {
 export async function collectAnalysisContent(
   textContent: string,
   files: File[],
-  options: CollectOptions = {}
+  options?: CollectOptions
 ): Promise<string>;
 export async function collectAnalysisContent(
   textContent: string,

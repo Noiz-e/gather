@@ -20,13 +20,6 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const DEFAULT_RELIGION: Religion = 'default';
 const DEFAULT_COLOR_MODE: ColorMode = 'light';
 
-function getSystemColorMode(): ColorMode {
-  if (typeof window !== 'undefined' && window.matchMedia) {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-  return DEFAULT_COLOR_MODE;
-}
-
 /** Inject / update CSS custom-properties on <html> */
 function applyCssVars(religion: Religion, mode: ColorMode) {
   const varsMap = buildCssVarsMap(religion, mode);
