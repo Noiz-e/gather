@@ -215,7 +215,7 @@ CREATE TABLE episode_characters (
   
   name VARCHAR(255) NOT NULL,
   description TEXT NOT NULL DEFAULT '',
-  assigned_voice_id UUID,  -- Reference to voice_characters
+  assigned_voice_id VARCHAR(255),  -- Reference to voice_characters or system voice name
   
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -407,3 +407,20 @@ BEGIN
   );
 END;
 $$ LANGUAGE plpgsql;
+
+-- ============================================
+-- Migrations (safe to re-run)
+-- ============================================
+
+-- Allow assigned_voice_id to store system voice names (e.g. "Charon") in addition to UUIDs
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'episode_characters' 
+    AND column_name = 'assigned_voice_id' 
+    AND data_type = 'uuid'
+  ) THEN
+    ALTER TABLE episode_characters ALTER COLUMN assigned_voice_id TYPE VARCHAR(255);
+  END IF;
+END $$;

@@ -12,6 +12,7 @@ import {
 import { ReligionIconMap } from './icons/ReligionIcons';
 import { filterValidFiles, collectAnalysisContent } from '../utils/fileUtils';
 import { buildScriptGenerationPrompt } from '../services/llm/prompts';
+import { analyzeScriptCharacters } from '../services/llm';
 import * as api from '../services/api';
 import { loadVoiceCharacters } from '../utils/voiceStorage';
 import { getAudioMixConfig } from './ProjectCreator/templates';
@@ -31,6 +32,7 @@ interface ExtractedCharacter {
   name: string;
   description: string;
   assignedVoiceId?: string;
+  tags?: string[];
 }
 
 const initialProductionProgress: ProductionProgress = {
@@ -74,6 +76,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
   const [isRecommendingVoices, setIsRecommendingVoices] = useState(false);
+  const [isAnalyzingCharacters, setIsAnalyzingCharacters] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // Voice picker modal state
   const [voicePickerCharIndex, setVoicePickerCharIndex] = useState<number | null>(null);
@@ -82,6 +85,11 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
   const [expandedVoiceSections, setExpandedVoiceSections] = useState<Set<string>>(new Set());
   const [playingSegmentId, setPlayingSegmentId] = useState<string | null>(null);
   const segmentAudioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Media production preview playback
+  const [playingMediaId, setPlayingMediaId] = useState<string | null>(null);
+  const mediaAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   
   // Production state - matching ProjectCreator
   const [production, setProduction] = useState<ProductionProgress>(initialProductionProgress);
@@ -208,6 +216,64 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     }));
   }, []);
 
+  const addSfxAudio = useCallback((sfx: { name: string; prompt: string; audioData: string; mimeType: string }) => {
+    setProduction(prev => ({
+      ...prev,
+      mediaProduction: {
+        ...prev.mediaProduction,
+        sfxAudios: [...(prev.mediaProduction.sfxAudios || []), sfx],
+      },
+    }));
+  }, []);
+
+  const updateSfxAudio = useCallback((index: number, sfx: { name: string; prompt: string; audioData: string; mimeType: string }) => {
+    setProduction(prev => {
+      const sfxAudios = [...(prev.mediaProduction.sfxAudios || [])];
+      if (sfxAudios[index]) sfxAudios[index] = sfx;
+      return {
+        ...prev,
+        mediaProduction: { ...prev.mediaProduction, sfxAudios },
+      };
+    });
+  }, []);
+
+  // Regenerate a single BGM or SFX item
+  const handleRegenMedia = useCallback(async (type: 'bgm' | 'sfx', index?: number) => {
+    const regenId = type === 'bgm' ? 'bgm' : `sfx-${index}`;
+    setRegeneratingId(regenId);
+    // Stop any currently playing preview
+    if (mediaAudioRef.current) {
+      mediaAudioRef.current.pause();
+      mediaAudioRef.current = null;
+      setPlayingMediaId(null);
+    }
+    try {
+      if (type === 'bgm') {
+        const bgmResult = await api.generateBGM(
+          spec?.toneAndExpression || '',
+          'peaceful',
+          30
+        );
+        setBgmAudio({ audioData: bgmResult.audioData, mimeType: bgmResult.mimeType });
+      } else if (type === 'sfx' && index !== undefined) {
+        const sfxItem = production.mediaProduction.sfxAudios?.[index];
+        if (sfxItem) {
+          const sfxResult = await api.generateSoundEffect(sfxItem.prompt, 5);
+          updateSfxAudio(index, {
+            name: sfxItem.name,
+            prompt: sfxItem.prompt,
+            audioData: sfxResult.audioData,
+            mimeType: sfxResult.mimeType,
+          });
+        }
+      }
+    } catch (error) {
+      console.error(`Regen ${type} failed:`, error);
+    } finally {
+      setRegeneratingId(null);
+    }
+  }, [spec, production.mediaProduction.sfxAudios, setBgmAudio, updateSfxAudio]);
+
   const setMixedOutput = useCallback((output: MixedAudioOutput) => {
     setProduction(prev => ({
       ...prev,
@@ -238,6 +304,12 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       audioRef.current.pause();
       audioRef.current = null;
       setPlayingVoiceId(null);
+    }
+    // Stop media preview when leaving media production step
+    if (currentStep !== 4 && mediaAudioRef.current) {
+      mediaAudioRef.current.pause();
+      mediaAudioRef.current = null;
+      setPlayingMediaId(null);
     }
   }, [currentStep]);
 
@@ -301,9 +373,11 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     setStreamingText('');
 
     try {
-      const content = await collectAnalysisContent(textContent, uploadedFiles, { includeLabels: false });
+      const { text: content, attachments } = await collectAnalysisContent(
+        textContent, uploadedFiles, { includeLabels: false, returnAttachments: true }
+      );
 
-      if (!content.trim()) {
+      if (!content.trim() && attachments.length === 0) {
         alert(t.projectCreator?.errors?.inputOrUpload || 'Please input or upload content');
         setIsGeneratingScript(false);
         return;
@@ -323,7 +397,8 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         prompt,
         (chunk) => {
           setStreamingText(chunk.accumulated);
-        }
+        },
+        { attachments }
       );
 
       const jsonMatch = finalText.match(/```(?:json)?\s*([\s\S]*?)```/) || 
@@ -381,6 +456,31 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                         ...item,
                         lines: item.lines.map((line, idx) =>
                           idx === lineIndex ? { ...line, [field]: value } : line
+                        )
+                      }
+                    : item
+                )
+              }
+            : section
+        )
+      );
+    },
+    []
+  );
+
+  const setLinePause = useCallback(
+    (sectionId: string, itemId: string, lineIndex: number, pauseAfterMs: number | undefined) => {
+      setScriptSections(sections =>
+        sections.map(section =>
+          section.id === sectionId
+            ? {
+                ...section,
+                timeline: section.timeline.map(item =>
+                  item.id === itemId
+                    ? {
+                        ...item,
+                        lines: item.lines.map((line, idx) =>
+                          idx === lineIndex ? { ...line, pauseAfterMs } : line
                         )
                       }
                     : item
@@ -479,14 +579,34 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         });
       });
     });
-    const extractedChars: ExtractedCharacter[] = Array.from(speakerSet).map(name => ({
+    const charNames = Array.from(speakerSet);
+    const extractedChars: ExtractedCharacter[] = charNames.map(name => ({
       name,
       description: '',
       assignedVoiceId: undefined,
     }));
     setCharacters(extractedChars);
     setAvailableVoices(loadVoiceCharacters());
-  }, [scriptSections]);
+
+    // Async: analyze character tags in background (non-blocking)
+    if (charNames.length > 0) {
+      setIsAnalyzingCharacters(true);
+      analyzeScriptCharacters(
+        JSON.stringify(scriptSections),
+        charNames,
+        language === 'zh' ? 'zh' : 'en'
+      ).then(tags => {
+        setCharacters(prev => prev.map(char => ({
+          ...char,
+          tags: tags[char.name]?.length ? tags[char.name] : char.tags,
+        })));
+      }).catch(err => {
+        console.error('Character analysis failed:', err);
+      }).finally(() => {
+        setIsAnalyzingCharacters(false);
+      });
+    }
+  }, [scriptSections, language]);
 
   const assignVoiceToCharacter = useCallback(
     (characterIndex: number, voiceId: string) => {
@@ -585,21 +705,27 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
   const generateVoiceForSection = async (section: ScriptSection): Promise<boolean> => {
     const sectionId = section.id;
     
-    const segments: Array<{ text: string; speaker: string; refAudioDataUrl?: string; lineIndex: number }> = [];
+    const segments: Array<{ text: string; speaker: string; voiceName?: string; refAudioDataUrl?: string; lineIndex: number; pauseAfterMs?: number }> = [];
     let lineIndex = 0;
     
     for (const item of section.timeline) {
       for (const line of item.lines) {
         if (line.line.trim()) {
           const character = characters.find(c => c.name === line.speaker);
-          const customVoice = availableVoices.find(v => v.id === character?.assignedVoiceId);
+          const assignedId = character?.assignedVoiceId;
+          const customVoice = availableVoices.find(v => v.id === assignedId);
+          const systemVoice = systemVoices.find(v => v.id === assignedId);
           const refAudioDataUrl = customVoice?.refAudioDataUrl || customVoice?.audioSampleUrl;
+          // System voices use voiceName (Gemini TTS), custom voices use refAudioDataUrl
+          const voiceName = systemVoice ? systemVoice.id : undefined;
           
           segments.push({
             text: line.line,
             speaker: line.speaker || 'Narrator',
+            voiceName,
             refAudioDataUrl,
-            lineIndex
+            lineIndex,
+            pauseAfterMs: line.pauseAfterMs
           });
         }
         lineIndex++;
@@ -619,6 +745,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       const batchSegments: api.AudioSegment[] = segments.map(seg => ({
         text: seg.text,
         speaker: seg.speaker,
+        voiceName: seg.voiceName,
         refAudioDataUrl: seg.refAudioDataUrl
       }));
       
@@ -634,7 +761,8 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
             speaker: segment.speaker,
             text: segment.text,
             audioData: generated.audioData,
-            mimeType: generated.mimeType
+            mimeType: generated.mimeType,
+            pauseAfterMs: segment.pauseAfterMs
           };
           addSectionVoiceAudio(sectionId, audio);
         }
@@ -755,6 +883,14 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               if (item.soundMusic?.trim()) {
                 const sfxResult = await api.generateSoundEffect(item.soundMusic, 5);
                 
+                // Save SFX to production state for preview
+                addSfxAudio({
+                  name: `${section.name} - SFX`,
+                  prompt: item.soundMusic,
+                  audioData: sfxResult.audioData,
+                  mimeType: sfxResult.mimeType,
+                });
+                
                 // Save SFX to media library and link to project
                 const sfxItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
                   name: `${section.name} - SFX`,
@@ -819,14 +955,18 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       for (const section of scriptSections) {
         const sectionStatus = production.voiceGeneration.sectionStatus[section.id];
         if (sectionStatus?.audioSegments) {
+          let isFirstInSection = true;
           for (const segment of sectionStatus.audioSegments) {
             if (segment.audioData) {
               voiceTracks.push({
                 audioData: segment.audioData,
                 mimeType: segment.mimeType || 'audio/wav',
                 speaker: segment.speaker,
+                sectionStart: isFirstInSection, // Mark first segment of each section
+                pauseAfterMs: segment.pauseAfterMs, // Custom per-line pause
                 volume: 1
               });
+              isFirstInSection = false;
             }
           }
         }
@@ -900,6 +1040,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       name: char.name,
       description: char.description,
       assignedVoiceId: char.assignedVoiceId,
+      tags: char.tags,
     }));
 
     // Get mixed audio output if available
@@ -1252,35 +1393,80 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                     </div>
                     
                     {/* Lines (Speaker + Line pairs) */}
-                    <div className="space-y-3">
-                      <label className="block text-xs text-t-text3">{t.projectCreator.lines}</label>
+                    <div className="space-y-0">
+                      <label className="block text-xs text-t-text3 mb-3">{t.projectCreator.lines}</label>
                       {(item.lines || []).map((scriptLine, lineIndex) => (
-                        <div key={lineIndex} className="flex items-start gap-3">
-                          <input 
-                            type="text" 
-                            value={scriptLine.speaker} 
-                            onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
-                            placeholder={t.projectCreator.speaker}
-                            className="w-28 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none flex-shrink-0" 
-                          />
-                          <textarea 
-                            value={scriptLine.line} 
-                            onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
-                            placeholder={t.projectCreator.lineContent}
-                            rows={2}
-                            className="flex-1 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none resize-none" 
-                          />
-                          <button 
-                            onClick={() => removeScriptLine(section.id, item.id, lineIndex)} 
-                            className="p-2 rounded hover:bg-red-500/20 text-t-text3 hover:text-red-400 flex-shrink-0"
-                          >
-                            <X size={14} />
-                          </button>
+                        <div key={lineIndex}>
+                          <div className="flex items-start gap-3">
+                            <input 
+                              type="text" 
+                              value={scriptLine.speaker} 
+                              onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
+                              placeholder={t.projectCreator.speaker}
+                              className="w-28 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none flex-shrink-0" 
+                            />
+                            <textarea 
+                              value={scriptLine.line} 
+                              onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
+                              placeholder={t.projectCreator.lineContent}
+                              rows={2}
+                              className="flex-1 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none resize-none" 
+                            />
+                            <button 
+                              onClick={() => removeScriptLine(section.id, item.id, lineIndex)} 
+                              className="p-2 rounded hover:bg-red-500/20 text-t-text3 hover:text-red-400 flex-shrink-0"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                          {/* Pause insertion zone between lines */}
+                          {lineIndex < (item.lines || []).length - 1 && (
+                            <div className="group/pause relative my-1 min-h-[16px] flex items-center">
+                              {scriptLine.pauseAfterMs == null ? (
+                                <div className="w-full opacity-0 group-hover/pause:opacity-100 transition-opacity duration-150 flex items-center gap-2">
+                                  <div className="flex-1 border-t border-dashed border-t-border" />
+                                  <button
+                                    onClick={() => setLinePause(section.id, item.id, lineIndex, 500)}
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] text-t-text3 hover:text-t-text1 hover:bg-t-bg2 transition-all"
+                                  >
+                                    <Pause size={9} />{t.projectCreator.addPause}
+                                  </button>
+                                  <div className="flex-1 border-t border-dashed border-t-border" />
+                                </div>
+                              ) : (
+                                <div className="w-full flex items-center gap-2">
+                                  <div className="flex-1 border-t border-dashed border-amber-500/40" />
+                                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 rounded-full">
+                                    <Pause size={9} className="text-amber-500" />
+                                    <input
+                                      type="number"
+                                      value={scriptLine.pauseAfterMs}
+                                      onChange={(e) => {
+                                        const v = parseInt(e.target.value);
+                                        if (v > 0) setLinePause(section.id, item.id, lineIndex, v);
+                                      }}
+                                      className="w-14 bg-transparent text-amber-600 dark:text-amber-400 text-[11px] text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                      min={50}
+                                      step={100}
+                                    />
+                                    <span className="text-[10px] text-amber-600/70 dark:text-amber-400/70">{t.projectCreator.pauseMs}</span>
+                                    <button
+                                      onClick={() => setLinePause(section.id, item.id, lineIndex, undefined)}
+                                      className="ml-0.5 p-0.5 rounded-full hover:bg-amber-500/20 text-amber-500/60 hover:text-amber-500 transition-all"
+                                    >
+                                      <X size={10} />
+                                    </button>
+                                  </div>
+                                  <div className="flex-1 border-t border-dashed border-amber-500/40" />
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
                       <button 
                         onClick={() => addScriptLine(section.id, item.id)} 
-                        className="flex items-center gap-1.5 text-xs text-t-text3 hover:text-t-text2"
+                        className="flex items-center gap-1.5 text-xs text-t-text3 hover:text-t-text2 mt-3"
                       >
                         <Plus size={12} />{t.projectCreator.addLine}
                       </button>
@@ -1389,6 +1575,29 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                         <p className="text-base text-t-text1 font-medium truncate">{char.name}</p>
                         {char.description && (
                           <p className="text-sm text-t-text3 truncate">{char.description}</p>
+                        )}
+                        {/* Character tags (gender, age, voice style, etc.) */}
+                        {char.tags && char.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {char.tags.map((tag, tagIdx) => (
+                              <span 
+                                key={tagIdx}
+                                className="inline-block text-[10px] sm:text-[11px] px-1.5 py-0.5 rounded-full"
+                                style={{ background: `${theme.primary}15`, color: theme.primaryLight }}
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {/* Loading indicator for tag analysis */}
+                        {isAnalyzingCharacters && (!char.tags || char.tags.length === 0) && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <Loader2 size={10} className="animate-spin text-t-text3" />
+                            <span className="text-[10px] text-t-text3">
+                              {language === 'zh' ? '分析角色特征...' : 'Analyzing character...'}
+                            </span>
+                          </div>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
@@ -1873,6 +2082,120 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
             </div>
           )}
         </div>
+
+        {/* Audio Preview - shown when generation is completed */}
+        {mediaProduction.status === 'completed' && (mediaProduction.bgmAudio || (mediaProduction.sfxAudios && mediaProduction.sfxAudios.length > 0)) && (
+          <div className="space-y-3 mt-2">
+            <h4 className="text-sm font-medium text-t-text2">
+              {language === 'zh' ? '生成预览' : 'Generated Preview'}
+            </h4>
+
+            {/* BGM Preview */}
+            {mediaProduction.bgmAudio && (
+              <div
+                className="flex items-center gap-3 p-3 rounded-lg border border-t-border"
+                style={{ background: 'var(--t-bg-card)' }}
+              >
+                <button
+                  disabled={regeneratingId === 'bgm'}
+                  onClick={() => {
+                    if (playingMediaId === 'bgm') {
+                      mediaAudioRef.current?.pause();
+                      mediaAudioRef.current = null;
+                      setPlayingMediaId(null);
+                    } else {
+                      if (mediaAudioRef.current) {
+                        mediaAudioRef.current.pause();
+                        mediaAudioRef.current = null;
+                      }
+                      const url = api.audioDataToUrl(mediaProduction.bgmAudio!.audioData, mediaProduction.bgmAudio!.mimeType);
+                      const audio = new Audio(url);
+                      audio.onended = () => { setPlayingMediaId(null); mediaAudioRef.current = null; };
+                      audio.onerror = () => { setPlayingMediaId(null); mediaAudioRef.current = null; };
+                      audio.play().catch(() => { setPlayingMediaId(null); });
+                      mediaAudioRef.current = audio;
+                      setPlayingMediaId('bgm');
+                    }
+                  }}
+                  className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:opacity-80"
+                  style={{ background: theme.primary, opacity: regeneratingId === 'bgm' ? 0.5 : 1 }}
+                >
+                  {regeneratingId === 'bgm' ? <Loader2 size={14} className="text-white animate-spin" /> : playingMediaId === 'bgm' ? <Square size={14} className="text-white" /> : <Play size={14} className="text-white ml-0.5" />}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-t-text1 truncate">
+                    <Music size={14} className="inline mr-1.5" style={{ color: theme.primaryLight }} />
+                    BGM
+                  </p>
+                  <p className="text-xs text-t-text3 truncate">{spec?.toneAndExpression || 'Background music'}</p>
+                </div>
+                <button
+                  disabled={regeneratingId !== null}
+                  onClick={() => handleRegenMedia('bgm')}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 border border-t-border transition-all hover:bg-t-card-hover disabled:opacity-40"
+                  title={language === 'zh' ? '重新生成' : 'Regenerate'}
+                >
+                  <RefreshCw size={14} className={`text-t-text3 ${regeneratingId === 'bgm' ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+            )}
+
+            {/* SFX Previews */}
+            {mediaProduction.sfxAudios?.map((sfx, idx) => {
+              const sfxId = `sfx-${idx}`;
+              const isRegenerating = regeneratingId === sfxId;
+              return (
+              <div
+                key={sfxId}
+                className="flex items-center gap-3 p-3 rounded-lg border border-t-border"
+                style={{ background: 'var(--t-bg-card)' }}
+              >
+                <button
+                  disabled={isRegenerating}
+                  onClick={() => {
+                    if (playingMediaId === sfxId) {
+                      mediaAudioRef.current?.pause();
+                      mediaAudioRef.current = null;
+                      setPlayingMediaId(null);
+                    } else {
+                      if (mediaAudioRef.current) {
+                        mediaAudioRef.current.pause();
+                        mediaAudioRef.current = null;
+                      }
+                      const url = api.audioDataToUrl(sfx.audioData, sfx.mimeType);
+                      const audio = new Audio(url);
+                      audio.onended = () => { setPlayingMediaId(null); mediaAudioRef.current = null; };
+                      audio.onerror = () => { setPlayingMediaId(null); mediaAudioRef.current = null; };
+                      audio.play().catch(() => { setPlayingMediaId(null); });
+                      mediaAudioRef.current = audio;
+                      setPlayingMediaId(sfxId);
+                    }
+                  }}
+                  className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:opacity-80"
+                  style={{ background: theme.primary, opacity: isRegenerating ? 0.5 : 1 }}
+                >
+                  {isRegenerating ? <Loader2 size={14} className="text-white animate-spin" /> : playingMediaId === sfxId ? <Square size={14} className="text-white" /> : <Play size={14} className="text-white ml-0.5" />}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-t-text1 truncate">
+                    <Volume2 size={14} className="inline mr-1.5" style={{ color: theme.primaryLight }} />
+                    {sfx.name}
+                  </p>
+                  <p className="text-xs text-t-text3 truncate">{sfx.prompt}</p>
+                </div>
+                <button
+                  disabled={regeneratingId !== null}
+                  onClick={() => handleRegenMedia('sfx', idx)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 border border-t-border transition-all hover:bg-t-card-hover disabled:opacity-40"
+                  title={language === 'zh' ? '重新生成' : 'Regenerate'}
+                >
+                  <RefreshCw size={14} className={`text-t-text3 ${isRegenerating ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };

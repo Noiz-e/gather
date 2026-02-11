@@ -83,6 +83,7 @@ export function saveDraft(
             mediaProduction: {
               ...state.production.mediaProduction,
               bgmAudio: undefined,
+              sfxAudios: undefined,
             },
             mixingEditing: {
               ...state.production.mixingEditing,
@@ -153,6 +154,7 @@ export interface SectionVoiceAudio {
   text: string;
   audioData: string;
   mimeType: string;
+  pauseAfterMs?: number; // Custom pause after this segment
 }
 
 export interface SectionVoiceStatus {
@@ -186,6 +188,13 @@ export interface ProductionProgress {
       audioData: string;
       mimeType: string;
     };
+    // Generated SFX items (if any)
+    sfxAudios?: Array<{
+      name: string;
+      prompt: string;
+      audioData: string;
+      mimeType: string;
+    }>;
   };
   mixingEditing: {
     status: 'idle' | 'processing' | 'completed' | 'error';
@@ -268,6 +277,7 @@ type Action =
   | { type: 'UPDATE_SECTION_COVER'; sectionId: string; coverImageDescription: string }
   | { type: 'UPDATE_TIMELINE_ITEM'; sectionId: string; itemId: string; field: string; value: string }
   | { type: 'UPDATE_SCRIPT_LINE'; sectionId: string; itemId: string; lineIndex: number; field: 'speaker' | 'line'; value: string }
+  | { type: 'SET_LINE_PAUSE'; sectionId: string; itemId: string; lineIndex: number; pauseAfterMs: number | undefined }
   | { type: 'ADD_SCRIPT_LINE'; sectionId: string; itemId: string }
   | { type: 'REMOVE_SCRIPT_LINE'; sectionId: string; itemId: string; lineIndex: number }
   | { type: 'ADD_TIMELINE_ITEM'; sectionId: string }
@@ -276,6 +286,7 @@ type Action =
   | { type: 'SET_CHARACTERS'; payload: EpisodeCharacter[] }
   | { type: 'ASSIGN_VOICE_TO_CHARACTER'; characterIndex: number; voiceId: string }
   | { type: 'EXTRACT_CHARACTERS_FROM_SCRIPT' }
+  | { type: 'UPDATE_CHARACTER_TAGS'; tags: Record<string, string[]> }
   // Production progress
   | { type: 'UPDATE_PRODUCTION_PHASE'; phase: ProductionPhase; status: 'idle' | 'processing' | 'completed' | 'error'; progress: number; detail?: string }
   | { type: 'RESET_PRODUCTION' }
@@ -283,6 +294,8 @@ type Action =
   | { type: 'SET_MIXED_OUTPUT'; output: MixedAudioOutput }
   | { type: 'SET_MIXING_ERROR'; error: string }
   | { type: 'SET_BGM_AUDIO'; audio: { audioData: string; mimeType: string } }
+  | { type: 'ADD_SFX_AUDIO'; sfx: { name: string; prompt: string; audioData: string; mimeType: string } }
+  | { type: 'UPDATE_SFX_AUDIO'; index: number; sfx: { name: string; prompt: string; audioData: string; mimeType: string } }
   // Section-level voice generation
   | { type: 'UPDATE_SECTION_VOICE_STATUS'; sectionId: string; status: SectionVoiceStatus['status']; progress?: number; error?: string }
   | { type: 'ADD_SECTION_VOICE_AUDIO'; sectionId: string; audio: SectionVoiceAudio }
@@ -396,6 +409,14 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
       break;
     }
 
+    case 'SET_LINE_PAUSE': {
+      const item = findTimelineItem(state.scriptSections, action.sectionId, action.itemId);
+      if (item?.lines?.[action.lineIndex]) {
+        item.lines[action.lineIndex].pauseAfterMs = action.pauseAfterMs;
+      }
+      break;
+    }
+
     case 'ADD_SCRIPT_LINE': {
       const item = findTimelineItem(state.scriptSections, action.sectionId, action.itemId);
       if (item) {
@@ -465,8 +486,19 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
       state.characters = Array.from(speakers).map(name => ({
         name,
         description: '',
-        assignedVoiceId: undefined
+        assignedVoiceId: undefined,
+        tags: undefined
       }));
+      break;
+    }
+
+    case 'UPDATE_CHARACTER_TAGS': {
+      const { tags } = action;
+      for (const char of state.characters) {
+        if (tags[char.name] && tags[char.name].length > 0) {
+          char.tags = tags[char.name];
+        }
+      }
       break;
     }
 
@@ -503,6 +535,19 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
 
     case 'SET_BGM_AUDIO':
       state.production.mediaProduction.bgmAudio = action.audio;
+      break;
+
+    case 'ADD_SFX_AUDIO':
+      if (!state.production.mediaProduction.sfxAudios) {
+        state.production.mediaProduction.sfxAudios = [];
+      }
+      state.production.mediaProduction.sfxAudios.push(action.sfx);
+      break;
+
+    case 'UPDATE_SFX_AUDIO':
+      if (state.production.mediaProduction.sfxAudios && state.production.mediaProduction.sfxAudios[action.index]) {
+        state.production.mediaProduction.sfxAudios[action.index] = action.sfx;
+      }
       break;
 
     // Section-level voice generation
@@ -612,6 +657,8 @@ export const actions = {
     ({ type: 'ADD_SCRIPT_LINE', sectionId, itemId }),
   removeScriptLine: (sectionId: string, itemId: string, lineIndex: number): Action => 
     ({ type: 'REMOVE_SCRIPT_LINE', sectionId, itemId, lineIndex }),
+  setLinePause: (sectionId: string, itemId: string, lineIndex: number, pauseAfterMs: number | undefined): Action =>
+    ({ type: 'SET_LINE_PAUSE', sectionId, itemId, lineIndex, pauseAfterMs }),
   addTimelineItem: (sectionId: string): Action => 
     ({ type: 'ADD_TIMELINE_ITEM', sectionId }),
   removeTimelineItem: (sectionId: string, itemId: string): Action => 
@@ -624,6 +671,8 @@ export const actions = {
     ({ type: 'ASSIGN_VOICE_TO_CHARACTER', characterIndex, voiceId }),
   extractCharactersFromScript: (): Action => 
     ({ type: 'EXTRACT_CHARACTERS_FROM_SCRIPT' }),
+  updateCharacterTags: (tags: Record<string, string[]>): Action =>
+    ({ type: 'UPDATE_CHARACTER_TAGS', tags }),
   
   // Production progress
   updateProductionPhase: (
@@ -640,6 +689,10 @@ export const actions = {
     ({ type: 'SET_MIXING_ERROR', error }),
   setBgmAudio: (audio: { audioData: string; mimeType: string }): Action =>
     ({ type: 'SET_BGM_AUDIO', audio }),
+  addSfxAudio: (sfx: { name: string; prompt: string; audioData: string; mimeType: string }): Action =>
+    ({ type: 'ADD_SFX_AUDIO', sfx }),
+  updateSfxAudio: (index: number, sfx: { name: string; prompt: string; audioData: string; mimeType: string }): Action =>
+    ({ type: 'UPDATE_SFX_AUDIO', index, sfx }),
   
   // Section-level voice generation
   updateSectionVoiceStatus: (

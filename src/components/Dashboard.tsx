@@ -31,9 +31,9 @@ export function Dashboard({ onCreateProject, onViewProjects }: DashboardProps) {
       <div>
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-light text-t-text1 tracking-wide">
-            {t.dashboard.welcome}{user?.displayName ? `, ${user.displayName}` : ''}
+            {t.dashboard.welcome}
           </h1>
-          {user && <RoleBadge role={user.role} size="md" />}
+          {user && <RoleBadge role={user.role} size="sm" />}
         </div>
         <p className="text-t-text3 mt-1 text-sm md:text-base">
           {religionT.description}

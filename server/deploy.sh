@@ -45,7 +45,7 @@ gcloud run deploy $SERVICE_NAME \
 
 echo "✅ Backend deployment complete!"
 
-# Get the service URL
+# Get the service URL (for reference)
 echo ""
 echo "📡 Getting service URL..."
 SERVICE_URL=$(gcloud run services describe $SERVICE_NAME \
@@ -55,13 +55,16 @@ SERVICE_URL=$(gcloud run services describe $SERVICE_NAME \
 
 echo "   Service URL: $SERVICE_URL"
 
-# Update .env.production with the new API URL
+# Use custom domain for API (mapped via Cloud Run domain mapping)
+CUSTOM_API_URL="https://api.gatherin.org"
+API_BASE="${CUSTOM_API_URL}/api"
+
+# Update .env.production with the custom domain API URL
 ENV_FILE="$FRONTEND_DIR/.env.production"
-API_BASE="${SERVICE_URL}/api"
 
 echo ""
 echo "📝 Updating $ENV_FILE..."
-echo "# Production API endpoint (Cloud Run)" > "$ENV_FILE"
+echo "# Production API endpoint (Cloud Run via custom domain)" > "$ENV_FILE"
 echo "VITE_API_BASE=$API_BASE" >> "$ENV_FILE"
 echo "   VITE_API_BASE=$API_BASE"
 

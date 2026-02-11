@@ -175,6 +175,7 @@ const tokens: Record<Religion, Record<ColorMode, TokenValues>> = {
 
 /**
  * Generate a CSS variables string to inject into :root / document.
+ * @deprecated Use buildCssVarsMap() for better performance
  */
 export function buildCssVars(religion: Religion, mode: ColorMode): string {
   const t = tokens[religion][mode];
@@ -198,6 +199,33 @@ export function buildCssVars(religion: Religion, mode: ColorMode): string {
     `${themeVars.glow}:${t.glow}`,
     `${themeVars.glowStrong}:${t.glowStrong}`,
   ].join(';');
+}
+
+/**
+ * Generate CSS variables as a map for better performance (no string parsing needed).
+ */
+export function buildCssVarsMap(religion: Religion, mode: ColorMode): Record<string, string> {
+  const t = tokens[religion][mode];
+  return {
+    [themeVars.primary]: t.primary,
+    [themeVars.primaryLight]: t.primaryLight,
+    [themeVars.primaryDark]: t.primaryDark,
+    [themeVars.accent]: t.accent,
+    [themeVars.accentLight]: t.accentLight,
+    [themeVars.bg]: t.bg,
+    [themeVars.bgBase]: t.bgBase,
+    [themeVars.bgCard]: t.bgCard,
+    [themeVars.bgCardHover]: t.bgCardHover,
+    [themeVars.surface]: t.surface,
+    [themeVars.surfaceMuted]: t.surfaceMuted,
+    [themeVars.text1]: t.text1,
+    [themeVars.text2]: t.text2,
+    [themeVars.text3]: t.text3,
+    [themeVars.border]: t.border,
+    [themeVars.borderLight]: t.borderLight,
+    [themeVars.glow]: t.glow,
+    [themeVars.glowStrong]: t.glowStrong,
+  };
 }
 
 // ---- Legacy compat layer (used by components not yet migrated) ----

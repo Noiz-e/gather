@@ -24,6 +24,7 @@ export type ProjectStage =
 export interface ScriptLine {
   speaker: string;
   line: string;
+  pauseAfterMs?: number; // Custom pause after this line (overrides default gap)
 }
 
 // Script timeline item for episode
@@ -49,6 +50,8 @@ export interface EpisodeCharacter {
   name: string;
   description: string;
   assignedVoiceId?: string;
+  /** Tags extracted from script analysis (e.g. gender, age group, voice style) */
+  tags?: string[];
 }
 
 export interface Episode {

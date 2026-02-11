@@ -7,6 +7,8 @@ interface AudioTrack {
   audioData: string;  // base64
   mimeType: string;
   speaker?: string;   // Speaker identifier for gap calculation
+  sectionStart?: boolean; // True if this is the first segment of a new section
+  pauseAfterMs?: number; // Custom pause after this track (overrides default gap)
   startMs?: number;   // Start time offset (for future timeline editing)
   volume?: number;    // 0-1, default 1
 }
@@ -310,14 +312,25 @@ function concatenateWithGaps(
     // Add gap before this track (not before first track)
     if (i > 0) {
       let gapMs: number;
-      const currentSpeaker = track.speaker;
+      const prevTrack = tracks[i - 1];
       
-      if (currentSpeaker && previousSpeaker && currentSpeaker === previousSpeaker) {
-        // Same speaker - shorter gap
-        gapMs = config.sameSpeakerGapMs;
+      // Priority: previous track's custom pauseAfterMs > section gap > speaker-based gap
+      if (prevTrack.pauseAfterMs != null && prevTrack.pauseAfterMs > 0) {
+        // Custom per-line pause set by user
+        gapMs = prevTrack.pauseAfterMs;
+      } else if (track.sectionStart && config.sectionGapMs > 0) {
+        // Section boundary - use longer section gap
+        gapMs = config.sectionGapMs;
       } else {
-        // Different speaker or no speaker info - longer gap
-        gapMs = config.differentSpeakerGapMs;
+        const currentSpeaker = track.speaker;
+        
+        if (currentSpeaker && previousSpeaker && currentSpeaker === previousSpeaker) {
+          // Same speaker - shorter gap
+          gapMs = config.sameSpeakerGapMs;
+        } else {
+          // Different speaker or no speaker info - longer gap
+          gapMs = config.differentSpeakerGapMs;
+        }
       }
       
       if (gapMs > 0) {
@@ -472,6 +485,7 @@ mixRouter.post('/', async (req: Request, res: Response) => {
     console.log(`Mixing ${voiceTracks.length} voice tracks${bgmTrack ? ' with BGM' : ''}`);
     console.log(`Config: silenceStart=${config.silenceStartMs}ms, silenceEnd=${config.silenceEndMs}ms, ` +
       `sameSpeakerGap=${config.sameSpeakerGapMs}ms, diffSpeakerGap=${config.differentSpeakerGapMs}ms, ` +
+      `sectionGap=${config.sectionGapMs}ms, ` +
       `bgmVolume=${config.bgmVolume}, bgmFadeIn=${config.bgmFadeInMs}ms, bgmFadeOut=${config.bgmFadeOutMs}ms`);
     
     // Step 1: Concatenate all voice tracks with gaps

@@ -32,8 +32,8 @@
   },
   "religions": {
     "default": {
-      "name": "Predeterminado",
-      "description": "Estilo de diseño moderno, limpio y elegante"
+      "name": "Estudio de Audio Profesional",
+      "description": "Gestiona tus proyectos y entradas en un solo lugar."
     },
     "educational": {
       "name": "Educativo",
@@ -45,17 +45,17 @@
     }
   },
   "dashboard": {
-    "welcome": "Bienvenido de Nuevo",
+    "welcome": "Espacio de Trabajo",
     "createNew": "Crear Nuevo Proyecto",
-    "viewAll": "Ver Todo",
-    "podcastProjects": "Proyectos de Podcast",
-    "totalEpisodes": "Total de Episodios",
+    "viewAll": "Ver todos los proyectos",
+    "podcastProjects": "Proyectos",
+    "totalEpisodes": "Total de Entradas",
     "inProgress": "En Progreso",
     "recentProjects": "Proyectos Recientes",
     "noProjects": "Aún no hay proyectos. ¡Crea tu primer podcast!",
     "episodes": "episodios",
     "updatedAt": "Actualizado el",
-    "newProduction": "Nueva Producción",
+    "newProduction": "Nuevo Proyecto",
     "inputPlaceholder": "Describe tu idea de podcast, pega un guión o suelta un archivo...",
     "uploadFile": "Subir",
     "filesSelected": "archivos",

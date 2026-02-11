@@ -13,11 +13,96 @@ interface RequestOptions {
   apiKey?: string;
 }
 
+// ============ Session Expiry Handling ============
+
+// Callback registered by AuthContext to handle session expiry (redirect to login)
+let _onSessionExpired: (() => void) | null = null;
+
+/**
+ * Register a callback that fires when session is expired and cannot be refreshed.
+ * Called by AuthContext on mount.
+ */
+export function onSessionExpired(callback: () => void) {
+  _onSessionExpired = callback;
+}
+
+// Flag to prevent multiple concurrent refresh attempts
+let _isRefreshing = false;
+let _refreshPromise: Promise<boolean> | null = null;
+
+/**
+ * Try to refresh the access token via the refresh endpoint
+ */
+async function tryRefreshToken(): Promise<boolean> {
+  // If already refreshing, wait for the existing attempt
+  if (_isRefreshing && _refreshPromise) {
+    return _refreshPromise;
+  }
+
+  _isRefreshing = true;
+  _refreshPromise = (async () => {
+    try {
+      const response = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      return response.ok;
+    } catch {
+      return false;
+    } finally {
+      _isRefreshing = false;
+      _refreshPromise = null;
+    }
+  })();
+
+  return _refreshPromise;
+}
+
+/**
+ * Wrapper around fetch that handles 401 errors by:
+ * 1. Attempting to refresh the access token
+ * 2. Retrying the original request once
+ * 3. If refresh fails, triggering session expiry (redirect to login)
+ */
+export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const response = await fetch(input, init);
+
+  if (response.status === 401) {
+    // Don't try to refresh if the request itself is a refresh or auth endpoint
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    if (url.includes('/auth/refresh') || url.includes('/auth/login') || url.includes('/auth/register')) {
+      return response;
+    }
+
+    // Try to refresh the token
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      // Retry the original request
+      return fetch(input, init);
+    }
+
+    // Refresh failed — session is expired, trigger redirect to login
+    if (_onSessionExpired) {
+      _onSessionExpired();
+    }
+  }
+
+  return response;
+}
+
 // ============ LLM API ============
+
+/** File attachment for multimodal input — sent as base64 inlineData to Gemini */
+export interface FileAttachment {
+  data: string;      // base64 encoded
+  mimeType: string;  // e.g. 'application/pdf', 'text/plain'
+  name?: string;     // optional filename
+}
 
 export interface LLMGenerateOptions extends RequestOptions {
   temperature?: number;
   maxTokens?: number;
+  attachments?: FileAttachment[];
 }
 
 export interface LLMResponse {
@@ -33,7 +118,7 @@ export interface StreamChunk {
  * Generate text using Gemini via backend
  */
 export async function generateText(prompt: string, options: LLMGenerateOptions = {}): Promise<string> {
-  const response = await fetch(`${API_BASE}/llm/generate`, {
+  const response = await apiFetch(`${API_BASE}/llm/generate`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -41,7 +126,8 @@ export async function generateText(prompt: string, options: LLMGenerateOptions =
       prompt,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
-      apiKey: options.apiKey
+      apiKey: options.apiKey,
+      attachments: options.attachments,
     })
   });
   
@@ -62,7 +148,7 @@ export async function generateTextStream(
   onChunk: (chunk: StreamChunk) => void,
   options: LLMGenerateOptions = {}
 ): Promise<string> {
-  const response = await fetch(`${API_BASE}/llm/stream`, {
+  const response = await apiFetch(`${API_BASE}/llm/stream`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -70,7 +156,8 @@ export async function generateTextStream(
       prompt,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
-      apiKey: options.apiKey
+      apiKey: options.apiKey,
+      attachments: options.attachments,
     })
   });
   
@@ -152,7 +239,7 @@ export interface TTSStatusResult {
  * Get available voices
  */
 export async function getVoices(): Promise<Voice[]> {
-  const response = await fetch(`${API_BASE}/voice/voices`, fetchOptions);
+  const response = await apiFetch(`${API_BASE}/voice/voices`, fetchOptions);
   
   if (!response.ok) {
     throw new Error('Failed to fetch voices');
@@ -173,7 +260,7 @@ export interface RecommendVoicesParams {
  * Returns voice IDs in same order as characters
  */
 export async function recommendVoices(params: RecommendVoicesParams): Promise<string[]> {
-  const response = await fetch(`${API_BASE}/voice/recommend`, {
+  const response = await apiFetch(`${API_BASE}/voice/recommend`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -195,7 +282,7 @@ export async function recommendVoices(params: RecommendVoicesParams): Promise<st
  * Get voice sample for preview (pre-generated)
  */
 export async function getVoiceSample(voiceId: string, language: 'en' | 'zh' = 'en'): Promise<VoiceSampleResult> {
-  const response = await fetch(`${API_BASE}/voice/sample/${voiceId}?lang=${language}`, fetchOptions);
+  const response = await apiFetch(`${API_BASE}/voice/sample/${voiceId}?lang=${language}`, fetchOptions);
   
   if (!response.ok) {
     const error = await response.json();
@@ -248,7 +335,7 @@ export async function playVoiceSample(voiceId: string, language: 'en' | 'zh' = '
  */
 export async function getTTSStatus(): Promise<TTSStatusResult> {
   try {
-    const response = await fetch(`${API_BASE}/voice/tts-status`, fetchOptions);
+    const response = await apiFetch(`${API_BASE}/voice/tts-status`, fetchOptions);
     if (!response.ok) {
       return { configured: false };
     }
@@ -265,7 +352,7 @@ export async function synthesizeSpeech(
   text: string, 
   options: SynthesizeOptions = {}
 ): Promise<SynthesizeResult> {
-  const response = await fetch(`${API_BASE}/voice/synthesize`, {
+  const response = await apiFetch(`${API_BASE}/voice/synthesize`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -294,7 +381,7 @@ export async function previewVoice(
   text?: string,
   apiKey?: string
 ): Promise<SynthesizeResult> {
-  const response = await fetch(`${API_BASE}/voice/preview`, {
+  const response = await apiFetch(`${API_BASE}/voice/preview`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -318,6 +405,8 @@ export async function previewVoice(
 export interface AudioSegment {
   text: string;
   speaker?: string;
+  // System voice (Gemini TTS) - identified by voiceName
+  voiceName?: string;
   // Custom TTS options per segment
   refAudioDataUrl?: string;
   refText?: string;
@@ -361,7 +450,7 @@ export async function generateAudioBatch(
   segments: AudioSegment[],
   options: BatchOptions = {}
 ): Promise<BatchResult> {
-  const response = await fetch(`${API_BASE}/audio/batch`, {
+  const response = await apiFetch(`${API_BASE}/audio/batch`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -388,7 +477,7 @@ export async function generateAudioBatchStream(
   onProgress: (event: BatchProgressEvent) => void,
   options: BatchOptions = {}
 ): Promise<void> {
-  const response = await fetch(`${API_BASE}/audio/batch-stream`, {
+  const response = await apiFetch(`${API_BASE}/audio/batch-stream`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -522,7 +611,7 @@ export async function generateImage(
   prompt: string,
   options: ImageGenerateOptions = {}
 ): Promise<GeneratedImage[]> {
-  const response = await fetch(`${API_BASE}/image/generate`, {
+  const response = await apiFetch(`${API_BASE}/image/generate`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -551,7 +640,7 @@ export async function generateCoverImage(
   aspectRatio: '1:1' | '3:4' | '4:3' | '9:16' | '16:9' = '1:1',
   apiKey?: string
 ): Promise<{ imageData: string; mimeType: string }> {
-  const response = await fetch(`${API_BASE}/image/cover`, {
+  const response = await apiFetch(`${API_BASE}/image/cover`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -594,7 +683,7 @@ export interface SfxSuggestion {
  * Get available music generation options
  */
 export async function getMusicOptions(): Promise<MusicOptionsData> {
-  const response = await fetch(`${API_BASE}/music/options`, fetchOptions);
+  const response = await apiFetch(`${API_BASE}/music/options`, fetchOptions);
   
   if (!response.ok) {
     throw new Error('Failed to fetch music options');
@@ -610,7 +699,7 @@ export async function generateMusic(
   description: string,
   options: MusicOptions = {}
 ): Promise<MusicResult> {
-  const response = await fetch(`${API_BASE}/music/generate`, {
+  const response = await apiFetch(`${API_BASE}/music/generate`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -640,7 +729,7 @@ export async function generateBGM(
   durationSeconds?: number,
   apiKey?: string
 ): Promise<MusicResult> {
-  const response = await fetch(`${API_BASE}/music/bgm`, {
+  const response = await apiFetch(`${API_BASE}/music/bgm`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -663,7 +752,7 @@ export async function generateSoundEffect(
   durationSeconds?: number,
   apiKey?: string
 ): Promise<MusicResult> {
-  const response = await fetch(`${API_BASE}/music/sfx`, {
+  const response = await apiFetch(`${API_BASE}/music/sfx`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -682,7 +771,7 @@ export async function generateSoundEffect(
  * Get common sound effect suggestions
  */
 export async function getSfxSuggestions(): Promise<SfxSuggestion[]> {
-  const response = await fetch(`${API_BASE}/music/sfx-suggestions`, fetchOptions);
+  const response = await apiFetch(`${API_BASE}/music/sfx-suggestions`, fetchOptions);
   
   if (!response.ok) {
     throw new Error('Failed to fetch SFX suggestions');
@@ -737,7 +826,7 @@ export interface StorageStatus {
  */
 export async function checkStorageStatus(): Promise<StorageStatus> {
   try {
-    const response = await fetch(`${API_BASE}/storage/status`, fetchOptions);
+    const response = await apiFetch(`${API_BASE}/storage/status`, fetchOptions);
     if (!response.ok) {
       return { configured: false, message: 'Storage API unavailable' };
     }
@@ -758,7 +847,7 @@ export interface ProjectData {
  * Load all projects from cloud storage
  */
 export async function loadProjectsFromCloud(): Promise<ProjectData[]> {
-  const response = await fetch(`${API_BASE}/storage/projects`, fetchOptions);
+  const response = await apiFetch(`${API_BASE}/storage/projects`, fetchOptions);
   
   if (!response.ok) {
     const error = await response.json();
@@ -773,7 +862,7 @@ export async function loadProjectsFromCloud(): Promise<ProjectData[]> {
  * Save all projects to cloud storage
  */
 export async function saveProjectsToCloud(projects: ProjectData[]): Promise<void> {
-  const response = await fetch(`${API_BASE}/storage/projects`, {
+  const response = await apiFetch(`${API_BASE}/storage/projects`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -797,7 +886,7 @@ export interface VoiceCharacterData {
  * Load all voice characters from cloud storage
  */
 export async function loadVoicesFromCloud(): Promise<VoiceCharacterData[]> {
-  const response = await fetch(`${API_BASE}/storage/voices`, fetchOptions);
+  const response = await apiFetch(`${API_BASE}/storage/voices`, fetchOptions);
   
   if (!response.ok) {
     const error = await response.json();
@@ -812,7 +901,7 @@ export async function loadVoicesFromCloud(): Promise<VoiceCharacterData[]> {
  * Save all voice characters to cloud storage
  */
 export async function saveVoicesToCloud(voices: VoiceCharacterData[]): Promise<void> {
-  const response = await fetch(`${API_BASE}/storage/voices`, {
+  const response = await apiFetch(`${API_BASE}/storage/voices`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -829,7 +918,7 @@ export async function saveVoicesToCloud(voices: VoiceCharacterData[]): Promise<v
  * Upload voice sample audio to cloud storage
  */
 export async function uploadVoiceSampleToCloud(voiceId: string, dataUrl: string): Promise<string> {
-  const response = await fetch(`${API_BASE}/storage/voices/${voiceId}/sample`, {
+  const response = await apiFetch(`${API_BASE}/storage/voices/${voiceId}/sample`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -857,7 +946,7 @@ export interface MediaItemData {
  * Load all media items from cloud storage
  */
 export async function loadMediaItemsFromCloud(): Promise<MediaItemData[]> {
-  const response = await fetch(`${API_BASE}/storage/media`, fetchOptions);
+  const response = await apiFetch(`${API_BASE}/storage/media`, fetchOptions);
   
   if (!response.ok) {
     const error = await response.json();
@@ -872,7 +961,7 @@ export async function loadMediaItemsFromCloud(): Promise<MediaItemData[]> {
  * Save all media items to cloud storage
  */
 export async function saveMediaItemsToCloud(items: MediaItemData[]): Promise<void> {
-  const response = await fetch(`${API_BASE}/storage/media`, {
+  const response = await apiFetch(`${API_BASE}/storage/media`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -893,7 +982,7 @@ export async function uploadMediaFileToCloud(
   dataUrl: string, 
   type: 'image' | 'bgm' | 'sfx'
 ): Promise<string> {
-  const response = await fetch(`${API_BASE}/storage/media/${mediaId}/file`, {
+  const response = await apiFetch(`${API_BASE}/storage/media/${mediaId}/file`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -917,7 +1006,7 @@ export async function deleteMediaFileFromCloud(
   type: 'image' | 'bgm' | 'sfx',
   fileUrl?: string
 ): Promise<boolean> {
-  const response = await fetch(`${API_BASE}/storage/media/${mediaId}/file`, {
+  const response = await apiFetch(`${API_BASE}/storage/media/${mediaId}/file`, {
     ...fetchOptions,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
@@ -938,6 +1027,8 @@ export interface AudioTrack {
   audioData: string;   // base64
   mimeType: string;
   speaker?: string;    // Speaker identifier for gap calculation
+  sectionStart?: boolean; // True if this is the first segment of a new section
+  pauseAfterMs?: number; // Custom pause after this track (overrides default gap)
   startMs?: number;    // Start time offset (for future timeline editing)
   volume?: number;     // 0-1, default 1
 }
@@ -991,7 +1082,7 @@ export interface MixResult {
  * - BGM overlaid with fade in/out (looping if shorter)
  */
 export async function mixAudioTracks(request: MixRequest): Promise<MixResult> {
-  const response = await fetch(`${API_BASE}/mix`, {
+  const response = await apiFetch(`${API_BASE}/mix`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1014,7 +1105,7 @@ export async function previewMix(
   voiceTracks: AudioTrack[], 
   config?: AudioMixConfig
 ): Promise<MixResult> {
-  const response = await fetch(`${API_BASE}/mix/preview`, {
+  const response = await apiFetch(`${API_BASE}/mix/preview`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1036,7 +1127,7 @@ export async function getMixPresets(): Promise<{
   presets: Record<string, { name: string; description: string; config: AudioMixConfig }>;
   default: AudioMixConfig;
 }> {
-  const response = await fetch(`${API_BASE}/mix/presets`, fetchOptions);
+  const response = await apiFetch(`${API_BASE}/mix/presets`, fetchOptions);
   
   if (!response.ok) {
     throw new Error('Failed to fetch mix presets');
@@ -1068,7 +1159,7 @@ export interface SyncResult {
  * Load all data from cloud storage at once
  */
 export async function loadAllFromCloud(): Promise<SyncResult> {
-  const response = await fetch(`${API_BASE}/storage/sync`, fetchOptions);
+  const response = await apiFetch(`${API_BASE}/storage/sync`, fetchOptions);
   
   if (!response.ok) {
     const error = await response.json();
@@ -1082,7 +1173,7 @@ export async function loadAllFromCloud(): Promise<SyncResult> {
  * Save all data to cloud storage at once
  */
 export async function saveAllToCloud(data: SyncData): Promise<void> {
-  const response = await fetch(`${API_BASE}/storage/sync`, {
+  const response = await apiFetch(`${API_BASE}/storage/sync`, {
     ...fetchOptions,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

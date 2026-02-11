@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { Episode, Project, PROJECT_STAGES, ProjectStage, ScriptSection, ScriptLine, EpisodeCharacter } from '../types';
-import { X, Save, FileText, ChevronRight, Plus, Trash2, User, Volume2 } from 'lucide-react';
+import { X, Save, FileText, ChevronRight, Plus, Trash2, User, Volume2, Pause } from 'lucide-react';
 import { ReligionIconMap, StageIconMap } from './icons/ReligionIcons';
 
 // Storage key for voice characters (same as VoiceStudio)
@@ -97,6 +97,28 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
                       ...item,
                       lines: item.lines.map((line, idx) =>
                         idx === lineIndex ? { ...line, [field]: value } : line
+                      )
+                    }
+                  : item
+              )
+            }
+          : section
+      )
+    );
+  };
+
+  const setLinePause = (sectionId: string, itemId: string, lineIndex: number, pauseAfterMs: number | undefined) => {
+    setScriptSections(sections =>
+      sections.map(section =>
+        section.id === sectionId
+          ? {
+              ...section,
+              timeline: section.timeline.map(item =>
+                item.id === itemId
+                  ? {
+                      ...item,
+                      lines: item.lines.map((line, idx) =>
+                        idx === lineIndex ? { ...line, pauseAfterMs } : line
                       )
                     }
                   : item
@@ -420,35 +442,80 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
                               </div>
                               
                               {/* Lines */}
-                              <div className="space-y-2">
-                                <label className="block text-[10px] text-t-text3">{t.episodeEditor.script.lines}</label>
+                              <div className="space-y-0">
+                                <label className="block text-[10px] text-t-text3 mb-2">{t.episodeEditor.script.lines}</label>
                                 {(item.lines || []).map((scriptLine, lineIndex) => (
-                                  <div key={lineIndex} className="flex items-start gap-2">
-                                    <input 
-                                      type="text" 
-                                      value={scriptLine.speaker} 
-                                      onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
-                                      placeholder={t.episodeEditor.script.speaker}
-                                      className="w-24 px-2 py-1.5 rounded border border-t-border bg-t-card text-t-text1 text-xs focus:outline-none flex-shrink-0" 
-                                    />
-                                    <textarea 
-                                      value={scriptLine.line} 
-                                      onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
-                                      placeholder={t.episodeEditor.script.lineContent}
-                                      rows={2}
-                                      className="flex-1 px-2 py-1.5 rounded border border-t-border bg-t-card text-t-text1 text-xs focus:outline-none resize-none" 
-                                    />
-                                    <button 
-                                      onClick={() => removeScriptLine(section.id, item.id, lineIndex)} 
-                                      className="p-1.5 rounded hover:bg-red-500/20 text-t-text3 hover:text-red-400 flex-shrink-0"
-                                    >
-                                      <X size={12} />
-                                    </button>
+                                  <div key={lineIndex}>
+                                    <div className="flex items-start gap-2">
+                                      <input 
+                                        type="text" 
+                                        value={scriptLine.speaker} 
+                                        onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
+                                        placeholder={t.episodeEditor.script.speaker}
+                                        className="w-24 px-2 py-1.5 rounded border border-t-border bg-t-card text-t-text1 text-xs focus:outline-none flex-shrink-0" 
+                                      />
+                                      <textarea 
+                                        value={scriptLine.line} 
+                                        onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
+                                        placeholder={t.episodeEditor.script.lineContent}
+                                        rows={2}
+                                        className="flex-1 px-2 py-1.5 rounded border border-t-border bg-t-card text-t-text1 text-xs focus:outline-none resize-none" 
+                                      />
+                                      <button 
+                                        onClick={() => removeScriptLine(section.id, item.id, lineIndex)} 
+                                        className="p-1.5 rounded hover:bg-red-500/20 text-t-text3 hover:text-red-400 flex-shrink-0"
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    </div>
+                                    {/* Pause insertion zone between lines */}
+                                    {lineIndex < (item.lines || []).length - 1 && (
+                                      <div className="group/pause relative my-0.5 min-h-[14px] flex items-center">
+                                        {scriptLine.pauseAfterMs == null ? (
+                                          <div className="w-full opacity-0 group-hover/pause:opacity-100 transition-opacity duration-150 flex items-center gap-1.5">
+                                            <div className="flex-1 border-t border-dashed border-t-border" />
+                                            <button
+                                              onClick={() => setLinePause(section.id, item.id, lineIndex, 500)}
+                                              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] text-t-text3 hover:text-t-text1 hover:bg-t-bg2 transition-all"
+                                            >
+                                              <Pause size={8} />{t.projectCreator.addPause}
+                                            </button>
+                                            <div className="flex-1 border-t border-dashed border-t-border" />
+                                          </div>
+                                        ) : (
+                                          <div className="w-full flex items-center gap-1.5">
+                                            <div className="flex-1 border-t border-dashed border-amber-500/40" />
+                                            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-500/10 rounded-full">
+                                              <Pause size={8} className="text-amber-500" />
+                                              <input
+                                                type="number"
+                                                value={scriptLine.pauseAfterMs}
+                                                onChange={(e) => {
+                                                  const v = parseInt(e.target.value);
+                                                  if (v > 0) setLinePause(section.id, item.id, lineIndex, v);
+                                                }}
+                                                className="w-12 bg-transparent text-amber-600 dark:text-amber-400 text-[10px] text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                min={50}
+                                                step={100}
+                                              />
+                                              <span className="text-[9px] text-amber-600/70 dark:text-amber-400/70">{t.projectCreator.pauseMs}</span>
+                                              <button
+                                                onClick={() => setLinePause(section.id, item.id, lineIndex, undefined)}
+                                                className="ml-0.5 p-0.5 rounded-full hover:bg-amber-500/20 text-amber-500/60 hover:text-amber-500 transition-all"
+                                              >
+                                                <X size={9} />
+                                              </button>
+                                            </div>
+                                            <div className="flex-1 border-t border-dashed border-amber-500/40" />
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 ))}
                                 <button 
                                   onClick={() => addScriptLine(section.id, item.id)} 
-                                  className="flex items-center gap-1 text-[10px] text-t-text3 hover:text-t-text2"
+                                  className="flex items-center gap-1 text-[10px] text-t-text3 hover:text-t-text2 mt-2"
                                 >
                                   <Plus size={10} />{t.episodeEditor.script.addLine}
                                 </button>

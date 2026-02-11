@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { onSessionExpired } from '../services/api';
 
 // API base URL
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
@@ -152,6 +153,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     checkAuth().finally(() => setIsLoading(false));
   }, [checkAuth]);
+
+  // Register session expiry callback — when API calls get 401 and refresh fails,
+  // this clears the user so the app shows the login page
+  const logoutRef = useRef(logout);
+  logoutRef.current = logout;
+
+  useEffect(() => {
+    onSessionExpired(() => {
+      logoutRef.current();
+    });
+  }, []);
 
   const value: AuthContextType = {
     user,

@@ -346,3 +346,39 @@ class LLMService {
 }
 
 export const llm = new LLMService();
+
+/**
+ * Analyze script characters and extract descriptive tags (gender, age, voice style, etc.)
+ * Returns a map of character name → tags array.
+ */
+export async function analyzeScriptCharacters(
+  scriptJson: string,
+  characterNames: string[],
+  language: 'en' | 'zh' = 'en'
+): Promise<Record<string, string[]>> {
+  const { buildCharacterAnalysisPrompt } = await import('./prompts');
+  const prompt = buildCharacterAnalysisPrompt(scriptJson, characterNames, language);
+
+  try {
+    const result = await llm.generateJson<Record<string, string[]>>(prompt, {
+      temperature: 0.3,
+      maxTokens: 2048,
+    });
+
+    // Validate that all values are string arrays
+    const validated: Record<string, string[]> = {};
+    for (const name of characterNames) {
+      const tags = result[name];
+      if (Array.isArray(tags)) {
+        validated[name] = tags.filter((t): t is string => typeof t === 'string');
+      } else {
+        validated[name] = [];
+      }
+    }
+    return validated;
+  } catch (error) {
+    console.error('Failed to analyze characters:', error);
+    // Return empty tags on failure - non-blocking
+    return Object.fromEntries(characterNames.map(n => [n, []]));
+  }
+}

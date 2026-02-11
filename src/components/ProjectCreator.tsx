@@ -19,6 +19,7 @@ import {
   buildScriptGenerationPrompt,
   SpecAnalysisResult
 } from '../services/llm/prompts';
+import { analyzeScriptCharacters } from '../services/llm';
 import * as api from '../services/api';
 import { 
   projectCreatorReducer, 
@@ -99,6 +100,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [loadingVoiceId, setLoadingVoiceId] = useState<string | null>(null);
   const [isRecommendingVoices, setIsRecommendingVoices] = useState(false);
+  const [isAnalyzingCharacters, setIsAnalyzingCharacters] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // Voice picker modal state
   const [voicePickerCharIndex, setVoicePickerCharIndex] = useState<number | null>(null);
@@ -107,6 +109,12 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   // Track currently playing audio segment: "sectionId-lineIndex"
   const [playingSegmentId, setPlayingSegmentId] = useState<string | null>(null);
   const segmentAudioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Media production preview playback
+  const [playingMediaId, setPlayingMediaId] = useState<string | null>(null);
+  const mediaAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+  
   const performMixingRef = useRef<() => Promise<void>>(() => Promise.resolve());
   // Keep latest state in a ref so async callbacks avoid stale closures
   const stateRef = useRef(state);
@@ -132,7 +140,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     },
     { 
       id: 2, 
-      title: language === 'zh' ? '项目规格' : 'Project Spec',
+      title: language === 'zh' ? '项目规格' : 'Project Specification',
       description: language === 'zh' ? '确认并编辑项目规格' : 'Confirm and edit project specifications'
     },
     { 
@@ -241,10 +249,12 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     setIsAnalyzing(true);
     
     try {
-      // Collect content from text input and files
-      const content = await collectAnalysisContent(contentInput.textContent, contentInput.uploadedFiles);
+      // Collect content from text input and files (with attachments for native Gemini parsing)
+      const { text: content, attachments } = await collectAnalysisContent(
+        contentInput.textContent, contentInput.uploadedFiles, { returnAttachments: true }
+      );
 
-      if (!content.trim()) {
+      if (!content.trim() && attachments.length === 0) {
         alert(t.projectCreator?.errors?.inputOrUpload || 'Please input or upload content');
         setIsAnalyzing(false);
         return;
@@ -262,8 +272,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
       const prompt = buildSpecAnalysisPrompt(content, specContext);
       
-      // Use backend API for text generation
-      const responseText = await api.generateText(prompt);
+      // Use backend API for text generation (with file attachments for multimodal)
+      const responseText = await api.generateText(prompt, { attachments });
       
       // Parse JSON from response
       const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/) || 
@@ -297,8 +307,10 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     setStreamingText(''); // Reset streaming text
 
     try {
-      // Collect content without labels for script generation
-      const content = await collectAnalysisContent(contentInput.textContent, contentInput.uploadedFiles, { includeLabels: false });
+      // Collect content without labels for script generation (with attachments for native Gemini parsing)
+      const { text: content, attachments } = await collectAnalysisContent(
+        contentInput.textContent, contentInput.uploadedFiles, { includeLabels: false, returnAttachments: true }
+      );
 
       // Include template hints in prompt if available (based on voice count selection)
       const templateHints = selectedTemplate?.promptHints[templateConfig.voiceCount];
@@ -319,12 +331,13 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         }),
       });
 
-      // Use backend streaming API for progressive generation
+      // Use backend streaming API for progressive generation (with file attachments)
       const finalText = await api.generateTextStream(
         prompt,
         (chunk) => {
           setStreamingText(chunk.accumulated);
-        }
+        },
+        { attachments }
       );
       
       // Parse JSON from final response
@@ -346,11 +359,41 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     }
   };
 
-  // Extract characters from script
+  // Extract characters from script and analyze their tags via LLM
   const extractCharacters = useCallback(() => {
     dispatch(actions.extractCharactersFromScript());
     setAvailableVoices(loadVoiceCharacters());
-  }, []);
+
+    // Async: analyze character tags in background (non-blocking)
+    const speakers = new Set<string>();
+    for (const section of scriptSections) {
+      for (const item of section.timeline) {
+        if (item.lines) {
+          for (const line of item.lines) {
+            const speaker = line.speaker?.trim();
+            if (speaker && speaker.toLowerCase() !== 'n/a') {
+              speakers.add(speaker);
+            }
+          }
+        }
+      }
+    }
+    const charNames = Array.from(speakers);
+    if (charNames.length > 0) {
+      setIsAnalyzingCharacters(true);
+      analyzeScriptCharacters(
+        JSON.stringify(scriptSections),
+        charNames,
+        language === 'zh' ? 'zh' : 'en'
+      ).then(tags => {
+        dispatch(actions.updateCharacterTags(tags));
+      }).catch(err => {
+        console.error('Character analysis failed:', err);
+      }).finally(() => {
+        setIsAnalyzingCharacters(false);
+      });
+    }
+  }, [scriptSections, language]);
 
   // Assign voice to character
   const assignVoiceToCharacter = useCallback((characterIndex: number, voiceId: string) => {
@@ -442,6 +485,12 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       audioRef.current = null;
       setPlayingVoiceId(null);
     }
+    // Stop media preview when leaving media production step
+    if (currentStep !== 6 && mediaAudioRef.current) {
+      mediaAudioRef.current.pause();
+      mediaAudioRef.current = null;
+      setPlayingMediaId(null);
+    }
   }, [currentStep]);
 
   // Auto-advance from step 6 (media) to step 7 (mixing) when media production completes
@@ -529,7 +578,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     const sectionId = section.id;
     
     // Collect lines for this section
-    const segments: Array<{ text: string; speaker: string; refAudioDataUrl?: string; lineIndex: number }> = [];
+    const segments: Array<{ text: string; speaker: string; voiceName?: string; refAudioDataUrl?: string; lineIndex: number; pauseAfterMs?: number }> = [];
     let lineIndex = 0;
     
     for (const item of section.timeline) {
@@ -537,16 +586,23 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         if (line.line.trim()) {
           // Find assigned voice for this speaker
           const character = extractedCharacters.find(c => c.name === line.speaker);
+          const assignedId = character?.assignedVoiceId;
           // Find custom voice with reference audio
-          const customVoice = availableVoices.find(v => v.id === character?.assignedVoiceId);
+          const customVoice = availableVoices.find(v => v.id === assignedId);
+          // Find system voice (Gemini TTS)
+          const systemVoice = systemVoices.find(v => v.id === assignedId);
           // Get reference audio from voice character (audioSampleUrl or refAudioDataUrl)
           const refAudioDataUrl = customVoice?.refAudioDataUrl || customVoice?.audioSampleUrl;
+          // System voices use voiceName (Gemini TTS), custom voices use refAudioDataUrl
+          const voiceName = systemVoice ? systemVoice.id : undefined;
           
           segments.push({
             text: line.line,
             speaker: line.speaker || 'Narrator',
+            voiceName,
             refAudioDataUrl,
-            lineIndex
+            lineIndex,
+            pauseAfterMs: line.pauseAfterMs
           });
         }
         lineIndex++;
@@ -568,6 +624,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       const batchSegments: api.AudioSegment[] = segments.map(seg => ({
         text: seg.text,
         speaker: seg.speaker,
+        voiceName: seg.voiceName,
         refAudioDataUrl: seg.refAudioDataUrl
       }));
       
@@ -584,7 +641,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             speaker: segment.speaker,
             text: segment.text,
             audioData: generated.audioData,
-            mimeType: generated.mimeType
+            mimeType: generated.mimeType,
+            pauseAfterMs: segment.pauseAfterMs
           };
           dispatch(actions.addSectionVoiceAudio(sectionId, audio));
         }
@@ -716,6 +774,14 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               if (item.soundMusic?.trim()) {
                 const sfxResult = await api.generateSoundEffect(item.soundMusic, 5);
                 
+                // Save SFX to production state for preview
+                dispatch(actions.addSfxAudio({
+                  name: `${section.name} - SFX`,
+                  prompt: item.soundMusic,
+                  audioData: sfxResult.audioData,
+                  mimeType: sfxResult.mimeType,
+                }));
+                
                 // Save SFX to media library
                 const sfxItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
                   name: `${section.name} - SFX`,
@@ -768,6 +834,43 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     dispatch(actions.updateProductionPhase('media-production', 'completed', 100));
   };
 
+  // Regenerate a single BGM or SFX item
+  const handleRegenMedia = async (type: 'bgm' | 'sfx', index?: number) => {
+    const regenId = type === 'bgm' ? 'bgm' : `sfx-${index}`;
+    setRegeneratingId(regenId);
+    // Stop any currently playing preview
+    if (mediaAudioRef.current) {
+      mediaAudioRef.current.pause();
+      mediaAudioRef.current = null;
+      setPlayingMediaId(null);
+    }
+    try {
+      if (type === 'bgm') {
+        const bgmResult = await api.generateBGM(
+          stateRef.current.spec.toneAndExpression || '',
+          'peaceful',
+          30
+        );
+        dispatch(actions.setBgmAudio({ audioData: bgmResult.audioData, mimeType: bgmResult.mimeType }));
+      } else if (type === 'sfx' && index !== undefined) {
+        const sfxItem = stateRef.current.production.mediaProduction.sfxAudios?.[index];
+        if (sfxItem) {
+          const sfxResult = await api.generateSoundEffect(sfxItem.prompt, 5);
+          dispatch(actions.updateSfxAudio(index, {
+            name: sfxItem.name,
+            prompt: sfxItem.prompt,
+            audioData: sfxResult.audioData,
+            mimeType: sfxResult.mimeType,
+          }));
+        }
+      }
+    } catch (error) {
+      console.error(`Regen ${type} failed:`, error);
+    } finally {
+      setRegeneratingId(null);
+    }
+  };
+
   // Real mixing process (Phase 3)
   const performMixing = async () => {
     try {
@@ -791,14 +894,18 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         const sectionStatus = latestProduction.voiceGeneration.sectionStatus[section.id];
         console.log(`[Mix] Section ${section.id}: status=${sectionStatus?.status}, segments=${sectionStatus?.audioSegments?.length ?? 0}`);
         if (sectionStatus?.audioSegments) {
+          let isFirstInSection = true;
           for (const segment of sectionStatus.audioSegments) {
             if (segment.audioData) {
               voiceTracks.push({
                 audioData: segment.audioData,
                 mimeType: segment.mimeType || 'audio/wav',
                 speaker: segment.speaker,  // Include speaker for gap calculation
+                sectionStart: isFirstInSection, // Mark first segment of each section
+                pauseAfterMs: segment.pauseAfterMs, // Custom per-line pause
                 volume: 1
               });
+              isFirstInSection = false;
             }
           }
         }
@@ -1259,7 +1366,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       <div className="rounded-xl border border-t-border overflow-hidden" style={{ background: 'var(--t-bg-card)' }}>
         <div className="px-5 py-4 border-b border-t-border flex items-center justify-between">
           <h4 className="text-base font-medium text-t-text1">
-            {language === 'zh' ? '项目规格' : 'Project Specifications'}
+            {language === 'zh' ? '项目规格' : 'Project Specification'}
           </h4>
           {/* Compact Template Badge */}
           <div className="flex items-center gap-2">
@@ -1286,7 +1393,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   onClick={() => setCurrentStep(1)}
                   className="text-xs text-t-text3 hover:text-t-text2 px-2 py-1 rounded hover:bg-t-card-hover transition-all"
                 >
-                  {language === 'zh' ? '更换' : 'Change'}
+                  {language === 'zh' ? '更换模板' : 'Change template'}
                 </button>
               </>
             ) : (
@@ -1304,7 +1411,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   onClick={() => setCurrentStep(1)}
                   className="text-xs text-t-text3 hover:text-t-text2 px-2 py-1 rounded hover:bg-t-card-hover transition-all"
                 >
-                  {language === 'zh' ? '更换' : 'Change'}
+                  {language === 'zh' ? '更换模板' : 'Change template'}
                 </button>
               </>
             )}
@@ -1314,13 +1421,13 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           {/* Story Title */}
           <div>
             <label className="block text-sm text-t-text3 mb-2">
-              {language === 'zh' ? '标题' : 'Title'}
+              {language === 'zh' ? '项目标题' : 'Project title'}
             </label>
             <input
               type="text"
               value={specData.storyTitle}
               onChange={(e) => updateSpecField('storyTitle', e.target.value)}
-              placeholder={language === 'zh' ? '输入项目标题...' : 'Enter project title...'}
+              placeholder={language === 'zh' ? '为您的项目起一个标题，例如书名或系列名称。' : 'Give your project a title. For example a book name or series title.'}
               className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
             />
           </div>
@@ -1329,7 +1436,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm text-t-text3">
-                  {language === 'zh' ? '副标题' : 'Subtitle'}
+                  {language === 'zh' ? '项目描述' : 'Project description'}
                 </label>
                 <button
                   onClick={() => {
@@ -1345,7 +1452,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                 type="text"
                 value={specData.subtitle}
                 onChange={(e) => updateSpecField('subtitle', e.target.value)}
-                placeholder={language === 'zh' ? '添加副标题或标语...' : 'Add subtitle or tagline...'}
+                placeholder={language === 'zh' ? '简要描述您的项目以及它的用途。' : 'Briefly describe your project and how it will be used.'}
                 className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
               />
             </div>
@@ -1355,42 +1462,45 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               className="flex items-center gap-2 text-sm text-t-text3 hover:text-t-text2 transition-all"
             >
               <Plus size={14} />
-              {language === 'zh' ? '添加副标题' : 'Add Subtitle'}
+              {language === 'zh' ? '添加项目描述' : 'Add a short description'}
             </button>
           )}
           {/* Target Audience */}
           <div>
             <label className="block text-sm text-t-text3 mb-2">
-              {language === 'zh' ? '目标受众' : 'Target Audience'}
+              {language === 'zh' ? '这个音频是为谁制作的？' : 'Who is this audio for?'}
             </label>
             <input
               type="text"
               value={specData.targetAudience}
               onChange={(e) => updateSpecField('targetAudience', e.target.value)}
+              placeholder={language === 'zh' ? '描述您的目标听众。例如年龄范围、收听原因或方式。' : 'Describe your intended listeners. For example, age range, why or how they will listen.'}
               className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
             />
           </div>
           {/* Format and Duration */}
           <div>
             <label className="block text-sm text-t-text3 mb-2">
-              {language === 'zh' ? '格式和时长' : 'Format & Duration'}
+              {language === 'zh' ? '结构和长度' : 'Structure and length'}
             </label>
             <input
               type="text"
               value={specData.formatAndDuration}
               onChange={(e) => updateSpecField('formatAndDuration', e.target.value)}
+              placeholder={language === 'zh' ? '描述项目的结构。例如短小章节、长篇章节或单段连续内容。' : 'Describe how your project is structured. For example short sections, chapters, or a single continuous piece.'}
               className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
             />
           </div>
           {/* Tone and Expression */}
           <div>
             <label className="block text-sm text-t-text3 mb-2">
-              {language === 'zh' ? '风格和表达' : 'Tone & Expression'}
+              {language === 'zh' ? '语气和表达风格' : 'Tone and delivery style'}
             </label>
             <input
               type="text"
               value={specData.toneAndExpression}
               onChange={(e) => updateSpecField('toneAndExpression', e.target.value)}
+              placeholder={language === 'zh' ? '描述声音应给听众的感受。例如平静、温暖、教学性、对话式、严肃或富有表现力。' : 'Describe how the voice(s) should sound to the listener. For example calm, warm, instructional, conversational, serious, or expressive.'}
               className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
             />
           </div>
@@ -1808,35 +1918,80 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                     </div>
                     
                     {/* Lines (Speaker + Line pairs) */}
-                    <div className="space-y-3">
-                      <label className="block text-xs text-t-text3">{t.projectCreator.lines}</label>
+                    <div className="space-y-0">
+                      <label className="block text-xs text-t-text3 mb-3">{t.projectCreator.lines}</label>
                       {(item.lines || []).map((scriptLine, lineIndex) => (
-                        <div key={lineIndex} className="flex items-start gap-3">
-                          <input 
-                            type="text" 
-                            value={scriptLine.speaker} 
-                            onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
-                            placeholder={t.projectCreator.speaker}
-                            className="w-28 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none flex-shrink-0" 
-                          />
-                          <textarea 
-                            value={scriptLine.line} 
-                            onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
-                            placeholder={t.projectCreator.lineContent}
-                            rows={2}
-                            className="flex-1 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none resize-none" 
-                          />
-                          <button 
-                            onClick={() => removeScriptLine(section.id, item.id, lineIndex)} 
-                            className="p-2 rounded hover:bg-red-500/20 text-t-text3 hover:text-red-400 flex-shrink-0"
-                          >
-                            <X size={14} />
-                          </button>
+                        <div key={lineIndex}>
+                          <div className="flex items-start gap-3">
+                            <input 
+                              type="text" 
+                              value={scriptLine.speaker} 
+                              onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
+                              placeholder={t.projectCreator.speaker}
+                              className="w-28 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none flex-shrink-0" 
+                            />
+                            <textarea 
+                              value={scriptLine.line} 
+                              onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
+                              placeholder={t.projectCreator.lineContent}
+                              rows={2}
+                              className="flex-1 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none resize-none" 
+                            />
+                            <button 
+                              onClick={() => removeScriptLine(section.id, item.id, lineIndex)} 
+                              className="p-2 rounded hover:bg-red-500/20 text-t-text3 hover:text-red-400 flex-shrink-0"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                          {/* Pause insertion zone between lines */}
+                          {lineIndex < (item.lines || []).length - 1 && (
+                            <div className="group/pause relative my-1 min-h-[16px] flex items-center">
+                              {scriptLine.pauseAfterMs == null ? (
+                                <div className="w-full opacity-0 group-hover/pause:opacity-100 transition-opacity duration-150 flex items-center gap-2">
+                                  <div className="flex-1 border-t border-dashed border-t-border" />
+                                  <button
+                                    onClick={() => dispatch(actions.setLinePause(section.id, item.id, lineIndex, 500))}
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] text-t-text3 hover:text-t-text1 hover:bg-t-bg2 transition-all"
+                                  >
+                                    <Pause size={9} />{t.projectCreator.addPause}
+                                  </button>
+                                  <div className="flex-1 border-t border-dashed border-t-border" />
+                                </div>
+                              ) : (
+                                <div className="w-full flex items-center gap-2">
+                                  <div className="flex-1 border-t border-dashed border-amber-500/40" />
+                                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 rounded-full">
+                                    <Pause size={9} className="text-amber-500" />
+                                    <input
+                                      type="number"
+                                      value={scriptLine.pauseAfterMs}
+                                      onChange={(e) => {
+                                        const v = parseInt(e.target.value);
+                                        if (v > 0) dispatch(actions.setLinePause(section.id, item.id, lineIndex, v));
+                                      }}
+                                      className="w-14 bg-transparent text-amber-600 dark:text-amber-400 text-[11px] text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                      min={50}
+                                      step={100}
+                                    />
+                                    <span className="text-[10px] text-amber-600/70 dark:text-amber-400/70">{t.projectCreator.pauseMs}</span>
+                                    <button
+                                      onClick={() => dispatch(actions.setLinePause(section.id, item.id, lineIndex, undefined))}
+                                      className="ml-0.5 p-0.5 rounded-full hover:bg-amber-500/20 text-amber-500/60 hover:text-amber-500 transition-all"
+                                    >
+                                      <X size={10} />
+                                    </button>
+                                  </div>
+                                  <div className="flex-1 border-t border-dashed border-amber-500/40" />
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
                       <button 
                         onClick={() => addScriptLine(section.id, item.id)} 
-                        className="flex items-center gap-1.5 text-xs text-t-text3 hover:text-t-text2"
+                        className="flex items-center gap-1.5 text-xs text-t-text3 hover:text-t-text2 mt-3"
                       >
                         <Plus size={12} />{t.projectCreator.addLine}
                       </button>
@@ -1946,6 +2101,29 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                           <p className="text-sm sm:text-base text-t-text1 font-medium truncate">{char.name}</p>
                           {char.description && (
                             <p className="text-xs sm:text-sm text-t-text3 truncate">{char.description}</p>
+                          )}
+                          {/* Character tags (gender, age, voice style, etc.) */}
+                          {char.tags && char.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {char.tags.map((tag, tagIdx) => (
+                                <span 
+                                  key={tagIdx}
+                                  className="inline-block text-[10px] sm:text-[11px] px-1.5 py-0.5 rounded-full"
+                                  style={{ background: `${theme.primary}15`, color: theme.primaryLight }}
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {/* Loading indicator for tag analysis */}
+                          {isAnalyzingCharacters && (!char.tags || char.tags.length === 0) && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <Loader2 size={10} className="animate-spin text-t-text3" />
+                              <span className="text-[10px] text-t-text3">
+                                {language === 'zh' ? '分析角色特征...' : 'Analyzing character...'}
+                              </span>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -2455,6 +2633,152 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             </div>
           )}
         </div>
+
+        {/* Audio Preview - shown when generation is completed */}
+        {mediaProduction.status === 'completed' && (mediaProduction.bgmAudio || (mediaProduction.sfxAudios && mediaProduction.sfxAudios.length > 0)) && (
+          <div className="space-y-3 mt-2">
+            <h4 className="text-xs sm:text-sm font-medium text-t-text2">
+              {language === 'zh' ? '生成预览' : 'Generated Preview'}
+            </h4>
+
+            {/* BGM Preview */}
+            {mediaProduction.bgmAudio && (
+              <div
+                className="flex items-center gap-3 p-2.5 sm:p-3 rounded-lg border border-t-border"
+                style={{ background: 'var(--t-bg-card)' }}
+              >
+                <button
+                  disabled={regeneratingId === 'bgm'}
+                  onClick={() => {
+                    if (playingMediaId === 'bgm') {
+                      mediaAudioRef.current?.pause();
+                      mediaAudioRef.current = null;
+                      setPlayingMediaId(null);
+                    } else {
+                      if (mediaAudioRef.current) {
+                        mediaAudioRef.current.pause();
+                        mediaAudioRef.current = null;
+                      }
+                      const url = api.audioDataToUrl(mediaProduction.bgmAudio!.audioData, mediaProduction.bgmAudio!.mimeType);
+                      const audio = new Audio(url);
+                      audio.onended = () => { setPlayingMediaId(null); mediaAudioRef.current = null; };
+                      audio.onerror = () => { setPlayingMediaId(null); mediaAudioRef.current = null; };
+                      audio.play().catch(() => { setPlayingMediaId(null); });
+                      mediaAudioRef.current = audio;
+                      setPlayingMediaId('bgm');
+                    }
+                  }}
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:opacity-80"
+                  style={{ background: theme.primary, opacity: regeneratingId === 'bgm' ? 0.5 : 1 }}
+                >
+                  {regeneratingId === 'bgm' ? (
+                    <>
+                      <Loader2 size={12} className="text-white animate-spin sm:hidden" />
+                      <Loader2 size={14} className="text-white animate-spin hidden sm:block" />
+                    </>
+                  ) : playingMediaId === 'bgm' ? (
+                    <>
+                      <Square size={12} className="text-white sm:hidden" />
+                      <Square size={14} className="text-white hidden sm:block" />
+                    </>
+                  ) : (
+                    <>
+                      <Play size={12} className="text-white ml-0.5 sm:hidden" />
+                      <Play size={14} className="text-white ml-0.5 hidden sm:block" />
+                    </>
+                  )}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-t-text1 truncate">
+                    <Music size={14} className="inline mr-1.5" style={{ color: theme.primaryLight }} />
+                    BGM
+                  </p>
+                  <p className="text-xs text-t-text3 truncate">{specData.toneAndExpression || 'Background music'}</p>
+                </div>
+                <button
+                  disabled={regeneratingId !== null}
+                  onClick={() => handleRegenMedia('bgm')}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center flex-shrink-0 border border-t-border transition-all hover:bg-t-card-hover disabled:opacity-40"
+                  title={language === 'zh' ? '重新生成' : 'Regenerate'}
+                >
+                  <RefreshCw size={12} className={`text-t-text3 sm:hidden ${regeneratingId === 'bgm' ? 'animate-spin' : ''}`} />
+                  <RefreshCw size={14} className={`text-t-text3 hidden sm:block ${regeneratingId === 'bgm' ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+            )}
+
+            {/* SFX Previews */}
+            {mediaProduction.sfxAudios?.map((sfx, idx) => {
+              const sfxId = `sfx-${idx}`;
+              const isRegenerating = regeneratingId === sfxId;
+              return (
+              <div
+                key={sfxId}
+                className="flex items-center gap-3 p-2.5 sm:p-3 rounded-lg border border-t-border"
+                style={{ background: 'var(--t-bg-card)' }}
+              >
+                <button
+                  disabled={isRegenerating}
+                  onClick={() => {
+                    if (playingMediaId === sfxId) {
+                      mediaAudioRef.current?.pause();
+                      mediaAudioRef.current = null;
+                      setPlayingMediaId(null);
+                    } else {
+                      if (mediaAudioRef.current) {
+                        mediaAudioRef.current.pause();
+                        mediaAudioRef.current = null;
+                      }
+                      const url = api.audioDataToUrl(sfx.audioData, sfx.mimeType);
+                      const audio = new Audio(url);
+                      audio.onended = () => { setPlayingMediaId(null); mediaAudioRef.current = null; };
+                      audio.onerror = () => { setPlayingMediaId(null); mediaAudioRef.current = null; };
+                      audio.play().catch(() => { setPlayingMediaId(null); });
+                      mediaAudioRef.current = audio;
+                      setPlayingMediaId(sfxId);
+                    }
+                  }}
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:opacity-80"
+                  style={{ background: theme.primary, opacity: isRegenerating ? 0.5 : 1 }}
+                >
+                  {isRegenerating ? (
+                    <>
+                      <Loader2 size={12} className="text-white animate-spin sm:hidden" />
+                      <Loader2 size={14} className="text-white animate-spin hidden sm:block" />
+                    </>
+                  ) : playingMediaId === sfxId ? (
+                    <>
+                      <Square size={12} className="text-white sm:hidden" />
+                      <Square size={14} className="text-white hidden sm:block" />
+                    </>
+                  ) : (
+                    <>
+                      <Play size={12} className="text-white ml-0.5 sm:hidden" />
+                      <Play size={14} className="text-white ml-0.5 hidden sm:block" />
+                    </>
+                  )}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-t-text1 truncate">
+                    <Volume2 size={14} className="inline mr-1.5" style={{ color: theme.primaryLight }} />
+                    {sfx.name}
+                  </p>
+                  <p className="text-xs text-t-text3 truncate">{sfx.prompt}</p>
+                </div>
+                <button
+                  disabled={regeneratingId !== null}
+                  onClick={() => handleRegenMedia('sfx', idx)}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center flex-shrink-0 border border-t-border transition-all hover:bg-t-card-hover disabled:opacity-40"
+                  title={language === 'zh' ? '重新生成' : 'Regenerate'}
+                >
+                  <RefreshCw size={12} className={`text-t-text3 sm:hidden ${isRegenerating ? 'animate-spin' : ''}`} />
+                  <RefreshCw size={14} className={`text-t-text3 hidden sm:block ${isRegenerating ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
@@ -2906,7 +3230,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             <div className="min-w-0">
               <h2 className="text-base sm:text-xl font-serif text-t-text1 truncate">{t.projectCreator.title}</h2>
               <p className="text-xs sm:text-sm text-t-text3 truncate">
-                {t.projectCreator.step} {currentStep} / {STEPS.length} · {STEPS[currentStep - 1]?.title}
+                {t.projectCreator.step} {currentStep} {t.projectCreator.of} {STEPS.length} · {STEPS[currentStep - 1]?.title}
               </p>
             </div>
           </div>

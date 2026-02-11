@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Religion, ColorMode, RELIGIONS } from '../types';
-import { buildCssVars, getThemeColors, ThemeColors } from '../themes';
+import { buildCssVarsMap, getThemeColors, ThemeColors } from '../themes';
 import { storage } from '../utils/storage';
 
 interface ThemeContextType {
@@ -18,7 +18,7 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const DEFAULT_RELIGION: Religion = 'default';
-const DEFAULT_COLOR_MODE: ColorMode = 'dark';
+const DEFAULT_COLOR_MODE: ColorMode = 'light';
 
 function getSystemColorMode(): ColorMode {
   if (typeof window !== 'undefined' && window.matchMedia) {
@@ -29,8 +29,11 @@ function getSystemColorMode(): ColorMode {
 
 /** Inject / update CSS custom-properties on <html> */
 function applyCssVars(religion: Religion, mode: ColorMode) {
-  const css = buildCssVars(religion, mode);
-  document.documentElement.style.cssText = css;
+  const varsMap = buildCssVarsMap(religion, mode);
+  // Use setProperty for each var (Safari-compatible and more performant)
+  Object.entries(varsMap).forEach(([name, value]) => {
+    document.documentElement.style.setProperty(name, value);
+  });
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -51,9 +54,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const savedMode = storage.getColorMode();
     if (savedMode) setColorModeState(savedMode);
     else {
-      const sys = getSystemColorMode();
-      setColorModeState(sys);
-      storage.setColorMode(sys);
+      // Default to light mode when no preference is saved
+      setColorModeState(DEFAULT_COLOR_MODE);
+      storage.setColorMode(DEFAULT_COLOR_MODE);
     }
 
     // Watch system preference

@@ -10,7 +10,7 @@ import type { Voice } from '../services/api';
 
 interface VoicePickerModalProps {
   /** The character to assign a voice to */
-  character: { name: string; description?: string; assignedVoiceId?: string };
+  character: { name: string; description?: string; assignedVoiceId?: string; tags?: string[] };
   /** System voices (e.g. Gemini TTS) */
   systemVoices: Voice[];
   /** Custom voices from Voice Studio */
@@ -282,7 +282,23 @@ export function VoicePickerModal({
               <h3 className="text-base font-medium text-t-text1">
                 {language === 'zh' ? '选择音色' : 'Choose Voice'}
               </h3>
-              <p className="text-xs text-t-text3">{character.name}</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="text-xs text-t-text3">{character.name}</p>
+                {character.tags && character.tags.length > 0 && (
+                  <>
+                    <span className="text-t-text3 text-[10px]">·</span>
+                    {character.tags.map((tag, idx) => (
+                      <span 
+                        key={idx}
+                        className="inline-block text-[10px] px-1.5 py-0.5 rounded-full"
+                        style={{ background: `${theme.primary}15`, color: theme.primaryLight }}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </>
+                )}
+              </div>
             </div>
           </div>
           <button 
@@ -328,8 +344,8 @@ export function VoicePickerModal({
                   <>
                     <Sparkles size={12} className="inline mr-1.5" style={{ color: theme.primaryLight }} />
                     {language === 'zh' 
-                      ? `基于角色描述，以下是为「${character.name}」推荐的音色` 
-                      : `Based on character profile, here are suggested voices for "${character.name}"`
+                      ? `基于角色描述，以下是为「${character.name}」${character.tags?.length ? `（${character.tags.join('、')}）` : ''}推荐的音色` 
+                      : `Based on character profile, here are suggested voices for "${character.name}"${character.tags?.length ? ` (${character.tags.join(', ')})` : ''}`
                     }
                   </>
                 )}

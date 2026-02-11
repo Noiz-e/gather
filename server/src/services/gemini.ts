@@ -55,10 +55,18 @@ function ensureBrowserPlayable(sample: VoiceSample): VoiceSample {
 const TEXT_MODEL = 'gemini-2.5-flash';
 const TTS_MODEL = 'gemini-2.5-flash-preview-tts';
 
+/** File attachment for multimodal input (PDF, TXT, etc.) sent as inlineData to Gemini */
+export interface FileAttachment {
+  data: string;      // base64 encoded file content
+  mimeType: string;  // e.g. 'application/pdf', 'text/plain'
+  name?: string;     // optional filename for logging
+}
+
 export interface GenerateOptions {
   temperature?: number;
   maxTokens?: number;
   apiKey?: string;
+  attachments?: FileAttachment[];
 }
 
 export interface TTSOptions {
@@ -80,14 +88,41 @@ function getClient(apiKey?: string): GoogleGenAI {
 }
 
 /**
- * Generate text using Gemini
+ * Build Gemini-compatible contents with optional file attachments.
+ * When attachments are present, returns a structured Content array with
+ * inlineData parts so Gemini can natively parse PDF, TXT, etc.
+ */
+function buildContents(prompt: string, attachments?: FileAttachment[]) {
+  if (!attachments || attachments.length === 0) {
+    return prompt; // simple string — keeps backward compat
+  }
+
+  // Build parts: file attachments first, then the text prompt
+  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+
+  for (const att of attachments) {
+    parts.push({
+      inlineData: {
+        mimeType: att.mimeType,
+        data: att.data,
+      },
+    });
+  }
+
+  parts.push({ text: prompt });
+
+  return [{ role: 'user' as const, parts }];
+}
+
+/**
+ * Generate text using Gemini (supports multimodal file attachments)
  */
 export async function generateText(prompt: string, options: GenerateOptions = {}): Promise<string> {
   const client = getClient(options.apiKey);
   
   const response = await client.models.generateContent({
     model: TEXT_MODEL,
-    contents: prompt,
+    contents: buildContents(prompt, options.attachments),
     config: {
       temperature: options.temperature,
       maxOutputTokens: options.maxTokens,
@@ -179,7 +214,7 @@ Example output: ["Puck","Kore","Charon"]`;
 }
 
 /**
- * Generate text with streaming
+ * Generate text with streaming (supports multimodal file attachments)
  */
 export async function* generateTextStream(
   prompt: string, 
@@ -189,7 +224,7 @@ export async function* generateTextStream(
   
   const response = await client.models.generateContentStream({
     model: TEXT_MODEL,
-    contents: prompt,
+    contents: buildContents(prompt, options.attachments),
     config: {
       temperature: options.temperature,
       maxOutputTokens: options.maxTokens,

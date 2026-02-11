@@ -31,12 +31,14 @@ interface TokenPayload {
 // ============================================
 
 const JWT_SECRET = process.env.JWT_SECRET || 'gather-secret-key-change-in-production';
-const ACCESS_TOKEN_EXPIRES_MS = 60 * 60 * 1000; // 1 hour
+const ACCESS_TOKEN_EXPIRES_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const REFRESH_TOKEN_EXPIRES_DAYS = 30;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const COOKIE_DOMAIN = IS_PRODUCTION ? '.gatherin.org' : undefined;
 
 // Cookie configuration
-// In production: cross-origin (different domains) requires sameSite: 'none' + secure: true
+// In production: API is on api.gatherin.org (same-site as gatherin.org)
+//   → sameSite: 'lax' works, domain: '.gatherin.org' shares cookies across subdomains
 // In development: same-origin (localhost) uses sameSite: 'lax' + secure: false
 const COOKIE_OPTIONS: {
   httpOnly: boolean;
@@ -44,12 +46,14 @@ const COOKIE_OPTIONS: {
   sameSite: 'strict' | 'lax' | 'none';
   maxAge: number;
   path: string;
+  domain?: string;
 } = IS_PRODUCTION ? {
   httpOnly: true,
   secure: true,
-  sameSite: 'none',
+  sameSite: 'lax',
   maxAge: ACCESS_TOKEN_EXPIRES_MS,
   path: '/',
+  domain: COOKIE_DOMAIN,
 } : {
   httpOnly: true,
   secure: false,
@@ -64,12 +68,14 @@ const REFRESH_COOKIE_OPTIONS: {
   sameSite: 'strict' | 'lax' | 'none';
   maxAge: number;
   path: string;
+  domain?: string;
 } = IS_PRODUCTION ? {
   httpOnly: true,
   secure: true,
-  sameSite: 'none',
+  sameSite: 'lax',
   maxAge: REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000,
   path: '/api/auth',
+  domain: COOKIE_DOMAIN,
 } : {
   httpOnly: true,
   secure: false,
@@ -158,7 +164,7 @@ export async function authMiddleware(
   
   if (!payload) {
     // Token expired or invalid - clear cookies
-    res.clearCookie('accessToken', { path: '/' });
+    res.clearCookie('accessToken', { path: '/', domain: COOKIE_DOMAIN });
     res.status(401).json({ error: 'Invalid or expired token' });
     return;
   }
@@ -167,7 +173,7 @@ export async function authMiddleware(
   const user = await usersRepo.getUserById(payload.userId);
   
   if (!user || !user.isActive) {
-    res.clearCookie('accessToken', { path: '/' });
+    res.clearCookie('accessToken', { path: '/', domain: COOKIE_DOMAIN });
     res.status(401).json({ error: 'User not found or inactive' });
     return;
   }
@@ -376,16 +382,16 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
     // Validate refresh token
     const session = await usersRepo.getSessionByToken(refreshToken);
     if (!session) {
-      res.clearCookie('accessToken', { path: '/' });
-      res.clearCookie('refreshToken', { path: '/api/auth' });
+      res.clearCookie('accessToken', { path: '/', domain: COOKIE_DOMAIN });
+      res.clearCookie('refreshToken', { path: '/api/auth', domain: COOKIE_DOMAIN });
       return res.status(401).json({ error: 'Invalid or expired refresh token' });
     }
     
     // Get user
     const user = await usersRepo.getUserById(session.userId);
     if (!user || !user.isActive) {
-      res.clearCookie('accessToken', { path: '/' });
-      res.clearCookie('refreshToken', { path: '/api/auth' });
+      res.clearCookie('accessToken', { path: '/', domain: COOKIE_DOMAIN });
+      res.clearCookie('refreshToken', { path: '/api/auth', domain: COOKIE_DOMAIN });
       return res.status(401).json({ error: 'User not found or inactive' });
     }
     
@@ -420,8 +426,8 @@ authRouter.post('/logout', async (req: Request, res: Response) => {
     }
     
     // Clear cookies
-    res.clearCookie('accessToken', { path: '/' });
-    res.clearCookie('refreshToken', { path: '/api/auth' });
+    res.clearCookie('accessToken', { path: '/', domain: COOKIE_DOMAIN });
+    res.clearCookie('refreshToken', { path: '/api/auth', domain: COOKIE_DOMAIN });
     
     res.json({ success: true });
   } catch (error) {

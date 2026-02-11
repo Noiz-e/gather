@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { generateText, generateTextStream, GenerateOptions } from '../services/gemini.js';
+import { generateText, generateTextStream, GenerateOptions, FileAttachment } from '../services/gemini.js';
 
 export const llmRouter = Router();
 
@@ -8,6 +8,7 @@ interface GenerateRequest {
   temperature?: number;
   maxTokens?: number;
   apiKey?: string;
+  attachments?: FileAttachment[];
 }
 
 /**
@@ -16,14 +17,14 @@ interface GenerateRequest {
  */
 llmRouter.post('/generate', async (req: Request, res: Response) => {
   try {
-    const { prompt, temperature, maxTokens, apiKey } = req.body as GenerateRequest;
+    const { prompt, temperature, maxTokens, apiKey, attachments } = req.body as GenerateRequest;
     
     if (!prompt) {
       res.status(400).json({ error: 'prompt is required' });
       return;
     }
     
-    const options: GenerateOptions = { temperature, maxTokens, apiKey };
+    const options: GenerateOptions = { temperature, maxTokens, apiKey, attachments };
     const text = await generateText(prompt, options);
     
     res.json({ text });
@@ -46,7 +47,7 @@ llmRouter.post('/generate', async (req: Request, res: Response) => {
  */
 llmRouter.post('/stream', async (req: Request, res: Response) => {
   try {
-    const { prompt, temperature, maxTokens, apiKey } = req.body as GenerateRequest;
+    const { prompt, temperature, maxTokens, apiKey, attachments } = req.body as GenerateRequest;
     
     if (!prompt) {
       res.status(400).json({ error: 'prompt is required' });
@@ -58,7 +59,7 @@ llmRouter.post('/stream', async (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     
-    const options: GenerateOptions = { temperature, maxTokens, apiKey };
+    const options: GenerateOptions = { temperature, maxTokens, apiKey, attachments };
     
     for await (const chunk of generateTextStream(prompt, options)) {
       res.write(`data: ${JSON.stringify(chunk)}\n\n`);

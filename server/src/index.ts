@@ -24,7 +24,7 @@ const allowedOrigins = [
   'http://localhost:3000',  // Alternative dev port
   'https://gatherin.org',   // Production frontend
   'https://www.gatherin.org', // Production frontend (www)
-  'http://gatherin.org',    // HTTP fallback
+  'https://api.gatherin.org', // API subdomain (same-site)
   process.env.FRONTEND_URL, // Production frontend URL from env
 ].filter(Boolean) as string[];
 
