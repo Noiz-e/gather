@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useProjects } from '../contexts/ProjectContext';
 import { VoiceCharacter } from '../types';
-import { Mic, Square, Play, Pause, Download, Trash2, Plus, User, Volume2, Edit2, X, Upload, AudioWaveform, FolderOpen, Link2 } from 'lucide-react';
+import { Mic, Square, Play, Pause, Download, Trash2, Plus, User, Volume2, Edit2, X, Upload, AudioWaveform, FolderOpen, Link2, Sparkles, RotateCcw, Loader2, Check } from 'lucide-react';
+import { designVoice, type VoiceDesignPreview } from '../services/api';
 
 // Storage key for voice characters
 const VOICE_CHARACTERS_KEY = 'gather-voice-characters';
@@ -24,7 +25,7 @@ const saveVoiceCharacters = (characters: VoiceCharacter[]) => {
 
 export function VoiceStudio() {
   const { theme } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { projects } = useProjects();
   
   // Characters states - load first to determine default tab
@@ -61,6 +62,15 @@ export function VoiceStudio() {
   const audioInputRef = useRef<HTMLInputElement | null>(null);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   
+  // Voice design (AI generate) state
+  const [designPrompt, setDesignPrompt] = useState('');
+  const [isDesigning, setIsDesigning] = useState(false);
+  const [designPreviews, setDesignPreviews] = useState<VoiceDesignPreview[]>([]);
+  const [designError, setDesignError] = useState<string | null>(null);
+  const [playingDesignIdx, setPlayingDesignIdx] = useState<number | null>(null);
+  const [selectedDesignIdx, setSelectedDesignIdx] = useState<number | null>(null);
+  const designAudioRef = useRef<HTMLAudioElement | null>(null);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
@@ -169,6 +179,7 @@ export function VoiceStudio() {
       setAudioUploaded(false);
     }
     setIsAnalyzing(false);
+    resetDesignState();
     setShowCharacterEditor(true);
   };
 
@@ -230,6 +241,70 @@ export function VoiceStudio() {
     }));
     setAudioUploaded(false);
   };
+
+  // --- Voice Design (AI Generate) handlers ---
+  const resetDesignState = () => {
+    setDesignPrompt('');
+    setDesignPreviews([]);
+    setDesignError(null);
+    setSelectedDesignIdx(null);
+    setPlayingDesignIdx(null);
+    if (designAudioRef.current) {
+      designAudioRef.current.pause();
+      designAudioRef.current = null;
+    }
+  };
+
+  const handleDesignVoice = useCallback(async () => {
+    if (!designPrompt.trim() || isDesigning) return;
+    setIsDesigning(true);
+    setDesignError(null);
+    setDesignPreviews([]);
+    setSelectedDesignIdx(null);
+    try {
+      const result = await designVoice(designPrompt.trim());
+      setDesignPreviews(result.previews);
+    } catch (err) {
+      setDesignError(err instanceof Error ? err.message : 'Failed to generate voices');
+    } finally {
+      setIsDesigning(false);
+    }
+  }, [designPrompt, isDesigning]);
+
+  const handlePlayDesignPreview = useCallback((idx: number) => {
+    if (designAudioRef.current) {
+      designAudioRef.current.pause();
+      designAudioRef.current = null;
+    }
+    if (playingDesignIdx === idx) {
+      setPlayingDesignIdx(null);
+      return;
+    }
+    const preview = designPreviews[idx];
+    if (!preview) return;
+    const audio = new Audio(`data:${preview.mediaType};base64,${preview.audioBase64}`);
+    audio.onended = () => { setPlayingDesignIdx(null); designAudioRef.current = null; };
+    audio.onerror = () => { setPlayingDesignIdx(null); designAudioRef.current = null; };
+    audio.play().catch(() => setPlayingDesignIdx(null));
+    designAudioRef.current = audio;
+    setPlayingDesignIdx(idx);
+  }, [designPreviews, playingDesignIdx]);
+
+  const handleConfirmDesignVoice = useCallback(() => {
+    if (selectedDesignIdx === null) return;
+    const preview = designPreviews[selectedDesignIdx];
+    if (!preview) return;
+    // Convert base64 to data URL for audioSampleUrl
+    const dataUrl = `data:${preview.mediaType || 'audio/mpeg'};base64,${preview.audioBase64}`;
+    setCharacterForm(prev => ({
+      ...prev,
+      audioSampleUrl: dataUrl,
+      name: prev.name || `AI Voice ${selectedDesignIdx + 1}`,
+      description: designPrompt.trim(),
+      tags: prev.tags || 'ai-generated',
+    }));
+    setAudioUploaded(true);
+  }, [selectedDesignIdx, designPreviews, designPrompt]);
 
   const togglePreviewAudio = () => {
     if (previewAudioRef.current) {
@@ -612,7 +687,9 @@ export function VoiceStudio() {
       {showCharacterEditor && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div 
-            className="w-full max-w-lg rounded-2xl p-6 border border-t-border max-h-[90vh] overflow-y-auto"
+            className={`w-full rounded-2xl p-6 border border-t-border max-h-[90vh] overflow-y-auto ${
+              !editingCharacter && !audioUploaded && !isAnalyzing ? 'max-w-2xl' : 'max-w-lg'
+            }`}
             style={{ background: 'var(--t-bg-base)' }}
           >
             <div className="flex items-center justify-between mb-6">
@@ -620,45 +697,175 @@ export function VoiceStudio() {
                 {editingCharacter ? t.voiceStudio.characters.edit : t.voiceStudio.characters.addNew}
               </h2>
               <button
-                onClick={() => { setShowCharacterEditor(false); setAudioUploaded(false); }}
+                onClick={() => { setShowCharacterEditor(false); setAudioUploaded(false); resetDesignState(); }}
                 className="p-2 rounded-lg text-t-text3 hover:text-t-text1 hover:bg-t-card-hover transition-all"
               >
                 <X size={20} />
               </button>
             </div>
 
-            {/* Step 1: Upload Audio (for new characters only) */}
+            {/* Step 1: AI Generate + Upload (for new characters only) */}
             {!editingCharacter && !audioUploaded && !isAnalyzing && (
-              <div className="text-center">
-                <div 
-                  className="rounded-2xl border-2 border-dashed border-t-border p-8 cursor-pointer hover:border-t-border transition-all"
-                  onClick={() => audioInputRef.current?.click()}
-                  onDrop={handleDrop}
-                  onDragOver={(e) => e.preventDefault()}
-                >
-                  <div 
-                    className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
-                    style={{ background: `${theme.primary}20` }}
-                  >
-                    <Upload size={28} style={{ color: theme.primaryLight }} />
+              <div className="space-y-5">
+                {/* Two-column: AI Generate (left) | Upload (right) */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Left: AI Generate */}
+                  <div className="rounded-xl border border-t-border p-4 space-y-3" style={{ background: 'var(--t-bg-card)' }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Sparkles size={14} style={{ color: theme.primaryLight }} />
+                      <span className="text-xs font-medium text-t-text2 uppercase tracking-wider">
+                        {language === 'zh' ? 'AI 生成' : 'AI Generate'}
+                      </span>
+                    </div>
+                    <textarea
+                      value={designPrompt}
+                      onChange={(e) => setDesignPrompt(e.target.value)}
+                      placeholder={language === 'zh'
+                        ? '描述你想要的声音...\n例如：一个温暖的中年男性声音，语速适中，带有磁性'
+                        : 'Describe the voice...\ne.g. A warm middle-aged male voice, moderate pace'}
+                      className="w-full px-3 py-2.5 rounded-lg border border-t-border bg-t-bg-base text-sm text-t-text1 placeholder-t-text3 focus:outline-none transition-all resize-none"
+                      rows={3}
+                    />
+                    <button
+                      onClick={handleDesignVoice}
+                      disabled={!designPrompt.trim() || designPrompt.trim().length < 10 || isDesigning}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                      style={{ background: theme.primary, color: '#fff' }}
+                    >
+                      {isDesigning ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                      {isDesigning
+                        ? (language === 'zh' ? '生成中...' : 'Generating...')
+                        : (language === 'zh' ? '生成 3 个候选' : 'Generate 3 Candidates')
+                      }
+                    </button>
                   </div>
-                  <h3 className="text-t-text1 font-medium mb-2">{t.voiceStudio.characters.uploadVoiceFirst}</h3>
-                  <p className="text-t-text3 text-sm mb-4">{t.voiceStudio.characters.uploadVoiceHint}</p>
-                  <p className="text-t-text3 text-xs">{t.voiceStudio.characters.dragDropHint}</p>
+
+                  {/* Right: Upload */}
+                  <div className="rounded-xl border border-t-border p-4 space-y-3" style={{ background: 'var(--t-bg-card)' }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Upload size={14} style={{ color: theme.primaryLight }} />
+                      <span className="text-xs font-medium text-t-text2 uppercase tracking-wider">
+                        {language === 'zh' ? '上传音频' : 'Upload Audio'}
+                      </span>
+                    </div>
+                    <div
+                      className="border-2 border-dashed rounded-lg p-5 text-center cursor-pointer border-t-border hover:border-t-border transition-all"
+                      onClick={() => audioInputRef.current?.click()}
+                      onDrop={handleDrop}
+                      onDragOver={(e) => e.preventDefault()}
+                    >
+                      <div className="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center" style={{ background: `${theme.primary}20` }}>
+                        <Upload size={20} style={{ color: theme.primaryLight }} />
+                      </div>
+                      <p className="text-xs text-t-text2 font-medium">
+                        {language === 'zh' ? '点击或拖拽文件' : 'Click or drag file'}
+                      </p>
+                      <p className="text-[10px] text-t-text3 mt-1">MP3, WAV, M4A, OGG, FLAC</p>
+                    </div>
+                    <input
+                      ref={audioInputRef}
+                      type="file"
+                      accept="audio/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                  </div>
                 </div>
-                <input
-                  ref={audioInputRef}
-                  type="file"
-                  accept="audio/*"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                <button
-                  onClick={() => { setShowCharacterEditor(false); }}
-                  className="mt-6 px-6 py-2 text-t-text3 hover:text-t-text2 transition-all text-sm"
-                >
-                  {t.voiceStudio.characters.cancel}
-                </button>
+
+                {/* Error */}
+                {designError && (
+                  <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                    {designError}
+                  </div>
+                )}
+
+                {/* Generated voice previews (full width) */}
+                {designPreviews.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-t-text3 uppercase tracking-wider">
+                        {language === 'zh' ? '候选音色' : 'Candidates'}
+                      </span>
+                      <div className="flex-1 h-px bg-t-border" />
+                      <button
+                        onClick={handleDesignVoice}
+                        disabled={isDesigning}
+                        className="flex items-center gap-1 text-xs text-t-text3 hover:text-t-text2 transition-colors disabled:opacity-50"
+                      >
+                        <RotateCcw size={12} className={isDesigning ? 'animate-spin' : ''} />
+                        {language === 'zh' ? '重新生成' : 'Regenerate'}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      {designPreviews.map((preview, idx) => {
+                        const isPlaying = playingDesignIdx === idx;
+                        const isSelected = selectedDesignIdx === idx;
+                        return (
+                          <div
+                            key={preview.generatedVoiceId}
+                            onClick={() => setSelectedDesignIdx(idx)}
+                            className={`relative rounded-xl border p-3 transition-all cursor-pointer group text-center ${
+                              isSelected ? 'border-2' : 'border-t-border hover:border-t-border'
+                            }`}
+                            style={isSelected ? { borderColor: theme.primary, background: `${theme.primary}08` } : { background: 'var(--t-bg-card)' }}
+                          >
+                            {isSelected && (
+                              <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: theme.primary }}>
+                                <Check size={10} className="text-white" />
+                              </div>
+                            )}
+                            <div
+                              className="relative w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-2"
+                              style={{ background: `${theme.primary}20` }}
+                              onClick={(e) => { e.stopPropagation(); handlePlayDesignPreview(idx); }}
+                            >
+                              <span className={`transition-opacity duration-150 ${isPlaying ? 'opacity-0' : 'group-hover:opacity-0'}`}>
+                                <Sparkles size={16} style={{ color: theme.primaryLight }} />
+                              </span>
+                              <span
+                                className={`absolute inset-0 flex items-center justify-center rounded-full transition-all duration-150 ${
+                                  isPlaying ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'
+                                }`}
+                                style={{ background: isPlaying ? theme.primary : `${theme.primary}40` }}
+                              >
+                                {isPlaying ? <Square size={10} className="text-white" /> : <Play size={14} className="ml-0.5 text-white" />}
+                              </span>
+                            </div>
+                            <h4 className="text-xs font-medium text-t-text1">
+                              {language === 'zh' ? `候选 ${idx + 1}` : `Voice ${idx + 1}`}
+                            </h4>
+                            <p className="text-[10px] text-t-text3 mt-0.5">
+                              {preview.durationSecs > 0 ? `${preview.durationSecs.toFixed(1)}s` : ''} {preview.language || 'en'}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Confirm selected candidate */}
+                    {selectedDesignIdx !== null && (
+                      <button
+                        onClick={handleConfirmDesignVoice}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all hover:scale-[1.02]"
+                        style={{ background: theme.primary, color: '#fff' }}
+                      >
+                        <Check size={14} />
+                        {language === 'zh' ? '使用此音色' : 'Use This Voice'}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Cancel */}
+                <div className="text-center">
+                  <button
+                    onClick={() => { setShowCharacterEditor(false); resetDesignState(); }}
+                    className="px-6 py-2 text-t-text3 hover:text-t-text2 transition-all text-sm"
+                  >
+                    {t.voiceStudio.characters.cancel}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -807,7 +1014,7 @@ export function VoiceStudio() {
                 {/* Actions */}
                 <div className="flex gap-3 mt-6">
                   <button
-                    onClick={() => { setShowCharacterEditor(false); setAudioUploaded(false); }}
+                    onClick={() => { setShowCharacterEditor(false); setAudioUploaded(false); resetDesignState(); }}
                     className="flex-1 px-4 py-3 rounded-xl border border-t-border text-t-text2 hover:text-t-text1 hover:border-t-border transition-all"
                   >
                     {t.voiceStudio.characters.cancel}

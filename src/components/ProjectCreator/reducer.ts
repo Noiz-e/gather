@@ -1,6 +1,6 @@
 // ProjectCreator state management with Immer
 import { produce } from 'immer';
-import { ScriptSection, EpisodeCharacter } from '../../types';
+import { ScriptSection, EpisodeCharacter, isValidSpeaker } from '../../types';
 import { ProjectTemplate, getTemplateById } from './templates';
 
 // --- Draft Persistence ---
@@ -64,9 +64,10 @@ export function saveDraft(
     const json = JSON.stringify(snapshot);
 
     // Guard against localStorage quota (~5 MB). If the payload is too large
-    // (e.g. lots of base64 audio), strip production audio data and retry.
+    // (e.g. lots of base64 audio), strip base64 audioData but keep audioUrl
+    // so segments can be fetched from cloud storage on restore.
     if (json.length > 4 * 1024 * 1024) {
-      // Strip heavy audio data but keep status/progress
+      // Strip heavy base64 audioData but keep audioUrl and metadata
       const lite: DraftSnapshot = {
         ...snapshot,
         reducerState: {
@@ -76,7 +77,12 @@ export function saveDraft(
               ...state.production.voiceGeneration,
               sectionStatus: Object.fromEntries(
                 Object.entries(state.production.voiceGeneration.sectionStatus).map(
-                  ([id, s]) => [id, { ...s, audioSegments: [] }]
+                  ([id, s]) => [id, {
+                    ...s,
+                    audioSegments: s.audioSegments
+                      .filter(seg => seg.audioUrl) // Only keep segments that have a cloud URL
+                      .map(seg => ({ ...seg, audioData: '' })) // Strip base64 data
+                  }]
                 )
               ),
             },
@@ -154,6 +160,7 @@ export interface SectionVoiceAudio {
   text: string;
   audioData: string;
   mimeType: string;
+  audioUrl?: string; // GCS URL for persistent storage (used when audioData is not available)
   pauseAfterMs?: number; // Custom pause after this segment
 }
 
@@ -279,6 +286,7 @@ type Action =
   | { type: 'UPDATE_SCRIPT_LINE'; sectionId: string; itemId: string; lineIndex: number; field: 'speaker' | 'line'; value: string }
   | { type: 'SET_LINE_PAUSE'; sectionId: string; itemId: string; lineIndex: number; pauseAfterMs: number | undefined }
   | { type: 'ADD_SCRIPT_LINE'; sectionId: string; itemId: string }
+  | { type: 'SPLIT_SCRIPT_LINE'; sectionId: string; itemId: string; lineIndex: number; cursorPos: number }
   | { type: 'REMOVE_SCRIPT_LINE'; sectionId: string; itemId: string; lineIndex: number }
   | { type: 'ADD_TIMELINE_ITEM'; sectionId: string }
   | { type: 'REMOVE_TIMELINE_ITEM'; sectionId: string; itemId: string }
@@ -286,7 +294,7 @@ type Action =
   | { type: 'SET_CHARACTERS'; payload: EpisodeCharacter[] }
   | { type: 'ASSIGN_VOICE_TO_CHARACTER'; characterIndex: number; voiceId: string }
   | { type: 'EXTRACT_CHARACTERS_FROM_SCRIPT' }
-  | { type: 'UPDATE_CHARACTER_TAGS'; tags: Record<string, string[]> }
+  | { type: 'UPDATE_CHARACTER_TAGS'; tags: Record<string, { tags: string[]; voiceDescription: string }> }
   // Production progress
   | { type: 'UPDATE_PRODUCTION_PHASE'; phase: ProductionPhase; status: 'idle' | 'processing' | 'completed' | 'error'; progress: number; detail?: string }
   | { type: 'RESET_PRODUCTION' }
@@ -300,6 +308,7 @@ type Action =
   | { type: 'UPDATE_SECTION_VOICE_STATUS'; sectionId: string; status: SectionVoiceStatus['status']; progress?: number; error?: string }
   | { type: 'ADD_SECTION_VOICE_AUDIO'; sectionId: string; audio: SectionVoiceAudio }
   | { type: 'CLEAR_SECTION_VOICE'; sectionId: string }
+  | { type: 'REPLACE_SECTION_VOICE_AUDIO'; sectionId: string; audioIndex: number; audio: SectionVoiceAudio }
   | { type: 'SET_CURRENT_SECTION'; sectionId: string | undefined }
   // Draft restoration
   | { type: 'RESTORE_DRAFT'; snapshot: DraftSnapshot }
@@ -421,7 +430,21 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
       const item = findTimelineItem(state.scriptSections, action.sectionId, action.itemId);
       if (item) {
         if (!item.lines) item.lines = [];
-        item.lines.push({ speaker: '', line: '' });
+        // Default speaker to the last line's speaker
+        const lastSpeaker = item.lines.length > 0 ? (item.lines[item.lines.length - 1].speaker || '') : '';
+        item.lines.push({ speaker: lastSpeaker, line: '' });
+      }
+      break;
+    }
+
+    case 'SPLIT_SCRIPT_LINE': {
+      const item = findTimelineItem(state.scriptSections, action.sectionId, action.itemId);
+      if (item?.lines?.[action.lineIndex]) {
+        const line = item.lines[action.lineIndex];
+        const textBefore = line.line.slice(0, action.cursorPos);
+        const textAfter = line.line.slice(action.cursorPos);
+        line.line = textBefore;
+        item.lines.splice(action.lineIndex + 1, 0, { speaker: line.speaker, line: textAfter });
       }
       break;
     }
@@ -437,11 +460,19 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
     case 'ADD_TIMELINE_ITEM': {
       const section = state.scriptSections.find(s => s.id === action.sectionId);
       if (section) {
+        // Default speaker to the last speaker used in this section
+        let lastSpeaker = '';
+        for (const ti of section.timeline) {
+          if (ti.lines && ti.lines.length > 0) {
+            const last = ti.lines[ti.lines.length - 1].speaker;
+            if (last) lastSpeaker = last;
+          }
+        }
         section.timeline.push({
           id: `item-${Date.now()}`,
           timeStart: '',
           timeEnd: '',
-          lines: [{ speaker: '', line: '' }],
+          lines: [{ speaker: lastSpeaker, line: '' }],
           soundMusic: ''
         });
       }
@@ -476,27 +507,42 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
           if (item.lines) {
             for (const line of item.lines) {
               const speaker = line.speaker?.trim();
-              if (speaker && speaker.toLowerCase() !== 'n/a') {
-                speakers.add(speaker);
+              if (isValidSpeaker(speaker)) {
+                speakers.add(speaker!);
               }
             }
           }
         }
       }
-      state.characters = Array.from(speakers).map(name => ({
-        name,
-        description: '',
-        assignedVoiceId: undefined,
-        tags: undefined
-      }));
+      // Build a lookup of existing character data (voice assignments, tags, etc.)
+      // so we can preserve them when re-extracting after script edits.
+      const existingByName = new Map<string, EpisodeCharacter>();
+      for (const char of state.characters) {
+        existingByName.set(char.name, char);
+      }
+      state.characters = Array.from(speakers).map(name => {
+        const existing = existingByName.get(name);
+        return {
+          name,
+          description: existing?.description ?? '',
+          assignedVoiceId: existing?.assignedVoiceId,
+          tags: existing?.tags,
+        };
+      });
       break;
     }
 
     case 'UPDATE_CHARACTER_TAGS': {
       const { tags } = action;
       for (const char of state.characters) {
-        if (tags[char.name] && tags[char.name].length > 0) {
-          char.tags = tags[char.name];
+        const analysis = tags[char.name];
+        if (analysis) {
+          if (analysis.tags?.length > 0) {
+            char.tags = analysis.tags;
+          }
+          if (analysis.voiceDescription) {
+            char.voiceDescription = analysis.voiceDescription;
+          }
         }
       }
       break;
@@ -595,6 +641,15 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
       break;
     }
 
+    case 'REPLACE_SECTION_VOICE_AUDIO': {
+      const { sectionId, audioIndex, audio } = action;
+      const sectionSt = state.production.voiceGeneration.sectionStatus[sectionId];
+      if (sectionSt && sectionSt.audioSegments[audioIndex]) {
+        sectionSt.audioSegments[audioIndex] = audio;
+      }
+      break;
+    }
+
     case 'SET_CURRENT_SECTION':
       state.production.voiceGeneration.currentSectionId = action.sectionId;
       break;
@@ -655,6 +710,8 @@ export const actions = {
     ({ type: 'UPDATE_SCRIPT_LINE', sectionId, itemId, lineIndex, field, value }),
   addScriptLine: (sectionId: string, itemId: string): Action => 
     ({ type: 'ADD_SCRIPT_LINE', sectionId, itemId }),
+  splitScriptLine: (sectionId: string, itemId: string, lineIndex: number, cursorPos: number): Action =>
+    ({ type: 'SPLIT_SCRIPT_LINE', sectionId, itemId, lineIndex, cursorPos }),
   removeScriptLine: (sectionId: string, itemId: string, lineIndex: number): Action => 
     ({ type: 'REMOVE_SCRIPT_LINE', sectionId, itemId, lineIndex }),
   setLinePause: (sectionId: string, itemId: string, lineIndex: number, pauseAfterMs: number | undefined): Action =>
@@ -671,7 +728,7 @@ export const actions = {
     ({ type: 'ASSIGN_VOICE_TO_CHARACTER', characterIndex, voiceId }),
   extractCharactersFromScript: (): Action => 
     ({ type: 'EXTRACT_CHARACTERS_FROM_SCRIPT' }),
-  updateCharacterTags: (tags: Record<string, string[]>): Action =>
+  updateCharacterTags: (tags: Record<string, { tags: string[]; voiceDescription: string }>): Action =>
     ({ type: 'UPDATE_CHARACTER_TAGS', tags }),
   
   // Production progress
@@ -705,6 +762,8 @@ export const actions = {
     ({ type: 'ADD_SECTION_VOICE_AUDIO', sectionId, audio }),
   clearSectionVoice: (sectionId: string): Action =>
     ({ type: 'CLEAR_SECTION_VOICE', sectionId }),
+  replaceSectionVoiceAudio: (sectionId: string, audioIndex: number, audio: SectionVoiceAudio): Action =>
+    ({ type: 'REPLACE_SECTION_VOICE_AUDIO', sectionId, audioIndex, audio }),
   setCurrentSection: (sectionId: string | undefined): Action =>
     ({ type: 'SET_CURRENT_SECTION', sectionId }),
   

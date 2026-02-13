@@ -65,7 +65,11 @@ export function buildScriptGenerationPrompt(content: string, config: ScriptGener
     : '';
   
   const soundInstruction = config.addBgm || config.addSoundEffects
-    ? '  - soundMusic: sound/music instructions'
+    ? `  - soundMusic: sound/music instructions for this timeline item. ${config.addBgm && config.addSoundEffects 
+        ? 'Prefix with "[BGM]" for background music (e.g. "[BGM] Soft piano melody") or "[SFX]" for sound effects (e.g. "[SFX] Door creaking open"). Background music is continuous ambient/instrumental music; sound effects are short discrete sounds.'
+        : config.addBgm 
+          ? 'Describe background music (e.g. "Soft piano background music", "Upbeat instrumental").'
+          : 'Describe sound effects (e.g. "Door slams shut", "Birds chirping").'}`
     : '';
 
   return `Based on the following content and specifications, convert the content into a structured podcast script with multiple sections.
@@ -77,7 +81,9 @@ CRITICAL RULES:
    - Stage directions or performance notes (e.g. "[Tone: warm, conversational]", "[pause]", "[music fades in]")
    - Production metadata, timestamps, or annotations
    Instead, use these as context to inform the section "name", "description", or soundMusic fields.
-3. Preserve the wording of actual dialogue/narrative lines exactly as they appear in the source. Do NOT rewrite, paraphrase, or summarize spoken content.
+3. Preserve the wording of actual dialogue/narrative lines exactly as they appear in the source. Do NOT rewrite, paraphrase, or summarize spoken content. Do NOT expand or change contracted forms (e.g., keep "don't" as "don't", "it's" as "it's", "I'm" as "I'm" — never expand them to "do not", "it is", "I am", etc.).
+4. Include ALL lines from the source, even if they are repeated. Repetition is often intentional (e.g., vocabulary drills, pronunciation practice, emphasis). Do NOT deduplicate, merge, or skip repeated lines.
+5. Do NOT over-split sentences into tiny fragments. Keep continuous speech by the same speaker as a SINGLE line unless the source explicitly contains a pause marker, emotion/tone shift, or speaker change. For example, a full paragraph spoken by one narrator should be ONE line, not broken into one line per sentence.
 
 Content: ${content}
 
@@ -110,9 +116,17 @@ Return ONLY the JSON array, no other text.`;
 }
 
 /**
+ * Character analysis result per character.
+ */
+export interface CharacterAnalysis {
+  tags: string[];
+  voiceDescription: string;
+}
+
+/**
  * Build a prompt to analyze characters from a generated script,
- * extracting tags such as gender, age group, voice style, etc.
- * Returns a JSON object mapping character name → string[] tags.
+ * extracting tags and a TTS voice description for each character.
+ * Returns a JSON object mapping character name → { tags, voiceDescription }.
  */
 export function buildCharacterAnalysisPrompt(
   scriptJson: string,
@@ -122,40 +136,54 @@ export function buildCharacterAnalysisPrompt(
   const namesList = characterNames.map(n => `"${n}"`).join(', ');
 
   if (language === 'zh') {
-    return `你是一个专业的配音导演。请根据以下播客脚本内容，分析每个角色的特征，并为每个角色生成描述性标签。
+    return `你是一个专业的配音导演。请根据以下脚本内容，分析每个Speaker角色的特征。
 
 脚本内容（JSON 格式）:
 ${scriptJson}
 
-需要分析的角色: [${namesList}]
+需要分析的Speaker: [${namesList}]
 
-为每个角色生成 2-4 个标签，标签类型包括：
-- 性别（如：男性、女性）
-- 年龄段（如：儿童、青年、中年、老年）
-- 声音风格（如：温暖、低沉、活泼、严肃、专业、温柔）
-- 角色类型（如：主持人、旁白、嘉宾、叙述者）
+为每个角色生成：
+1. 2-4 个标签（tags），标签类型包括：
+   - 性别（如：男性、女性）
+   - 年龄段（如：儿童、青年、中年、老年）
+   - 声音风格（如：温暖、低沉、活泼、严肃、专业、温柔）
+   - 角色类型（如：主持人、旁白、嘉宾、叙述者）
 
-以 JSON 对象格式返回，key 是角色名，value 是标签数组。示例：
-{"主持人": ["男性", "中年", "专业", "主持人"], "嘉宾": ["女性", "青年", "活泼", "嘉宾"]}
+2. 一段英文的声音描述（voiceDescription），约 50 个英文字符，用于 TTS 语音合成。必须用英文，包含以下方面：
+   - Tone/Timbre/Pacing（如 "deep", "low-pitched", "speaks quickly", "smooth"）
+   - Audio Quality（如 "studio-quality", "clear"）
+   - Accent（如 "standard American accent", "British accent"）
+   示例："Warm deep male voice, moderate pace, studio-quality, standard American accent"
+
+以 JSON 对象格式返回，key 是角色名，value 是包含 tags 和 voiceDescription 的对象。示例：
+{"主持人": {"tags": ["男性", "中年", "专业"], "voiceDescription": "Warm deep male voice, moderate pace, studio-quality"}, "嘉宾": {"tags": ["女性", "青年", "活泼"], "voiceDescription": "Bright young female voice, energetic pace, clear audio"}}
 
 只输出 JSON，不要其他文字。`;
   }
 
-  return `You are a professional voice director. Analyze the following podcast script and extract descriptive tags for each character.
+  return `You are a professional voice director. Analyze the following podcast script and extract descriptive tags and a voice description for each character.
 
 Script (JSON):
 ${scriptJson}
 
 Characters to analyze: [${namesList}]
 
-Generate 2-4 tags for each character. Tag categories include:
-- Gender (e.g. Male, Female)
-- Age group (e.g. Child, Young, Middle-aged, Elderly)
-- Voice style (e.g. Warm, Deep, Energetic, Serious, Professional, Gentle)
-- Role type (e.g. Host, Narrator, Guest, Storyteller)
+For each character, generate:
+1. 2-4 tags. Tag categories include:
+   - Gender (e.g. Male, Female)
+   - Age group (e.g. Child, Young, Middle-aged, Elderly)
+   - Voice style (e.g. Warm, Deep, Energetic, Serious, Professional, Gentle)
+   - Role type (e.g. Host, Narrator, Guest, Storyteller)
 
-Return a JSON object where keys are character names and values are tag arrays. Example:
-{"Host": ["Male", "Middle-aged", "Professional", "Host"], "Guest": ["Female", "Young", "Energetic", "Guest"]}
+2. A voiceDescription string (~50 characters, English only) for TTS voice synthesis. It should cover:
+   - Tone/Timbre/Pacing (e.g. "deep", "low-pitched", "speaks quickly", "smooth")
+   - Audio Quality (e.g. "studio-quality", "clear")
+   - Accent (e.g. "standard American accent", "thick French accent")
+   Example: "Warm deep male voice, moderate pace, studio-quality, standard American accent"
+
+Return a JSON object where keys are character names and values are objects with "tags" and "voiceDescription". Example:
+{"Host": {"tags": ["Male", "Middle-aged", "Professional"], "voiceDescription": "Warm deep male voice, moderate pace, studio-quality"}, "Guest": {"tags": ["Female", "Young", "Energetic"], "voiceDescription": "Bright young female voice, energetic pace, clear audio"}}
 
 Return ONLY the JSON, no other text.`;
 }

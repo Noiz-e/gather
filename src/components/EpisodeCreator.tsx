@@ -1,25 +1,27 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useProjects } from '../contexts/ProjectContext';
 import { useLanguage } from '../i18n/LanguageContext';
-import { Project, VoiceCharacter, ScriptSection, EpisodeCharacter, ScriptTimelineItem } from '../types';
+import { Project, VoiceCharacter, ScriptSection, EpisodeCharacter, ScriptTimelineItem, isValidSpeaker } from '../types';
 import { 
   ChevronLeft, ChevronRight, ChevronDown, Check, X, FileText, 
   Plus, Trash2, Play, Pause, User, Loader2,
   Music, Volume2, Image, Save, Upload, Sparkles,
-  Mic2, Wand2, Sliders, RefreshCw, Square
+  Mic2, Wand2, Sliders, RefreshCw, Square, Scissors
 } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
 import { filterValidFiles, collectAnalysisContent } from '../utils/fileUtils';
 import { buildScriptGenerationPrompt } from '../services/llm/prompts';
 import { analyzeScriptCharacters } from '../services/llm';
 import * as api from '../services/api';
-import { loadVoiceCharacters } from '../utils/voiceStorage';
+import { loadVoiceCharacters, addVoiceCharacter } from '../utils/voiceStorage';
 import { getAudioMixConfig } from './ProjectCreator/templates';
 import { VoicePickerModal } from './VoicePickerModal';
 import type { SectionVoiceAudio, SectionVoiceStatus, ProductionProgress, MixedAudioOutput } from './ProjectCreator/reducer';
-import { loadMediaItems, addMediaItem } from '../utils/mediaStorage';
+import { loadMediaItems, addMediaItem, getMediaByType, getMediaByProject, classifySoundMusic } from '../utils/mediaStorage';
 import type { MediaItem } from '../types';
+import { MediaPickerModal, findBestMatch } from './MediaPickerModal';
+import type { MediaPickerResult } from './MediaPickerModal';
 
 interface EpisodeCreatorProps {
   project: Project;
@@ -33,6 +35,8 @@ interface ExtractedCharacter {
   description: string;
   assignedVoiceId?: string;
   tags?: string[];
+  /** English voice description for TTS (~50 chars) */
+  voiceDescription?: string;
 }
 
 const initialProductionProgress: ProductionProgress = {
@@ -69,6 +73,9 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
   const [streamingText, setStreamingText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Split line: track which textarea is focused and cursor position
+  const [splitCursor, setSplitCursor] = useState<{ sectionId: string; itemId: string; lineIndex: number; cursorPos: number } | null>(null);
+  
   // Voice state - matching ProjectCreator
   const [availableVoices, setAvailableVoices] = useState<VoiceCharacter[]>([]);
   const [systemVoices, setSystemVoices] = useState<api.Voice[]>([]);
@@ -91,8 +98,46 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
   const mediaAudioRef = useRef<HTMLAudioElement | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   
+  // Media selection state (pre-production phase)
+  // Tracks whether user has confirmed media selections before generation starts
+  const [mediaSelectionsConfirmed, setMediaSelectionsConfirmed] = useState(false);
+  // BGM selection: null = not yet chosen, { source, mediaItem?, prompt } = chosen
+  const [bgmSelection, setBgmSelection] = useState<MediaPickerResult | null>(null);
+  // SFX selections: keyed by "sectionId-itemId" for each timeline item with soundMusic
+  const [sfxSelections, setSfxSelections] = useState<Record<string, MediaPickerResult>>({});
+  // Which picker modal is open: null, 'bgm', or 'sfx-{sectionId}-{itemId}'
+  const [mediaPickerOpen, setMediaPickerOpen] = useState<string | null>(null);
+  // Cached media library items (loaded once when entering step 4)
+  const [cachedMediaItems, setCachedMediaItems] = useState<MediaItem[]>([]);
+  
   // Production state - matching ProjectCreator
   const [production, setProduction] = useState<ProductionProgress>(initialProductionProgress);
+
+  // Maximum number of script lines allowed (matches server-side batch limit)
+  const MAX_SCRIPT_LINES = 100;
+  
+  // Compute total line count across all sections
+  const totalLineCount = useMemo(() => {
+    return scriptSections.reduce((total, section) => {
+      return total + section.timeline.reduce((sectionTotal, item) => {
+        return sectionTotal + (item.lines?.length || 0);
+      }, 0);
+    }, 0);
+  }, [scriptSections]);
+
+  // Compute known speaker names from characters + script lines (for dropdown selection)
+  const knownSpeakers = useMemo(() => {
+    const names = new Set<string>();
+    characters.forEach(c => { if (c.name) names.add(c.name); });
+    scriptSections.forEach(section => {
+      section.timeline.forEach(item => {
+        (item.lines || []).forEach(line => {
+          if (line.speaker?.trim()) names.add(line.speaker.trim());
+        });
+      });
+    });
+    return Array.from(names);
+  }, [characters, scriptSections]);
 
   // 6-step workflow matching ProjectCreator Steps 3-8
   const STEPS = [
@@ -255,6 +300,23 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
           30
         );
         setBgmAudio({ audioData: bgmResult.audioData, mimeType: bgmResult.mimeType });
+        
+        // Also save regenerated BGM to media library
+        let mediaItems = loadMediaItems();
+        const bgmItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
+          name: `${title} - BGM`,
+          description: spec?.toneAndExpression || 'Background music',
+          type: 'bgm',
+          mimeType: bgmResult.mimeType,
+          dataUrl: `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`,
+          duration: 30,
+          tags: ['generated', 'bgm'],
+          projectIds: [project.id],
+          source: 'generated',
+          prompt: spec?.toneAndExpression || ''
+        };
+        mediaItems = addMediaItem(mediaItems, bgmItem);
+        console.log(`Added regenerated BGM to media library for project ${project.id}`);
       } else if (type === 'sfx' && index !== undefined) {
         const sfxItem = production.mediaProduction.sfxAudios?.[index];
         if (sfxItem) {
@@ -272,7 +334,76 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     } finally {
       setRegeneratingId(null);
     }
-  }, [spec, production.mediaProduction.sfxAudios, setBgmAudio, updateSfxAudio]);
+  }, [spec, production.mediaProduction.sfxAudios, setBgmAudio, updateSfxAudio, title, project.id]);
+
+  // Initialize media selections by scanning library for best matches
+  const initializeMediaSelections = useCallback(() => {
+    const allItems = loadMediaItems();
+    setCachedMediaItems(allItems);
+    
+    const bgmItems = getMediaByType(allItems, 'bgm');
+    const sfxItems = getMediaByType(allItems, 'sfx');
+    
+    // Prioritize items from this project
+    const projectBgm = getMediaByProject(bgmItems, project.id);
+    const projectSfx = getMediaByProject(sfxItems, project.id);
+    
+    // Auto-match BGM
+    if (spec?.addBgm) {
+      const bgmPrompt = spec.toneAndExpression || '';
+      // Try project items first, then all items
+      const projectMatch = findBestMatch(projectBgm, bgmPrompt, 'bgm');
+      const globalMatch = findBestMatch(bgmItems, bgmPrompt, 'bgm');
+      const bestMatch = projectMatch || globalMatch;
+      
+      if (bestMatch) {
+        setBgmSelection({
+          source: 'library',
+          mediaItem: bestMatch.item,
+          prompt: bestMatch.item.prompt || bestMatch.item.description,
+          duration: bestMatch.item.duration,
+        });
+      } else {
+        // Default to generate
+        setBgmSelection({
+          source: 'generate',
+          prompt: bgmPrompt,
+          duration: 30,
+        });
+      }
+    }
+    
+    // Auto-match SFX for each timeline item
+    if (spec?.addSoundEffects) {
+      const newSfxSelections: Record<string, MediaPickerResult> = {};
+      for (const section of scriptSections) {
+        for (const item of section.timeline) {
+          if (item.soundMusic?.trim()) {
+            const key = `${section.id}-${item.id}`;
+            const projectMatch = findBestMatch(projectSfx, item.soundMusic, 'sfx');
+            const globalMatch = findBestMatch(sfxItems, item.soundMusic, 'sfx');
+            const bestMatch = projectMatch || globalMatch;
+            
+            if (bestMatch) {
+              newSfxSelections[key] = {
+                source: 'library',
+                mediaItem: bestMatch.item,
+                prompt: bestMatch.item.prompt || bestMatch.item.description,
+                duration: bestMatch.item.duration,
+              };
+            } else {
+              newSfxSelections[key] = {
+                source: 'generate',
+                prompt: item.soundMusic,
+                duration: 5,
+              };
+            }
+          }
+        }
+      }
+      setSfxSelections(newSfxSelections);
+    }
+  }, [spec, scriptSections, project.id]);
 
   const setMixedOutput = useCallback((output: MixedAudioOutput) => {
     setProduction(prev => ({
@@ -495,20 +626,40 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
 
   const addScriptLine = useCallback(
     (sectionId: string, itemId: string) => {
-      setScriptSections(sections =>
-        sections.map(section =>
+      setScriptSections(sections => {
+        // Count current total lines
+        const currentTotal = sections.reduce((total, section) => {
+          return total + section.timeline.reduce((sectionTotal, item) => {
+            return sectionTotal + (item.lines?.length || 0);
+          }, 0);
+        }, 0);
+        if (currentTotal >= MAX_SCRIPT_LINES) {
+          return sections; // Limit reached, don't add
+        }
+        // Find the last speaker in this timeline item to use as default
+        let lastSpeaker = '';
+        for (const section of sections) {
+          if (section.id === sectionId) {
+            for (const item of section.timeline) {
+              if (item.id === itemId && item.lines && item.lines.length > 0) {
+                lastSpeaker = item.lines[item.lines.length - 1].speaker || '';
+              }
+            }
+          }
+        }
+        return sections.map(section =>
           section.id === sectionId
             ? {
                 ...section,
                 timeline: section.timeline.map(item =>
                   item.id === itemId
-                    ? { ...item, lines: [...(item.lines || []), { speaker: '', line: '' }] }
+                    ? { ...item, lines: [...(item.lines || []), { speaker: lastSpeaker, line: '' }] }
                     : item
                 )
               }
             : section
-        )
-      );
+        );
+      });
     },
     []
   );
@@ -533,21 +684,59 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     []
   );
 
-  const addTimelineItem = useCallback(
-    (sectionId: string) => {
+  // Split a script line at cursor position
+  const splitScriptLine = useCallback(
+    (sectionId: string, itemId: string, lineIndex: number, cursorPos: number) => {
       setScriptSections(sections =>
         sections.map(section =>
           section.id === sectionId
             ? {
                 ...section,
-                timeline: [
-                  ...section.timeline,
-                  { id: `item-${Date.now()}`, timeStart: '', timeEnd: '', lines: [{ speaker: '', line: '' }], soundMusic: '' }
-                ]
+                timeline: section.timeline.map(item => {
+                  if (item.id !== itemId || !item.lines?.[lineIndex]) return item;
+                  const line = item.lines[lineIndex];
+                  const textBefore = line.line.slice(0, cursorPos);
+                  const textAfter = line.line.slice(cursorPos);
+                  const newLines = [...item.lines];
+                  newLines[lineIndex] = { ...line, line: textBefore };
+                  newLines.splice(lineIndex + 1, 0, { speaker: line.speaker, line: textAfter });
+                  return { ...item, lines: newLines };
+                })
               }
             : section
         )
       );
+    },
+    []
+  );
+
+  const addTimelineItem = useCallback(
+    (sectionId: string) => {
+      setScriptSections(sections => {
+        // Find the last speaker used in this section
+        let lastSpeaker = '';
+        for (const section of sections) {
+          if (section.id === sectionId) {
+            for (const item of section.timeline) {
+              if (item.lines && item.lines.length > 0) {
+                const last = item.lines[item.lines.length - 1].speaker;
+                if (last) lastSpeaker = last;
+              }
+            }
+          }
+        }
+        return sections.map(section =>
+          section.id === sectionId
+            ? {
+                ...section,
+                timeline: [
+                  ...section.timeline,
+                  { id: `item-${Date.now()}`, timeStart: '', timeEnd: '', lines: [{ speaker: lastSpeaker, line: '' }], soundMusic: '' }
+                ]
+              }
+            : section
+        );
+      });
     },
     []
   );
@@ -573,7 +762,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     scriptSections.forEach(section => {
       section.timeline.forEach((item: ScriptTimelineItem) => {
         (item.lines || []).forEach(line => {
-          if (line.speaker && line.speaker.trim()) {
+          if (isValidSpeaker(line.speaker)) {
             speakerSet.add(line.speaker.trim());
           }
         });
@@ -595,11 +784,16 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         JSON.stringify(scriptSections),
         charNames,
         language === 'zh' ? 'zh' : 'en'
-      ).then(tags => {
-        setCharacters(prev => prev.map(char => ({
-          ...char,
-          tags: tags[char.name]?.length ? tags[char.name] : char.tags,
-        })));
+      ).then(analysisResult => {
+        setCharacters(prev => prev.map(char => {
+          const analysis = analysisResult[char.name];
+          if (!analysis) return char;
+          return {
+            ...char,
+            tags: analysis.tags?.length ? analysis.tags : char.tags,
+            voiceDescription: analysis.voiceDescription || char.voiceDescription,
+          };
+        }));
       }).catch(err => {
         console.error('Character analysis failed:', err);
       }).finally(() => {
@@ -621,35 +815,51 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     []
   );
 
-  // AI recommend voices for all characters
-  const recommendVoicesForAll = useCallback(async () => {
-    const allVoices = [
-      ...systemVoices.map((v) => ({ id: v.id, name: v.name, description: v.description, descriptionZh: v.descriptionZh })),
-      ...availableVoices.map((v) => ({ id: v.id, name: v.name, description: v.description }))
-    ];
-    if (characters.length === 0 || allVoices.length === 0) return;
+  // AI generate new voices for all characters using their voiceDescription
+  const [generatingVoicesProgress, setGeneratingVoicesProgress] = useState<{ current: number; total: number } | null>(null);
+  const generateVoicesForAll = useCallback(async () => {
+    // Only generate for characters that have a voiceDescription and no voice assigned yet
+    const charsToGenerate = characters
+      .map((c, idx) => ({ ...c, idx }))
+      .filter(c => c.voiceDescription && !c.assignedVoiceId);
+    if (charsToGenerate.length === 0) return;
+
     setIsRecommendingVoices(true);
-    try {
-      const assignments = await api.recommendVoices({
-        characters: characters.map((c) => ({ name: c.name, description: c.description })),
-        voices: allVoices,
-        language: language === 'zh' ? 'zh' : 'en'
-      });
-      assignments.forEach((voiceId, index) => {
-        if (index < characters.length && voiceId) {
-          setCharacters(chars =>
-            chars.map((char, idx) =>
-              idx === index ? { ...char, assignedVoiceId: voiceId } : char
-            )
-          );
-        }
-      });
-    } catch (err) {
-      console.error('Recommend voices failed:', err);
-    } finally {
-      setIsRecommendingVoices(false);
+    setGeneratingVoicesProgress({ current: 0, total: charsToGenerate.length });
+
+    for (let i = 0; i < charsToGenerate.length; i++) {
+      const char = charsToGenerate[i];
+      setGeneratingVoicesProgress({ current: i + 1, total: charsToGenerate.length });
+      try {
+        // Design voice using the character's voiceDescription
+        const result = await api.designVoice(char.voiceDescription!);
+        if (result.previews.length === 0) continue;
+
+        // Take the first preview candidate
+        const preview = result.previews[0];
+        const dataUrl = `data:${preview.mediaType || 'audio/mpeg'};base64,${preview.audioBase64}`;
+
+        // Save as a new custom voice
+        const updatedVoices = addVoiceCharacter(availableVoices, {
+          name: char.name,
+          description: char.voiceDescription || '',
+          refAudioDataUrl: dataUrl,
+          audioSampleUrl: dataUrl,
+          tags: ['ai-generated'],
+        });
+        const newVoice = updatedVoices[updatedVoices.length - 1];
+        setAvailableVoices(updatedVoices);
+
+        // Auto-assign to character
+        assignVoiceToCharacter(char.idx, newVoice.id);
+      } catch (err) {
+        console.error(`Failed to generate voice for ${char.name}:`, err);
+      }
     }
-  }, [characters, systemVoices, availableVoices, language]);
+
+    setIsRecommendingVoices(false);
+    setGeneratingVoicesProgress(null);
+  }, [characters, availableVoices, assignVoiceToCharacter]);
 
   // Play voice sample preview
   const playVoiceSample = async (voiceId: string) => {
@@ -671,7 +881,20 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       setLoadingVoiceId(voiceId);
       setPlayingVoiceId(null);
       
-      const audio = await api.playVoiceSample(voiceId, language === 'zh' ? 'zh' : 'en');
+      // Check if this is a custom voice with a stored audio sample
+      const customVoice = availableVoices.find(v => v.id === voiceId);
+      const customAudioUrl = customVoice?.refAudioDataUrl || customVoice?.audioSampleUrl;
+      
+      let audio: HTMLAudioElement;
+      if (customAudioUrl) {
+        // Play custom voice sample directly from stored audio
+        audio = new Audio(customAudioUrl);
+        await audio.play();
+      } else {
+        // System voice - fetch sample from backend
+        audio = await api.playVoiceSample(voiceId, language === 'zh' ? 'zh' : 'en');
+      }
+      
       audioRef.current = audio;
       setPlayingVoiceId(voiceId);
       setLoadingVoiceId(null);
@@ -762,6 +985,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
             text: segment.text,
             audioData: generated.audioData,
             mimeType: generated.mimeType,
+            audioUrl: generated.audioUrl,
             pauseAfterMs: segment.pauseAfterMs
           };
           addSectionVoiceAudio(sectionId, audio);
@@ -830,13 +1054,52 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
   };
 
   // ============================================================
-  // Media production (BGM, SFX, Images) - ported from ProjectCreator
+  // Media production (BGM, SFX, Images) - uses selections from picker
   // ============================================================
   const performMediaProduction = async () => {
+    setMediaSelectionsConfirmed(true);
+    
     const tasks: { type: string; label: string }[] = [];
-    if (spec?.addBgm) tasks.push({ type: 'bgm', label: language === 'zh' ? '生成背景音乐' : 'Generating BGM' });
-    if (spec?.addSoundEffects) tasks.push({ type: 'sfx', label: language === 'zh' ? '添加音效' : 'Adding SFX' });
+    // Only add BGM task if we need to generate (not using library)
+    const needsBgmGeneration = spec?.addBgm && bgmSelection?.source === 'generate';
+    const needsSfxGeneration = spec?.addSoundEffects && Object.values(sfxSelections).some(s => s.source === 'generate');
+    
+    if (needsBgmGeneration) tasks.push({ type: 'bgm', label: language === 'zh' ? '生成背景音乐' : 'Generating BGM' });
+    if (needsSfxGeneration) tasks.push({ type: 'sfx', label: language === 'zh' ? '生成音效' : 'Generating SFX' });
     if (spec?.hasVisualContent) tasks.push({ type: 'images', label: language === 'zh' ? '生成图片' : 'Generating Images' });
+    
+    // First, apply library selections immediately (no generation needed)
+    if (spec?.addBgm && bgmSelection?.source === 'library' && bgmSelection.mediaItem) {
+      // Extract audio data from the library item's dataUrl
+      const dataUrl = bgmSelection.mediaItem.dataUrl;
+      const mimeMatch = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (mimeMatch) {
+        setBgmAudio({ audioData: mimeMatch[2], mimeType: mimeMatch[1] });
+      }
+    }
+    
+    if (spec?.addSoundEffects) {
+      for (const section of scriptSections) {
+        for (const item of section.timeline) {
+          if (item.soundMusic?.trim()) {
+            const key = `${section.id}-${item.id}`;
+            const sel = sfxSelections[key];
+            if (sel?.source === 'library' && sel.mediaItem) {
+              const dataUrl = sel.mediaItem.dataUrl;
+              const mimeMatch = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+              if (mimeMatch) {
+                addSfxAudio({
+                  name: `${section.name} - SFX`,
+                  prompt: item.soundMusic,
+                  audioData: mimeMatch[2],
+                  mimeType: mimeMatch[1],
+                });
+              }
+            }
+          }
+        }
+      }
+    }
     
     if (tasks.length === 0) {
       updateProductionPhase('media-production', 'completed', 100);
@@ -853,7 +1116,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       try {
         if (task.type === 'bgm') {
           const bgmResult = await api.generateBGM(
-            spec?.toneAndExpression || '',
+            bgmSelection?.prompt || spec?.toneAndExpression || '',
             'peaceful',
             30
           );
@@ -865,7 +1128,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
           // Save BGM to media library and link to project
           const bgmItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
             name: `${title} - BGM`,
-            description: spec?.toneAndExpression || 'Background music',
+            description: bgmSelection?.prompt || spec?.toneAndExpression || 'Background music',
             type: 'bgm',
             mimeType: bgmResult.mimeType,
             dataUrl: `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`,
@@ -873,39 +1136,78 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
             tags: ['generated', 'bgm'],
             projectIds: [project.id],
             source: 'generated',
-            prompt: spec?.toneAndExpression || ''
+            prompt: bgmSelection?.prompt || spec?.toneAndExpression || ''
           };
           mediaItems = addMediaItem(mediaItems, bgmItem);
           console.log(`Added BGM to media library for project ${project.id}`);
         } else if (task.type === 'sfx') {
+          // Classify each soundMusic entry as BGM or SFX to avoid misclassification
           for (const section of scriptSections) {
             for (const item of section.timeline) {
               if (item.soundMusic?.trim()) {
-                const sfxResult = await api.generateSoundEffect(item.soundMusic, 5);
-                
-                // Save SFX to production state for preview
-                addSfxAudio({
-                  name: `${section.name} - SFX`,
-                  prompt: item.soundMusic,
-                  audioData: sfxResult.audioData,
-                  mimeType: sfxResult.mimeType,
-                });
-                
-                // Save SFX to media library and link to project
-                const sfxItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
-                  name: `${section.name} - SFX`,
-                  description: item.soundMusic,
-                  type: 'sfx',
-                  mimeType: sfxResult.mimeType,
-                  dataUrl: `data:${sfxResult.mimeType};base64,${sfxResult.audioData}`,
-                  duration: 5,
-                  tags: ['generated', 'sfx'],
-                  projectIds: [project.id],
-                  source: 'generated',
-                  prompt: item.soundMusic
-                };
-                mediaItems = addMediaItem(mediaItems, sfxItem);
-                console.log(`Added SFX to media library for project ${project.id}`);
+                const key = `${section.id}-${item.id}`;
+                const sel = sfxSelections[key];
+                // Only generate if source is 'generate' (library items already applied above)
+                if (sel?.source === 'generate') {
+                  const soundType = classifySoundMusic(sel.prompt || item.soundMusic);
+                  
+                  if (soundType === 'bgm') {
+                    // This is actually a BGM description, generate as music
+                    console.log(`Classified "${item.soundMusic}" as BGM (not SFX)`);
+                    const bgmResult = await api.generateBGM(sel.prompt || item.soundMusic, 'peaceful', 30);
+                    
+                    // If no BGM has been set yet, use this as the BGM
+                    if (!production.mediaProduction.bgmAudio) {
+                      setBgmAudio({
+                        audioData: bgmResult.audioData,
+                        mimeType: bgmResult.mimeType
+                      });
+                    }
+                    
+                    // Save to media library as BGM
+                    const bgmMediaItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
+                      name: `${section.name} - BGM`,
+                      description: item.soundMusic,
+                      type: 'bgm',
+                      mimeType: bgmResult.mimeType,
+                      dataUrl: `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`,
+                      duration: 30,
+                      tags: ['generated', 'bgm'],
+                      projectIds: [project.id],
+                      source: 'generated',
+                      prompt: item.soundMusic
+                    };
+                    mediaItems = addMediaItem(mediaItems, bgmMediaItem);
+                    console.log(`Added BGM to media library (from soundMusic) for project ${project.id}`);
+                  } else {
+                    // This is a real sound effect
+                    const sfxResult = await api.generateSoundEffect(sel.prompt || item.soundMusic, 5);
+                    
+                    // Save SFX to production state for preview
+                    addSfxAudio({
+                      name: `${section.name} - SFX`,
+                      prompt: item.soundMusic,
+                      audioData: sfxResult.audioData,
+                      mimeType: sfxResult.mimeType,
+                    });
+                    
+                    // Save SFX to media library and link to project
+                    const sfxItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
+                      name: `${section.name} - SFX`,
+                      description: item.soundMusic,
+                      type: 'sfx',
+                      mimeType: sfxResult.mimeType,
+                      dataUrl: `data:${sfxResult.mimeType};base64,${sfxResult.audioData}`,
+                      duration: 5,
+                      tags: ['generated', 'sfx'],
+                      projectIds: [project.id],
+                      source: 'generated',
+                      prompt: item.soundMusic
+                    };
+                    mediaItems = addMediaItem(mediaItems, sfxItem);
+                    console.log(`Added SFX to media library for project ${project.id}`);
+                  }
+                }
               }
             }
           }
@@ -957,9 +1259,11 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         if (sectionStatus?.audioSegments) {
           let isFirstInSection = true;
           for (const segment of sectionStatus.audioSegments) {
-            if (segment.audioData) {
+            // Accept segment if it has audioData (in memory) or audioUrl (from cloud storage)
+            if (segment.audioData || segment.audioUrl) {
               voiceTracks.push({
                 audioData: segment.audioData,
+                audioUrl: segment.audioUrl,
                 mimeType: segment.mimeType || 'audio/wav',
                 speaker: segment.speaker,
                 sectionStart: isFirstInSection, // Mark first segment of each section
@@ -1107,11 +1411,12 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       return;
     }
     
-    // Step 3 -> 4: Voice generation done, go to media production
+    // Step 3 -> 4: Voice generation done, go to media selection/production
     if (currentStep === 3 && production.voiceGeneration.status === 'completed') {
       setCurrentStep(4);
+      setMediaSelectionsConfirmed(false);
       setTimeout(() => {
-        performMediaProduction();
+        initializeMediaSelections();
       }, 100);
       return;
     }
@@ -1398,20 +1703,63 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                       {(item.lines || []).map((scriptLine, lineIndex) => (
                         <div key={lineIndex}>
                           <div className="flex items-start gap-3">
-                            <input 
-                              type="text" 
-                              value={scriptLine.speaker} 
-                              onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
-                              placeholder={t.projectCreator.speaker}
-                              className="w-28 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none flex-shrink-0" 
-                            />
-                            <textarea 
-                              value={scriptLine.line} 
-                              onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
-                              placeholder={t.projectCreator.lineContent}
-                              rows={2}
-                              className="flex-1 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none resize-none" 
-                            />
+                            {knownSpeakers.length > 0 ? (
+                              <select
+                                value={scriptLine.speaker}
+                                onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)}
+                                className="w-28 px-2 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none flex-shrink-0 appearance-none cursor-pointer"
+                                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
+                              >
+                                {!scriptLine.speaker && <option value="">{t.projectCreator.speaker}</option>}
+                                {knownSpeakers.map(name => (
+                                  <option key={name} value={name}>{name}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input 
+                                type="text" 
+                                value={scriptLine.speaker} 
+                                onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
+                                placeholder={t.projectCreator.speaker}
+                                className="w-28 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none flex-shrink-0" 
+                              />
+                            )}
+                            <div className="flex-1 relative group/split">
+                              <textarea 
+                                value={scriptLine.line} 
+                                onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
+                                placeholder={t.projectCreator.lineContent}
+                                rows={2}
+                                className="w-full px-3 py-2 pr-8 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none resize-none" 
+                                onSelect={(e) => {
+                                  const ta = e.target as HTMLTextAreaElement;
+                                  const pos = ta.selectionStart;
+                                  if (pos > 0 && pos < scriptLine.line.length) {
+                                    setSplitCursor({ sectionId: section.id, itemId: item.id, lineIndex, cursorPos: pos });
+                                  } else {
+                                    setSplitCursor(null);
+                                  }
+                                }}
+                                onBlur={() => {
+                                  setTimeout(() => setSplitCursor(prev => 
+                                    prev?.sectionId === section.id && prev?.itemId === item.id && prev?.lineIndex === lineIndex ? null : prev
+                                  ), 150);
+                                }}
+                              />
+                              {splitCursor?.sectionId === section.id && splitCursor?.itemId === item.id && splitCursor?.lineIndex === lineIndex && (
+                                <button
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    splitScriptLine(section.id, item.id, lineIndex, splitCursor.cursorPos);
+                                    setSplitCursor(null);
+                                  }}
+                                  className="absolute right-1.5 top-1.5 p-1 rounded bg-t-bg2/90 border border-t-border text-t-text3 hover:text-t-text1 hover:bg-t-bg2 transition-all shadow-sm"
+                                  title={language === 'zh' ? '从光标处拆分' : 'Split at cursor'}
+                                >
+                                  <Scissors size={12} />
+                                </button>
+                              )}
+                            </div>
                             <button 
                               onClick={() => removeScriptLine(section.id, item.id, lineIndex)} 
                               className="p-2 rounded hover:bg-red-500/20 text-t-text3 hover:text-red-400 flex-shrink-0"
@@ -1466,7 +1814,8 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                       ))}
                       <button 
                         onClick={() => addScriptLine(section.id, item.id)} 
-                        className="flex items-center gap-1.5 text-xs text-t-text3 hover:text-t-text2 mt-3"
+                        className={`flex items-center gap-1.5 text-xs mt-3 ${totalLineCount >= MAX_SCRIPT_LINES ? 'text-t-text3/40 cursor-not-allowed' : 'text-t-text3 hover:text-t-text2'}`}
+                        disabled={totalLineCount >= MAX_SCRIPT_LINES}
                       >
                         <Plus size={12} />{t.projectCreator.addLine}
                       </button>
@@ -1541,18 +1890,21 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={recommendVoicesForAll}
-                    disabled={isRecommendingVoices || systemVoices.length + availableVoices.length === 0}
+                    onClick={generateVoicesForAll}
+                    disabled={isRecommendingVoices || characters.filter(c => c.voiceDescription && !c.assignedVoiceId).length === 0}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
                     style={{ background: `${theme.primary}25`, color: theme.primaryLight }}
-                    title={language === 'zh' ? '用 AI 为每个角色推荐最合适的预置音色' : 'Use AI to recommend the best preset voice for each character'}
+                    title={language === 'zh' ? '用 AI 为每个角色生成专属音色' : 'Generate a unique AI voice for each character'}
                   >
                     {isRecommendingVoices ? (
                       <Loader2 size={16} className="animate-spin" />
                     ) : (
-                      <Wand2 size={16} />
+                      <Sparkles size={16} />
                     )}
-                    {language === 'zh' ? 'AI 推荐音色' : 'Recommend with AI'}
+                    {isRecommendingVoices && generatingVoicesProgress
+                      ? `${generatingVoicesProgress.current}/${generatingVoicesProgress.total}`
+                      : (language === 'zh' ? 'AI 生成全部音色' : 'Generate All Voices')
+                    }
                   </button>
                   <span className="text-xs text-t-text3">
                     {characters.length} {language === 'zh' ? '个角色' : 'characters'}
@@ -1679,7 +2031,8 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               customVoices={availableVoices}
               playingVoiceId={playingVoiceId}
               loadingVoiceId={loadingVoiceId}
-              isRecommending={isRecommendingVoices}
+              projectVoiceIds={characters.map(c => c.assignedVoiceId).filter((id): id is string => !!id)}
+              scriptSections={scriptSections}
               onAssign={(voiceId) => {
                 assignVoiceToCharacter(voicePickerCharIndex, voiceId);
               }}
@@ -1992,7 +2345,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
   };
 
   // ============================================================
-  // Render Step 4: Media Production - ported from ProjectCreator
+  // Render Step 4: Media Production - with library selection
   // ============================================================
   const renderMediaProductionStep = () => {
     const { mediaProduction } = production;
@@ -2000,6 +2353,220 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     const hasSfx = spec?.addSoundEffects;
     const hasImages = spec?.hasVisualContent;
     
+    // Collect SFX needs from script
+    const sfxNeeds: { sectionId: string; sectionName: string; itemId: string; prompt: string }[] = [];
+    if (hasSfx) {
+      for (const section of scriptSections) {
+        for (const item of section.timeline) {
+          if (item.soundMusic?.trim()) {
+            sfxNeeds.push({
+              sectionId: section.id,
+              sectionName: section.name,
+              itemId: item.id,
+              prompt: item.soundMusic,
+            });
+          }
+        }
+      }
+    }
+    
+    const bgmLibraryItems = getMediaByType(cachedMediaItems, 'bgm');
+    const sfxLibraryItems = getMediaByType(cachedMediaItems, 'sfx');
+    const projectItemIds = cachedMediaItems.filter(i => i.projectIds?.includes(project.id)).map(i => i.id);
+    
+    // Count how many items will use library vs generate
+    const libraryCount = (bgmSelection?.source === 'library' ? 1 : 0) + Object.values(sfxSelections).filter(s => s.source === 'library').length;
+    const generateCount = (bgmSelection?.source === 'generate' ? 1 : 0) + Object.values(sfxSelections).filter(s => s.source === 'generate').length;
+    
+    // --- Phase 1: Selection UI (before production starts) ---
+    if (!mediaSelectionsConfirmed) {
+      return (
+        <div className="space-y-6">
+          <div className="text-center py-4">
+            <div 
+              className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
+              style={{ background: `${theme.primary}20` }}
+            >
+              <Music size={32} style={{ color: theme.primaryLight }} />
+            </div>
+            <h3 className="text-xl font-medium text-t-text1 mb-2">
+              {language === 'zh' ? '选择媒体素材' : 'Select Media Assets'}
+            </h3>
+            <p className="text-base text-t-text3">
+              {language === 'zh' 
+                ? '从媒体库选择已有素材，或生成新的' 
+                : 'Choose from your library or generate new ones'}
+            </p>
+            {(libraryCount > 0 || generateCount > 0) && (
+              <p className="text-xs text-t-text3 mt-2">
+                {language === 'zh'
+                  ? `${libraryCount > 0 ? `${libraryCount} 个来自媒体库` : ''}${libraryCount > 0 && generateCount > 0 ? '，' : ''}${generateCount > 0 ? `${generateCount} 个需要生成` : ''}`
+                  : `${libraryCount > 0 ? `${libraryCount} from library` : ''}${libraryCount > 0 && generateCount > 0 ? ', ' : ''}${generateCount > 0 ? `${generateCount} to generate` : ''}`}
+              </p>
+            )}
+          </div>
+
+          {/* BGM Selection */}
+          {hasBgm && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Music size={16} style={{ color: theme.primaryLight }} />
+                <span className="text-sm font-medium text-t-text2">
+                  {language === 'zh' ? '背景音乐' : 'Background Music'}
+                </span>
+              </div>
+              <div
+                className="flex items-center gap-3 p-4 rounded-xl border border-t-border cursor-pointer transition-all hover:border-t-border group"
+                style={{ background: 'var(--t-bg-card)' }}
+                onClick={() => setMediaPickerOpen('bgm')}
+              >
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ background: `${theme.primary}20` }}
+                >
+                  <Music size={18} style={{ color: theme.primaryLight }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  {bgmSelection?.source === 'library' && bgmSelection.mediaItem ? (
+                    <>
+                      <p className="text-sm font-medium text-t-text1 truncate">
+                        {bgmSelection.mediaItem.name}
+                        <span className="ml-2 inline-block text-[10px] px-1.5 py-0.5 rounded" style={{ background: `${theme.primary}15`, color: theme.primaryLight }}>
+                          {language === 'zh' ? '媒体库' : 'Library'}
+                        </span>
+                      </p>
+                      <p className="text-xs text-t-text3 truncate">{bgmSelection.mediaItem.prompt || bgmSelection.mediaItem.description}</p>
+                    </>
+                  ) : bgmSelection?.source === 'generate' ? (
+                    <>
+                      <p className="text-sm font-medium text-t-text1 truncate">
+                        {language === 'zh' ? '生成新的 BGM' : 'Generate New BGM'}
+                        <span className="ml-2 inline-block text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">
+                          {language === 'zh' ? '将生成' : 'Will generate'}
+                        </span>
+                      </p>
+                      <p className="text-xs text-t-text3 truncate">{bgmSelection.prompt}</p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-t-text3">{language === 'zh' ? '点击选择...' : 'Click to choose...'}</p>
+                  )}
+                </div>
+                <ChevronRight size={16} className="text-t-text3 group-hover:text-t-text2 transition-colors flex-shrink-0" />
+              </div>
+            </div>
+          )}
+
+          {/* SFX Selections */}
+          {hasSfx && sfxNeeds.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Volume2 size={16} style={{ color: theme.primaryLight }} />
+                <span className="text-sm font-medium text-t-text2">
+                  {language === 'zh' ? '音效' : 'Sound Effects'}
+                </span>
+                <span className="text-xs text-t-text3">({sfxNeeds.length})</span>
+              </div>
+              <div className="space-y-2">
+                {sfxNeeds.map((need) => {
+                  const key = `${need.sectionId}-${need.itemId}`;
+                  const sel = sfxSelections[key];
+                  return (
+                    <div
+                      key={key}
+                      className="flex items-center gap-3 p-3 rounded-xl border border-t-border cursor-pointer transition-all hover:border-t-border group"
+                      style={{ background: 'var(--t-bg-card)' }}
+                      onClick={() => setMediaPickerOpen(`sfx-${key}`)}
+                    >
+                      <div
+                        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ background: `${theme.primary}20` }}
+                      >
+                        <Volume2 size={14} style={{ color: theme.primaryLight }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {sel?.source === 'library' && sel.mediaItem ? (
+                          <>
+                            <p className="text-sm font-medium text-t-text1 truncate">
+                              {sel.mediaItem.name}
+                              <span className="ml-2 inline-block text-[10px] px-1.5 py-0.5 rounded" style={{ background: `${theme.primary}15`, color: theme.primaryLight }}>
+                                {language === 'zh' ? '媒体库' : 'Library'}
+                              </span>
+                            </p>
+                            <p className="text-xs text-t-text3 truncate">{need.prompt}</p>
+                          </>
+                        ) : sel?.source === 'generate' ? (
+                          <>
+                            <p className="text-sm font-medium text-t-text1 truncate">
+                              {need.sectionName} - SFX
+                              <span className="ml-2 inline-block text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">
+                                {language === 'zh' ? '将生成' : 'Will generate'}
+                              </span>
+                            </p>
+                            <p className="text-xs text-t-text3 truncate">{need.prompt}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm text-t-text3 truncate">{need.prompt}</p>
+                            <p className="text-[10px] text-t-text3">{need.sectionName}</p>
+                          </>
+                        )}
+                      </div>
+                      <ChevronRight size={14} className="text-t-text3 group-hover:text-t-text2 transition-colors flex-shrink-0" />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* No media needed */}
+          {!hasBgm && !hasSfx && !hasImages && (
+            <div className="text-center py-10 text-t-text3 text-base">
+              {language === 'zh' ? '此项目不需要额外媒体' : 'No additional media needed'}
+            </div>
+          )}
+
+          {/* Picker Modals */}
+          {mediaPickerOpen === 'bgm' && (
+            <MediaPickerModal
+              mode="bgm"
+              prompt={spec?.toneAndExpression || ''}
+              libraryItems={bgmLibraryItems}
+              preSelectedId={bgmSelection?.source === 'library' ? bgmSelection.mediaItem?.id : undefined}
+              projectItemIds={projectItemIds}
+              onConfirm={(result) => {
+                setBgmSelection(result);
+                setMediaPickerOpen(null);
+              }}
+              onClose={() => setMediaPickerOpen(null)}
+            />
+          )}
+          {mediaPickerOpen?.startsWith('sfx-') && (() => {
+            const key = mediaPickerOpen.slice(4); // remove 'sfx-' prefix
+            const need = sfxNeeds.find(n => `${n.sectionId}-${n.itemId}` === key);
+            if (!need) return null;
+            const sel = sfxSelections[key];
+            return (
+              <MediaPickerModal
+                mode="sfx"
+                prompt={need.prompt}
+                desiredDuration={5}
+                libraryItems={sfxLibraryItems}
+                preSelectedId={sel?.source === 'library' ? sel.mediaItem?.id : undefined}
+                projectItemIds={projectItemIds}
+                onConfirm={(result) => {
+                  setSfxSelections(prev => ({ ...prev, [key]: result }));
+                  setMediaPickerOpen(null);
+                }}
+                onClose={() => setMediaPickerOpen(null)}
+              />
+            );
+          })()}
+        </div>
+      );
+    }
+    
+    // --- Phase 2: Production progress (after selections confirmed) ---
     return (
       <div className="space-y-6">
         <div className="text-center py-6">
@@ -2025,69 +2592,26 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         </div>
 
         {/* Progress bar */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm text-t-text3">
-            <span>{language === 'zh' ? '进度' : 'Progress'}</span>
-            <span>{mediaProduction.progress}%</span>
+        {mediaProduction.status === 'processing' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm text-t-text3">
+              <span>{language === 'zh' ? '进度' : 'Progress'}</span>
+              <span>{mediaProduction.progress}%</span>
+            </div>
+            <div className="h-3 rounded-full bg-t-card-hover overflow-hidden">
+              <div 
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${mediaProduction.progress}%`, background: theme.primary }}
+              />
+            </div>
           </div>
-          <div className="h-3 rounded-full bg-t-card-hover overflow-hidden">
-            <div 
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${mediaProduction.progress}%`, background: theme.primary }}
-            />
-          </div>
-        </div>
-
-        {/* Media tasks */}
-        <div className="grid grid-cols-3 gap-4">
-          {hasBgm && (
-            <div 
-              className="p-5 rounded-xl border border-t-border text-center"
-              style={{ background: 'var(--t-bg-card)' }}
-            >
-              <Music size={28} className="mx-auto mb-3" style={{ color: theme.primaryLight }} />
-              <p className="text-sm text-t-text2">BGM</p>
-              {mediaProduction.progress > 33 && (
-                <Check size={16} className="mx-auto mt-2" style={{ color: theme.primaryLight }} />
-              )}
-            </div>
-          )}
-          {hasSfx && (
-            <div 
-              className="p-5 rounded-xl border border-t-border text-center"
-              style={{ background: 'var(--t-bg-card)' }}
-            >
-              <Volume2 size={28} className="mx-auto mb-3" style={{ color: theme.primaryLight }} />
-              <p className="text-sm text-t-text2">SFX</p>
-              {mediaProduction.progress > 66 && (
-                <Check size={16} className="mx-auto mt-2" style={{ color: theme.primaryLight }} />
-              )}
-            </div>
-          )}
-          {hasImages && (
-            <div 
-              className="p-5 rounded-xl border border-t-border text-center"
-              style={{ background: 'var(--t-bg-card)' }}
-            >
-              <Image size={28} className="mx-auto mb-3" style={{ color: theme.primaryLight }} />
-              <p className="text-sm text-t-text2">{language === 'zh' ? '图片' : 'Images'}</p>
-              {mediaProduction.progress === 100 && (
-                <Check size={16} className="mx-auto mt-2" style={{ color: theme.primaryLight }} />
-              )}
-            </div>
-          )}
-          {!hasBgm && !hasSfx && !hasImages && (
-            <div className="col-span-3 text-center py-10 text-t-text3 text-base">
-              {language === 'zh' ? '此项目不需要额外媒体' : 'No additional media needed'}
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Audio Preview - shown when generation is completed */}
         {mediaProduction.status === 'completed' && (mediaProduction.bgmAudio || (mediaProduction.sfxAudios && mediaProduction.sfxAudios.length > 0)) && (
           <div className="space-y-3 mt-2">
             <h4 className="text-sm font-medium text-t-text2">
-              {language === 'zh' ? '生成预览' : 'Generated Preview'}
+              {language === 'zh' ? '音频预览' : 'Audio Preview'}
             </h4>
 
             {/* BGM Preview */}
@@ -2126,6 +2650,11 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                   <p className="text-sm font-medium text-t-text1 truncate">
                     <Music size={14} className="inline mr-1.5" style={{ color: theme.primaryLight }} />
                     BGM
+                    {bgmSelection?.source === 'library' && (
+                      <span className="ml-2 inline-block text-[10px] px-1.5 py-0.5 rounded" style={{ background: `${theme.primary}15`, color: theme.primaryLight }}>
+                        {language === 'zh' ? '媒体库' : 'Library'}
+                      </span>
+                    )}
                   </p>
                   <p className="text-xs text-t-text3 truncate">{spec?.toneAndExpression || 'Background music'}</p>
                 </div>
@@ -2454,9 +2983,27 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
             </div>
             <div>
               <h2 className="text-xl font-serif text-t-text1">{t.episodeEditor.createTitle}</h2>
-              <p className="text-sm text-t-text3">
-                {project.title} · {t.projectCreator.step} {currentStep} / {STEPS.length} · {STEPS[currentStep - 1]?.title}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-t-text3">
+                  {project.title} · {t.projectCreator.step} {currentStep} / {STEPS.length} · {STEPS[currentStep - 1]?.title}
+                </p>
+                {currentStep === 2 && totalLineCount > 0 && (
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <div className="w-16 sm:w-20 h-1.5 rounded-full bg-t-border overflow-hidden">
+                      <div 
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{ 
+                          width: `${Math.min((totalLineCount / MAX_SCRIPT_LINES) * 100, 100)}%`,
+                          background: totalLineCount >= MAX_SCRIPT_LINES ? '#ef4444' : totalLineCount >= MAX_SCRIPT_LINES * 0.8 ? '#f59e0b' : theme.primary 
+                        }}
+                      />
+                    </div>
+                    <span className={`text-[10px] tabular-nums ${totalLineCount >= MAX_SCRIPT_LINES ? 'text-red-500' : totalLineCount >= MAX_SCRIPT_LINES * 0.8 ? 'text-amber-500' : 'text-t-text3/60'}`}>
+                      {totalLineCount}/{MAX_SCRIPT_LINES}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-t-card-hover rounded-lg transition-colors">
@@ -2511,6 +3058,18 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               >
                 <Mic2 size={22} />
                 {language === 'zh' ? '确认并开始语音合成' : 'Confirm & Start Voice Synthesis'}
+              </button>
+            )}
+
+            {/* Confirm & Start Media Production - shown on step 4 before selections are confirmed */}
+            {currentStep === 4 && !mediaSelectionsConfirmed && (
+              <button
+                onClick={() => performMediaProduction()}
+                className="flex items-center gap-2 px-8 py-2.5 rounded-lg text-base text-t-text1 font-medium transition-all hover:scale-105"
+                style={{ background: theme.primary }}
+              >
+                <Wand2 size={22} />
+                {language === 'zh' ? '确认并开始制作' : 'Confirm & Start Production'}
               </button>
             )}
 

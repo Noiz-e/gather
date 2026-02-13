@@ -53,3 +53,5 @@ server/.voice-cache/
 
 .cursor/
 .env*
+
+server/cred.json

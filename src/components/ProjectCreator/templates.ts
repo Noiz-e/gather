@@ -53,7 +53,7 @@ export const AUDIO_MIX_PRESETS: Record<string, AudioMixConfig> = {
     differentSpeakerGapMs: 800, // Longer pause for speaker change
     sectionGapMs: 3000,        // Chapter breaks
     voiceVolume: 1.0,
-    bgmVolume: 0.08,           // Very subtle if used
+    bgmVolume: 0.18,           // Subtle but audible
     sfxVolume: 0.25,
     bgmFadeInMs: 2000,
     bgmFadeOutMs: 3000,
@@ -69,7 +69,7 @@ export const AUDIO_MIX_PRESETS: Record<string, AudioMixConfig> = {
     differentSpeakerGapMs: 600, // Quick back-and-forth
     sectionGapMs: 2000,
     voiceVolume: 1.0,
-    bgmVolume: 0.12,           // Background presence
+    bgmVolume: 0.25,           // Clear background presence
     sfxVolume: 0.35,
     bgmFadeInMs: 1500,
     bgmFadeOutMs: 2000,
@@ -85,7 +85,7 @@ export const AUDIO_MIX_PRESETS: Record<string, AudioMixConfig> = {
     differentSpeakerGapMs: 1000, // Clear speaker transitions
     sectionGapMs: 2500,
     voiceVolume: 1.0,
-    bgmVolume: 0.06,           // Minimal distraction
+    bgmVolume: 0.15,           // Low but present
     sfxVolume: 0.30,
     bgmFadeInMs: 1000,
     bgmFadeOutMs: 1500,
@@ -101,7 +101,7 @@ export const AUDIO_MIX_PRESETS: Record<string, AudioMixConfig> = {
     differentSpeakerGapMs: 700,
     sectionGapMs: 3000,
     voiceVolume: 1.0,
-    bgmVolume: 0.18,           // Prominent but not overwhelming
+    bgmVolume: 0.35,           // Prominent and immersive
     sfxVolume: 0.45,           // Noticeable effects
     bgmFadeInMs: 2500,
     bgmFadeOutMs: 3500,
@@ -117,7 +117,7 @@ export const AUDIO_MIX_PRESETS: Record<string, AudioMixConfig> = {
     differentSpeakerGapMs: 400,
     sectionGapMs: 1000,
     voiceVolume: 1.0,
-    bgmVolume: 0.10,
+    bgmVolume: 0.22,
     sfxVolume: 0.30,
     bgmFadeInMs: 500,
     bgmFadeOutMs: 800,
@@ -133,7 +133,7 @@ export const AUDIO_MIX_PRESETS: Record<string, AudioMixConfig> = {
     differentSpeakerGapMs: 800,
     sectionGapMs: 2000,
     voiceVolume: 1.0,
-    bgmVolume: 0.15,
+    bgmVolume: 0.30,
     sfxVolume: 0.35,
     bgmFadeInMs: 1500,
     bgmFadeOutMs: 2000,
@@ -618,8 +618,8 @@ export const ADVANCED_TEMPLATES: ProjectTemplate[] = [
     suggestedDefaults: {
       voiceCount: 'single',
       addBgm: false,
-      addSoundEffects: true,
-      hasVisualContent: true,
+      addSoundEffects: false,
+      hasVisualContent: false,
     },
     technicalSpec: PODCAST_TECH_SPEC,
     structureHints: ['Individual labeled segments', 'Batch normalized output', 'Zip archive or master track'],

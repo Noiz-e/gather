@@ -85,7 +85,7 @@ export function MediaLibrary() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatePrompt, setGeneratePrompt] = useState('');
   const [generateType, setGenerateType] = useState<MediaType>('image');
-  const [generateDuration, setGenerateDuration] = useState(30);
+  const [generateDuration, setGenerateDuration] = useState(10);
   
   // Playback states
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -359,7 +359,7 @@ export function MediaLibrary() {
   const closeGenerateModal = () => {
     setShowGenerateModal(false);
     setGeneratePrompt('');
-    setGenerateDuration(30);
+    setGenerateDuration(10);
   };
 
   // Delete media
@@ -937,14 +937,32 @@ export function MediaLibrary() {
                   <label className="block text-sm font-medium text-t-text3 mb-2">
                     {t.mediaLibrary?.generateModal?.duration || 'Duration (seconds)'}
                   </label>
-                  <input
-                    type="number"
-                    value={generateDuration}
-                    onChange={(e) => setGenerateDuration(Math.max(5, Math.min(300, parseInt(e.target.value) || 30)))}
-                    min={5}
-                    max={300}
-                    className="w-full px-4 py-3 rounded-xl border border-t-border bg-t-card text-t-text1 focus:outline-none focus:border-t-border"
-                  />
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      value={generateDuration}
+                      onChange={(e) => setGenerateDuration(parseInt(e.target.value))}
+                      min={3}
+                      max={30}
+                      step={1}
+                      className="flex-1 accent-current"
+                      style={{ accentColor: theme.primary }}
+                    />
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        value={generateDuration}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          if (!isNaN(val)) setGenerateDuration(Math.max(3, Math.min(30, val)));
+                        }}
+                        min={3}
+                        max={30}
+                        className="w-16 px-2 py-2 rounded-lg border border-t-border bg-t-card text-t-text1 text-center text-sm focus:outline-none focus:border-t-border"
+                      />
+                      <span className="text-sm text-t-text3">s</span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

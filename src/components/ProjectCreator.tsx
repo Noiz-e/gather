@@ -1,15 +1,15 @@
-import { useState, useRef, useCallback, useEffect, useReducer } from 'react';
+import { useState, useRef, useCallback, useEffect, useReducer, useMemo } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useProjects } from '../contexts/ProjectContext';
 import { useLanguage } from '../i18n/LanguageContext';
-import { VoiceCharacter, ScriptSection, EpisodeCharacter } from '../types';
+import { VoiceCharacter, ScriptSection, EpisodeCharacter, isValidSpeaker } from '../types';
 import { 
   ChevronLeft, ChevronRight, ChevronDown, Check, X, Upload, FileText, 
   Sparkles, Plus, Trash2, Play, Pause, User, Loader2,
   Music, Volume2, Image, RefreshCw, Save,
   BookOpen, Mic2, Wand2, Sliders, GraduationCap,
   LucideIcon, Square, Users, Headphones, Mic, MessageSquare, 
-  Newspaper, Library, Video
+  Newspaper, Library, Video, Scissors
 } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
 import { filterValidFiles, collectAnalysisContent } from '../utils/fileUtils';
@@ -33,7 +33,7 @@ import {
 } from './ProjectCreator/reducer';
 import { PROJECT_TEMPLATES, getAudioMixConfig } from './ProjectCreator/templates';
 import { loadVoiceCharacters, addVoiceCharacter } from '../utils/voiceStorage';
-import { loadMediaItems, addMediaItem } from '../utils/mediaStorage';
+import { loadMediaItems, addMediaItem, classifySoundMusic } from '../utils/mediaStorage';
 import type { MediaItem } from '../types';
 import type { LandingData } from './Landing';
 import { VoicePickerModal } from './VoicePickerModal';
@@ -104,11 +104,17 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // Voice picker modal state
   const [voicePickerCharIndex, setVoicePickerCharIndex] = useState<number | null>(null);
-  // Expanded sections for viewing generated audio
-  const [expandedVoiceSections, setExpandedVoiceSections] = useState<Set<string>>(new Set());
-  // Track currently playing audio segment: "sectionId-lineIndex"
+  // Collapsed sections (default is expanded for completed sections)
+  const [collapsedVoiceSections, setCollapsedVoiceSections] = useState<Set<string>>(new Set());
+  // Track currently playing audio segment: "sectionId-audioIndex"
   const [playingSegmentId, setPlayingSegmentId] = useState<string | null>(null);
   const segmentAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Track segments that have been fully listened to: "sectionId-audioIndex"
+  const [listenedSegments, setListenedSegments] = useState<Set<string>>(new Set());
+  // Track per-line regeneration in progress: "sectionId-audioIndex"
+  const [regeneratingLineId, setRegeneratingLineId] = useState<string | null>(null);
+  // Warning dialog when proceeding without listening to all
+  const [showListenWarning, setShowListenWarning] = useState(false);
   
   // Media production preview playback
   const [playingMediaId, setPlayingMediaId] = useState<string | null>(null);
@@ -128,6 +134,37 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Split line: track which textarea is focused and cursor position
+  const [splitCursor, setSplitCursor] = useState<{ sectionId: string; itemId: string; lineIndex: number; cursorPos: number } | null>(null);
+
+  // Maximum number of script lines allowed (matches server-side batch limit)
+  const MAX_SCRIPT_LINES = 100;
+  
+  // Compute total line count across all sections
+  const totalLineCount = useMemo(() => {
+    return scriptSections.reduce((total, section) => {
+      return total + section.timeline.reduce((sectionTotal, item) => {
+        return sectionTotal + (item.lines?.length || 0);
+      }, 0);
+    }, 0);
+  }, [scriptSections]);
+
+  // Compute known speaker names from characters + script lines (for dropdown selection)
+  const knownSpeakers = useMemo(() => {
+    const names = new Set<string>();
+    // From extracted characters
+    extractedCharacters.forEach(c => { if (c.name) names.add(c.name); });
+    // From script lines (so dropdown works during script editing before character extraction)
+    scriptSections.forEach(section => {
+      section.timeline.forEach(item => {
+        (item.lines || []).forEach(line => {
+          if (isValidSpeaker(line.speaker)) names.add(line.speaker.trim());
+        });
+      });
+    });
+    return Array.from(names);
+  }, [extractedCharacters, scriptSections]);
 
   const ReligionIcon = ReligionIconMap[religion];
 
@@ -370,9 +407,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       for (const item of section.timeline) {
         if (item.lines) {
           for (const line of item.lines) {
-            const speaker = line.speaker?.trim();
-            if (speaker && speaker.toLowerCase() !== 'n/a') {
-              speakers.add(speaker);
+            if (isValidSpeaker(line.speaker)) {
+              speakers.add(line.speaker!.trim());
             }
           }
         }
@@ -401,31 +437,53 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   }, []);
 
 
-  // AI recommend voices for all characters (Gemini Flash)
-  const recommendVoicesForAll = useCallback(async () => {
-    const allVoices = [
-      ...systemVoices.map((v) => ({ id: v.id, name: v.name, description: v.description, descriptionZh: v.descriptionZh })),
-      ...availableVoices.map((v) => ({ id: v.id, name: v.name, description: v.description }))
-    ];
-    if (extractedCharacters.length === 0 || allVoices.length === 0) return;
+  // AI generate new voices for all characters using their voiceDescription
+  const [generatingVoicesProgress, setGeneratingVoicesProgress] = useState<{ current: number; total: number } | null>(null);
+  const generateVoicesForAll = useCallback(async () => {
+    // Only generate for characters that have a voiceDescription and no voice assigned yet
+    const charsToGenerate = extractedCharacters
+      .map((c, idx) => ({ ...c, idx }))
+      .filter(c => c.voiceDescription && !c.assignedVoiceId);
+    if (charsToGenerate.length === 0) return;
+
     setIsRecommendingVoices(true);
-    try {
-      const assignments = await api.recommendVoices({
-        characters: extractedCharacters.map((c) => ({ name: c.name, description: c.description })),
-        voices: allVoices,
-        language: language === 'zh' ? 'zh' : 'en'
-      });
-      assignments.forEach((voiceId, index) => {
-        if (index < extractedCharacters.length && voiceId) {
-          dispatch(actions.assignVoiceToCharacter(index, voiceId));
-        }
-      });
-    } catch (err) {
-      console.error('Recommend voices failed:', err);
-    } finally {
-      setIsRecommendingVoices(false);
+    setGeneratingVoicesProgress({ current: 0, total: charsToGenerate.length });
+
+    let currentVoices = availableVoices;
+    for (let i = 0; i < charsToGenerate.length; i++) {
+      const char = charsToGenerate[i];
+      setGeneratingVoicesProgress({ current: i + 1, total: charsToGenerate.length });
+      try {
+        // Design voice using the character's voiceDescription
+        const result = await api.designVoice(char.voiceDescription!);
+        if (result.previews.length === 0) continue;
+
+        // Take the first preview candidate
+        const preview = result.previews[0];
+        const dataUrl = `data:${preview.mediaType || 'audio/mpeg'};base64,${preview.audioBase64}`;
+
+        // Save as a new custom voice
+        const updatedVoices = addVoiceCharacter(currentVoices, {
+          name: char.name,
+          description: char.voiceDescription || '',
+          refAudioDataUrl: dataUrl,
+          audioSampleUrl: dataUrl,
+          tags: ['ai-generated'],
+        });
+        const newVoice = updatedVoices[updatedVoices.length - 1];
+        currentVoices = updatedVoices;
+        setAvailableVoices(updatedVoices);
+
+        // Auto-assign to character
+        dispatch(actions.assignVoiceToCharacter(char.idx, newVoice.id));
+      } catch (err) {
+        console.error(`Failed to generate voice for ${char.name}:`, err);
+      }
     }
-  }, [extractedCharacters, systemVoices, availableVoices, language]);
+
+    setIsRecommendingVoices(false);
+    setGeneratingVoicesProgress(null);
+  }, [extractedCharacters, availableVoices]);
 
   // Start voice generation after confirming voice assignments
   const startVoiceGeneration = () => {
@@ -455,7 +513,20 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       setLoadingVoiceId(voiceId);
       setPlayingVoiceId(null);
       
-      const audio = await api.playVoiceSample(voiceId, language === 'zh' ? 'zh' : 'en');
+      // Check if this is a custom voice with a stored audio sample
+      const customVoice = availableVoices.find(v => v.id === voiceId);
+      const customAudioUrl = customVoice?.refAudioDataUrl || customVoice?.audioSampleUrl;
+      
+      let audio: HTMLAudioElement;
+      if (customAudioUrl) {
+        // Play custom voice sample directly from stored audio
+        audio = new Audio(customAudioUrl);
+        await audio.play();
+      } else {
+        // System voice - fetch sample from backend
+        audio = await api.playVoiceSample(voiceId, language === 'zh' ? 'zh' : 'en');
+      }
+      
       audioRef.current = audio;
       setPlayingVoiceId(voiceId);
       setLoadingVoiceId(null);
@@ -531,6 +602,15 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
 
   const addScriptLine = useCallback(
     (sectionId: string, itemId: string) => {
+      // Count current total lines
+      const currentTotal = stateRef.current.scriptSections.reduce((total, section) => {
+        return total + section.timeline.reduce((sectionTotal, item) => {
+          return sectionTotal + (item.lines?.length || 0);
+        }, 0);
+      }, 0);
+      if (currentTotal >= MAX_SCRIPT_LINES) {
+        return; // Limit reached, don't add
+      }
       dispatch(actions.addScriptLine(sectionId, itemId));
     },
     []
@@ -539,6 +619,14 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   const removeScriptLine = useCallback(
     (sectionId: string, itemId: string, lineIndex: number) => {
       dispatch(actions.removeScriptLine(sectionId, itemId, lineIndex));
+    },
+    []
+  );
+
+  // Split a script line at cursor position
+  const splitScriptLine = useCallback(
+    (sectionId: string, itemId: string, lineIndex: number, cursorPos: number) => {
+      dispatch(actions.splitScriptLine(sectionId, itemId, lineIndex, cursorPos));
     },
     []
   );
@@ -642,6 +730,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             text: segment.text,
             audioData: generated.audioData,
             mimeType: generated.mimeType,
+            audioUrl: generated.audioUrl,
             pauseAfterMs: segment.pauseAfterMs
           };
           dispatch(actions.addSectionVoiceAudio(sectionId, audio));
@@ -682,6 +771,54 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     
     dispatch(actions.setCurrentSection(undefined));
     return success;
+  };
+
+  // Regenerate voice for a single line within a section
+  const regenerateVoiceForLine = async (_section: ScriptSection, sectionId: string, audioIndex: number, audio: SectionVoiceAudio) => {
+    const segId = `${sectionId}-${audioIndex}`;
+    setRegeneratingLineId(segId);
+    try {
+      // Find the voice assignment for this speaker
+      const character = extractedCharacters.find(c => c.name === audio.speaker);
+      const assignedId = character?.assignedVoiceId;
+      const customVoice = availableVoices.find(v => v.id === assignedId);
+      const systemVoice = systemVoices.find(v => v.id === assignedId);
+      const refAudioDataUrl = customVoice?.refAudioDataUrl || customVoice?.audioSampleUrl;
+      const voiceName = systemVoice ? systemVoice.id : undefined;
+
+      const batchSegments: api.AudioSegment[] = [{
+        text: audio.text,
+        speaker: audio.speaker,
+        voiceName,
+        refAudioDataUrl
+      }];
+
+      const result = await api.generateAudioBatch(batchSegments);
+
+      if (result.segments && result.segments.length > 0) {
+        const generated = result.segments[0];
+        const newAudio: SectionVoiceAudio = {
+          lineIndex: audio.lineIndex,
+          speaker: audio.speaker,
+          text: audio.text,
+          audioData: generated.audioData,
+          mimeType: generated.mimeType,
+          audioUrl: generated.audioUrl,
+          pauseAfterMs: audio.pauseAfterMs
+        };
+        dispatch(actions.replaceSectionVoiceAudio(sectionId, audioIndex, newAudio));
+        // Remove listened status since this is new audio
+        setListenedSegments(prev => {
+          const next = new Set(prev);
+          next.delete(segId);
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error('Line voice regeneration failed:', error);
+    } finally {
+      setRegeneratingLineId(null);
+    }
   };
   
   // Voice generation for all sections sequentially
@@ -769,34 +906,68 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           console.log(`Added BGM to media library`);
         } else if (task.type === 'sfx') {
           // Generate sound effects from script instructions
+          // Classify each soundMusic entry as BGM or SFX to avoid misclassification
           for (const section of scriptSections) {
             for (const item of section.timeline) {
               if (item.soundMusic?.trim()) {
-                const sfxResult = await api.generateSoundEffect(item.soundMusic, 5);
+                const soundType = classifySoundMusic(item.soundMusic);
                 
-                // Save SFX to production state for preview
-                dispatch(actions.addSfxAudio({
-                  name: `${section.name} - SFX`,
-                  prompt: item.soundMusic,
-                  audioData: sfxResult.audioData,
-                  mimeType: sfxResult.mimeType,
-                }));
-                
-                // Save SFX to media library
-                const sfxItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
-                  name: `${section.name} - SFX`,
-                  description: item.soundMusic,
-                  type: 'sfx',
-                  mimeType: sfxResult.mimeType,
-                  dataUrl: `data:${sfxResult.mimeType};base64,${sfxResult.audioData}`,
-                  duration: 5,
-                  tags: ['generated', 'sfx'],
-                  projectIds: [], // Will be linked after project creation
-                  source: 'generated',
-                  prompt: item.soundMusic
-                };
-                mediaItems = addMediaItem(mediaItems, sfxItem);
-                console.log(`Added SFX to media library`);
+                if (soundType === 'bgm') {
+                  // This is actually a BGM description, generate as music
+                  console.log(`Classified "${item.soundMusic}" as BGM (not SFX)`);
+                  const bgmResult = await api.generateBGM(item.soundMusic, 'peaceful', 30);
+                  
+                  // If no BGM has been set yet, use this as the BGM
+                  if (!stateRef.current.production.mediaProduction.bgmAudio) {
+                    dispatch(actions.setBgmAudio({
+                      audioData: bgmResult.audioData,
+                      mimeType: bgmResult.mimeType
+                    }));
+                  }
+                  
+                  // Save to media library as BGM
+                  const bgmMediaItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
+                    name: `${section.name} - BGM`,
+                    description: item.soundMusic,
+                    type: 'bgm',
+                    mimeType: bgmResult.mimeType,
+                    dataUrl: `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`,
+                    duration: 30,
+                    tags: ['generated', 'bgm'],
+                    projectIds: [],
+                    source: 'generated',
+                    prompt: item.soundMusic
+                  };
+                  mediaItems = addMediaItem(mediaItems, bgmMediaItem);
+                  console.log(`Added BGM to media library (from soundMusic)`);
+                } else {
+                  // This is a real sound effect
+                  const sfxResult = await api.generateSoundEffect(item.soundMusic, 5);
+                  
+                  // Save SFX to production state for preview
+                  dispatch(actions.addSfxAudio({
+                    name: `${section.name} - SFX`,
+                    prompt: item.soundMusic,
+                    audioData: sfxResult.audioData,
+                    mimeType: sfxResult.mimeType,
+                  }));
+                  
+                  // Save SFX to media library
+                  const sfxItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
+                    name: `${section.name} - SFX`,
+                    description: item.soundMusic,
+                    type: 'sfx',
+                    mimeType: sfxResult.mimeType,
+                    dataUrl: `data:${sfxResult.mimeType};base64,${sfxResult.audioData}`,
+                    duration: 5,
+                    tags: ['generated', 'sfx'],
+                    projectIds: [],
+                    source: 'generated',
+                    prompt: item.soundMusic
+                  };
+                  mediaItems = addMediaItem(mediaItems, sfxItem);
+                  console.log(`Added SFX to media library`);
+                }
               }
             }
           }
@@ -852,6 +1023,23 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           30
         );
         dispatch(actions.setBgmAudio({ audioData: bgmResult.audioData, mimeType: bgmResult.mimeType }));
+        
+        // Also save regenerated BGM to media library
+        let mediaItems = loadMediaItems();
+        const bgmItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
+          name: `Project - BGM`,
+          description: stateRef.current.spec.toneAndExpression || 'Background music',
+          type: 'bgm',
+          mimeType: bgmResult.mimeType,
+          dataUrl: `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`,
+          duration: 30,
+          tags: ['generated', 'bgm'],
+          projectIds: [], // Will be linked after project creation
+          source: 'generated',
+          prompt: stateRef.current.spec.toneAndExpression || ''
+        };
+        mediaItems = addMediaItem(mediaItems, bgmItem);
+        console.log(`Added regenerated BGM to media library`);
       } else if (type === 'sfx' && index !== undefined) {
         const sfxItem = stateRef.current.production.mediaProduction.sfxAudios?.[index];
         if (sfxItem) {
@@ -896,9 +1084,11 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         if (sectionStatus?.audioSegments) {
           let isFirstInSection = true;
           for (const segment of sectionStatus.audioSegments) {
-            if (segment.audioData) {
+            // Accept segment if it has audioData (in memory) or audioUrl (from cloud storage)
+            if (segment.audioData || segment.audioUrl) {
               voiceTracks.push({
                 audioData: segment.audioData,
+                audioUrl: segment.audioUrl,
                 mimeType: segment.mimeType || 'audio/wav',
                 speaker: segment.speaker,  // Include speaker for gap calculation
                 sectionStart: isFirstInSection, // Mark first segment of each section
@@ -1080,33 +1270,45 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   const handleNext = async () => {
     // Step 1 -> 2: Template selected OR custom description, go to spec
     if (currentStep === 1) {
+      // Check if the user already has customized spec data (returning from step 2).
+      // If so, preserve it instead of overwriting with template/default values.
+      const specAlreadyCustomized = specData.storyTitle.trim().length > 0
+        || specData.targetAudience !== ''
+        || specData.formatAndDuration !== '';
+
       if (selectedTemplateId && selectedTemplate) {
-        // Template mode - apply template defaults + user config to spec
-        dispatch(actions.setSpec({
-          storyTitle: '',
-          subtitle: '',
-          targetAudience: selectedTemplate.defaultSpec.targetAudience,
-          formatAndDuration: selectedTemplate.defaultSpec.formatAndDuration,
-          toneAndExpression: selectedTemplate.defaultSpec.toneAndExpression,
-          addBgm: templateConfig.addBgm,
-          addSoundEffects: templateConfig.addSoundEffects,
-          hasVisualContent: templateConfig.hasVisualContent,
-        }));
+        if (!specAlreadyCustomized) {
+          // Template mode - apply template defaults + user config to spec (first time only)
+          dispatch(actions.setSpec({
+            storyTitle: '',
+            subtitle: '',
+            targetAudience: selectedTemplate.defaultSpec.targetAudience,
+            formatAndDuration: selectedTemplate.defaultSpec.formatAndDuration,
+            toneAndExpression: selectedTemplate.defaultSpec.toneAndExpression,
+            addBgm: templateConfig.addBgm,
+            addSoundEffects: templateConfig.addSoundEffects,
+            hasVisualContent: templateConfig.hasVisualContent,
+          }));
+        }
         setCurrentStep(2);
       } else if (customDescription.trim()) {
-        // Custom mode - set default spec values and store description for later analysis
-        dispatch(actions.setSpec({
-          storyTitle: '',
-          subtitle: '',
-          targetAudience: language === 'zh' ? '一般听众' : 'General audience',
-          formatAndDuration: language === 'zh' ? '音频内容，10-30分钟' : 'Audio content, 10-30 minutes',
-          toneAndExpression: language === 'zh' ? '专业、清晰' : 'Professional, clear',
-          addBgm: true,
-          addSoundEffects: false,
-          hasVisualContent: false,
-        }));
+        if (!specAlreadyCustomized) {
+          // Custom mode - set default spec values (first time only)
+          dispatch(actions.setSpec({
+            storyTitle: '',
+            subtitle: '',
+            targetAudience: language === 'zh' ? '一般听众' : 'General audience',
+            formatAndDuration: language === 'zh' ? '音频内容，10-30分钟' : 'Audio content, 10-30 minutes',
+            toneAndExpression: language === 'zh' ? '专业、清晰' : 'Professional, clear',
+            addBgm: true,
+            addSoundEffects: false,
+            hasVisualContent: false,
+          }));
+        }
         // Store custom description in content input for later use
-        dispatch(actions.setTextContent(customDescription));
+        if (!contentInput.textContent.trim()) {
+          dispatch(actions.setTextContent(customDescription));
+        }
         setCurrentStep(2);
       }
       return;
@@ -1121,28 +1323,55 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     // Step 3 -> 4: Content provided, go to script generation
     if (currentStep === 3) {
       setCurrentStep(4);
-      // Auto-trigger script generation
-      setTimeout(() => {
-        generateScript();
-      }, 100);
+      // Only auto-trigger script generation if no script exists yet.
+      // If the user is returning from step 4 (going back to 3 and forward again),
+      // preserve the existing script and let them regenerate manually if needed.
+      if (scriptSections.length === 0) {
+        setTimeout(() => {
+          generateScript();
+        }, 100);
+      }
       return;
     }
     
     // Step 4 -> 5: Script generated, extract characters and go to voice generation
     if (currentStep === 4 && scriptSections.length > 0) {
       setIsProcessingNext(true);
+      // Re-extract characters from script (preserves existing voice assignments via reducer)
       extractCharacters();
       await new Promise(resolve => setTimeout(resolve, 300));
       setIsProcessingNext(false);
       setCurrentStep(5);
-      // Reset voice confirmation state when entering Step 5
-      setVoicesConfirmed(false);
+      // Only reset voice confirmation if voices haven't been generated yet.
+      // If the user already completed voice generation and is returning here
+      // (e.g. to tweak the script), preserve the confirmed state.
+      if (production.voiceGeneration.status !== 'completed') {
+        setVoicesConfirmed(false);
+      }
       // DO NOT auto-start voice generation - wait for user to confirm voice assignments
       return;
     }
     
     // Step 5 -> 6: Voice generation done, go to media production (or skip if no media)
     if (currentStep === 5 && production.voiceGeneration.status === 'completed') {
+      // Check if all segments have been listened to
+      const allSectionStatus = production.voiceGeneration.sectionStatus;
+      const totalSegs = scriptSections.reduce((acc, s) => {
+        const st = allSectionStatus[s.id];
+        return acc + (st?.status === 'completed' ? st.audioSegments.length : 0);
+      }, 0);
+      const listenedCount = scriptSections.reduce((acc, s) => {
+        const st = allSectionStatus[s.id];
+        if (st?.status !== 'completed') return acc;
+        return acc + st.audioSegments.filter((_, i) => listenedSegments.has(`${s.id}-${i}`)).length;
+      }, 0);
+      
+      if (totalSegs > 0 && listenedCount < totalSegs) {
+        // Not all listened — show warning
+        setShowListenWarning(true);
+        return;
+      }
+
       const hasMedia = specData.addBgm || specData.addSoundEffects || specData.hasVisualContent;
       if (!hasMedia) {
         // No media tasks — mark media production as completed and skip to mixing
@@ -1923,20 +2152,64 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                       {(item.lines || []).map((scriptLine, lineIndex) => (
                         <div key={lineIndex}>
                           <div className="flex items-start gap-3">
-                            <input 
-                              type="text" 
-                              value={scriptLine.speaker} 
-                              onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
-                              placeholder={t.projectCreator.speaker}
-                              className="w-28 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none flex-shrink-0" 
-                            />
-                            <textarea 
-                              value={scriptLine.line} 
-                              onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
-                              placeholder={t.projectCreator.lineContent}
-                              rows={2}
-                              className="flex-1 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none resize-none" 
-                            />
+                            {knownSpeakers.length > 0 ? (
+                              <select
+                                value={scriptLine.speaker}
+                                onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)}
+                                className="w-28 px-2 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none flex-shrink-0 appearance-none cursor-pointer"
+                                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 6px center' }}
+                              >
+                                {!scriptLine.speaker && <option value="">{t.projectCreator.speaker}</option>}
+                                {knownSpeakers.map(name => (
+                                  <option key={name} value={name}>{name}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input 
+                                type="text" 
+                                value={scriptLine.speaker} 
+                                onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
+                                placeholder={t.projectCreator.speaker}
+                                className="w-28 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none flex-shrink-0" 
+                              />
+                            )}
+                            <div className="flex-1 relative group/split">
+                              <textarea 
+                                value={scriptLine.line} 
+                                onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
+                                placeholder={t.projectCreator.lineContent}
+                                rows={2}
+                                className="w-full px-3 py-2 pr-8 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none resize-none" 
+                                onSelect={(e) => {
+                                  const ta = e.target as HTMLTextAreaElement;
+                                  const pos = ta.selectionStart;
+                                  if (pos > 0 && pos < scriptLine.line.length) {
+                                    setSplitCursor({ sectionId: section.id, itemId: item.id, lineIndex, cursorPos: pos });
+                                  } else {
+                                    setSplitCursor(null);
+                                  }
+                                }}
+                                onBlur={() => {
+                                  // Delay to allow click on split button
+                                  setTimeout(() => setSplitCursor(prev => 
+                                    prev?.sectionId === section.id && prev?.itemId === item.id && prev?.lineIndex === lineIndex ? null : prev
+                                  ), 150);
+                                }}
+                              />
+                              {splitCursor?.sectionId === section.id && splitCursor?.itemId === item.id && splitCursor?.lineIndex === lineIndex && (
+                                <button
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    splitScriptLine(section.id, item.id, lineIndex, splitCursor.cursorPos);
+                                    setSplitCursor(null);
+                                  }}
+                                  className="absolute right-1.5 top-1.5 p-1 rounded bg-t-bg2/90 border border-t-border text-t-text3 hover:text-t-text1 hover:bg-t-bg2 transition-all shadow-sm"
+                                  title={language === 'zh' ? '从光标处拆分' : 'Split at cursor'}
+                                >
+                                  <Scissors size={12} />
+                                </button>
+                              )}
+                            </div>
                             <button 
                               onClick={() => removeScriptLine(section.id, item.id, lineIndex)} 
                               className="p-2 rounded hover:bg-red-500/20 text-t-text3 hover:text-red-400 flex-shrink-0"
@@ -1991,7 +2264,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                       ))}
                       <button 
                         onClick={() => addScriptLine(section.id, item.id)} 
-                        className="flex items-center gap-1.5 text-xs text-t-text3 hover:text-t-text2 mt-3"
+                        className={`flex items-center gap-1.5 text-xs mt-3 ${totalLineCount >= MAX_SCRIPT_LINES ? 'text-t-text3/40 cursor-not-allowed' : 'text-t-text3 hover:text-t-text2'}`}
+                        disabled={totalLineCount >= MAX_SCRIPT_LINES}
                       >
                         <Plus size={12} />{t.projectCreator.addLine}
                       </button>
@@ -2065,18 +2339,21 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={recommendVoicesForAll}
-                    disabled={isRecommendingVoices || systemVoices.length + availableVoices.length === 0}
+                    onClick={generateVoicesForAll}
+                    disabled={isRecommendingVoices || extractedCharacters.filter(c => c.voiceDescription && !c.assignedVoiceId).length === 0}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
                     style={{ background: `${theme.primary}25`, color: theme.primaryLight }}
-                    title={language === 'zh' ? '用 AI 为每个角色推荐最合适的预置音色' : 'Use AI to recommend the best preset voice for each character'}
+                    title={language === 'zh' ? '用 AI 为每个角色生成专属音色' : 'Generate a unique AI voice for each character'}
                   >
                     {isRecommendingVoices ? (
                       <Loader2 size={16} className="animate-spin" />
                     ) : (
-                      <Wand2 size={16} />
+                      <Sparkles size={16} />
                     )}
-                    {language === 'zh' ? 'AI 推荐音色' : 'Recommend with AI'}
+                    {isRecommendingVoices && generatingVoicesProgress
+                      ? `${generatingVoicesProgress.current}/${generatingVoicesProgress.total}`
+                      : (language === 'zh' ? 'AI 生成全部音色' : 'Generate All Voices')
+                    }
                   </button>
                   <span className="text-xs text-t-text3">
                     {extractedCharacters.length} {language === 'zh' ? '个角色' : 'characters'}
@@ -2219,7 +2496,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
               customVoices={availableVoices}
               playingVoiceId={playingVoiceId}
               loadingVoiceId={loadingVoiceId}
-              isRecommending={isRecommendingVoices}
+              projectVoiceIds={extractedCharacters.map(c => c.assignedVoiceId).filter((id): id is string => !!id)}
+              scriptSections={scriptSections}
               onAssign={(voiceId) => {
                 assignVoiceToCharacter(voicePickerCharIndex, voiceId);
               }}
@@ -2266,6 +2544,18 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     const { sectionStatus } = voiceGeneration;
     const completedSections = scriptSections.filter(s => sectionStatus[s.id]?.status === 'completed').length;
     const allCompleted = completedSections === scriptSections.length && scriptSections.length > 0;
+
+    // Compute total listened stats
+    const totalSegments = scriptSections.reduce((acc, s) => {
+      const st = sectionStatus[s.id];
+      return acc + (st?.status === 'completed' ? st.audioSegments.length : 0);
+    }, 0);
+    const totalListened = scriptSections.reduce((acc, s) => {
+      const st = sectionStatus[s.id];
+      if (st?.status !== 'completed') return acc;
+      return acc + st.audioSegments.filter((_, i) => listenedSegments.has(`${s.id}-${i}`)).length;
+    }, 0);
+    const allListened = allCompleted && totalSegments > 0 && totalListened === totalSegments;
     
     return (
       <div className="space-y-4 sm:space-y-6">
@@ -2287,7 +2577,9 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             </p>
             <p className="text-xs text-t-text3">
               {allCompleted 
-                ? (language === 'zh' ? '所有段落已完成' : 'All sections completed')
+                ? (allListened
+                    ? (language === 'zh' ? '所有段落已完成并已审听' : 'All sections completed and reviewed')
+                    : `${totalListened}/${totalSegments} ${language === 'zh' ? '条已审听' : 'clips reviewed'}`)
                 : `${completedSections}/${scriptSections.length} ${language === 'zh' ? '段落已完成' : 'sections completed'}`
               }
             </p>
@@ -2300,6 +2592,12 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             const status = sectionStatus[section.id] || { status: 'idle', progress: 0, audioSegments: [] };
             const isCurrentSection = voiceGeneration.currentSectionId === section.id;
             const lineCount = section.timeline.reduce((acc, item) => acc + (item.lines?.filter(l => l.line.trim()).length || 0), 0);
+            const isCollapsed = collapsedVoiceSections.has(section.id);
+            // Compute listened count for this section
+            const sectionListenedCount = status.status === 'completed' 
+              ? status.audioSegments.filter((_, i) => listenedSegments.has(`${section.id}-${i}`)).length 
+              : 0;
+            const sectionAllListened = status.status === 'completed' && status.audioSegments.length > 0 && sectionListenedCount === status.audioSegments.length;
             
             return (
               <div 
@@ -2318,30 +2616,30 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   }`}
                   onClick={() => {
                     if (status.status === 'completed' && status.audioSegments.length > 0) {
-                      setExpandedVoiceSections(prev => {
+                      setCollapsedVoiceSections(prev => {
                         const next = new Set(prev);
                         if (next.has(section.id)) {
                           next.delete(section.id);
+                        } else {
+                          next.add(section.id);
                           // Stop playing audio when collapsing
                           if (segmentAudioRef.current) {
                             segmentAudioRef.current.pause();
                             segmentAudioRef.current = null;
                           }
                           setPlayingSegmentId(null);
-                        } else {
-                          next.add(section.id);
                         }
                         return next;
                       });
                     }
                   }}
                 >
-                  {/* Status icon */}
+                  {/* Status icon — shows review status for completed */}
                   <div 
                     className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ 
                       background: status.status === 'completed' 
-                        ? `${theme.primary}30` 
+                        ? (sectionAllListened ? 'rgba(34, 197, 94, 0.25)' : `${theme.primary}30`)
                         : status.status === 'processing' 
                           ? `${theme.primary}20` 
                           : status.status === 'error'
@@ -2350,7 +2648,11 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                     }}
                   >
                     {status.status === 'completed' ? (
-                      <Check size={20} style={{ color: theme.primaryLight }} />
+                      sectionAllListened ? (
+                        <Check size={20} className="text-green-400" />
+                      ) : (
+                        <Headphones size={20} style={{ color: theme.primaryLight }} />
+                      )
                     ) : status.status === 'processing' ? (
                       <Loader2 size={20} className="animate-spin" style={{ color: theme.primaryLight }} />
                     ) : status.status === 'error' ? (
@@ -2366,8 +2668,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                     <p className="text-sm text-t-text3">
                       {lineCount} {language === 'zh' ? '条对话' : 'lines'}
                       {status.status === 'completed' && status.audioSegments.length > 0 && (
-                        <span className="ml-2 text-green-400">
-                          · {status.audioSegments.length} {language === 'zh' ? '条音频' : 'audio clips'}
+                        <span className="ml-2" style={{ color: sectionAllListened ? 'rgb(74, 222, 128)' : theme.primaryLight }}>
+                          · {sectionListenedCount}/{status.audioSegments.length} {language === 'zh' ? '已审听' : 'reviewed'}
                         </span>
                       )}
                     </p>
@@ -2382,7 +2684,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                       </span>
                     )}
                     
-                    {/* Generate / Regenerate button */}
+                    {/* Generate / Retry button */}
                     {(status.status === 'idle' || status.status === 'error') && (
                       <button
                         onClick={() => generateVoiceForSection(section)}
@@ -2398,27 +2700,35 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                       </button>
                     )}
                     
-                    {/* Regenerate button for completed sections */}
+                    {/* Regenerate ALL button for completed sections */}
                     {status.status === 'completed' && (
                       <button
                         onClick={() => {
                           dispatch(actions.clearSectionVoice(section.id));
+                          // Clear listened state for this section
+                          setListenedSegments(prev => {
+                            const next = new Set(prev);
+                            for (const key of prev) {
+                              if (key.startsWith(`${section.id}-`)) next.delete(key);
+                            }
+                            return next;
+                          });
                           generateVoiceForSection(section);
                         }}
                         disabled={voiceGeneration.status === 'processing'}
                         className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-t-text2 hover:text-t-text1 hover:bg-t-card-hover transition-all disabled:opacity-50"
-                        title={language === 'zh' ? '重新生成' : 'Regenerate'}
+                        title={language === 'zh' ? '全部重新生成' : 'Regenerate all'}
                       >
                         <RefreshCw size={16} />
                       </button>
                     )}
                     
-                    {/* Expand/collapse chevron for completed sections */}
+                    {/* Collapse/expand chevron for completed sections */}
                     {status.status === 'completed' && status.audioSegments.length > 0 && (
                       <ChevronDown 
                         size={18} 
                         className={`text-t-text3 transition-transform duration-200 ${
-                          expandedVoiceSections.has(section.id) ? 'rotate-180' : ''
+                          !isCollapsed ? 'rotate-180' : ''
                         }`} 
                       />
                     )}
@@ -2444,17 +2754,21 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                   </div>
                 )}
                 
-                {/* Expanded audio segment list for completed sections */}
-                {status.status === 'completed' && status.audioSegments.length > 0 && expandedVoiceSections.has(section.id) && (
+                {/* Audio segment list — visible by default for completed sections (collapsible) */}
+                {status.status === 'completed' && status.audioSegments.length > 0 && !isCollapsed && (
                   <div className="border-t border-t-border-lt">
                     <div className="divide-y divide-t-border-lt">
                       {status.audioSegments.map((audio, audioIndex) => {
                         const segId = `${section.id}-${audioIndex}`;
                         const isPlaying = playingSegmentId === segId;
+                        const isListened = listenedSegments.has(segId);
+                        const isRegenerating = regeneratingLineId === segId;
                         return (
                           <div 
                             key={audioIndex}
-                            className="px-5 py-3 flex items-center gap-3 hover:bg-t-card transition-colors"
+                            className={`px-5 py-3 flex items-center gap-3 hover:bg-t-card transition-colors ${
+                              isListened ? 'bg-[var(--t-bg-card)]' : ''
+                            }`}
                           >
                             {/* Play/Pause button */}
                             <button
@@ -2477,6 +2791,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                                   audioEl.onended = () => {
                                     setPlayingSegmentId(null);
                                     segmentAudioRef.current = null;
+                                    // Mark as listened when playback finishes
+                                    setListenedSegments(prev => new Set(prev).add(segId));
                                   };
                                   audioEl.play().catch(() => {
                                     setPlayingSegmentId(null);
@@ -2486,7 +2802,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                                   setPlayingSegmentId(segId);
                                 }
                               }}
-                              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:scale-110"
+                              disabled={isRegenerating}
+                              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:scale-110 disabled:opacity-50"
                               style={{ background: isPlaying ? theme.primary : `${theme.primary}30` }}
                             >
                               {isPlaying ? (
@@ -2498,9 +2815,28 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                             
                             {/* Segment info */}
                             <div className="flex-1 min-w-0">
-                              <span className="text-sm font-medium text-t-text2">{audio.speaker}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-t-text2">{audio.speaker}</span>
+                                {isListened && (
+                                  <Check size={13} className="text-green-400 flex-shrink-0" />
+                                )}
+                              </div>
                               <p className="text-xs text-t-text3 truncate mt-0.5">{audio.text}</p>
                             </div>
+                            
+                            {/* Per-line regenerate button */}
+                            <button
+                              onClick={() => regenerateVoiceForLine(section, section.id, audioIndex, audio)}
+                              disabled={isRegenerating || voiceGeneration.status === 'processing'}
+                              className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-t-text3 hover:text-t-text1 hover:bg-t-card-hover transition-all disabled:opacity-40"
+                              title={language === 'zh' ? '重新生成此行' : 'Regenerate this line'}
+                            >
+                              {isRegenerating ? (
+                                <Loader2 size={13} className="animate-spin" />
+                              ) : (
+                                <RefreshCw size={13} />
+                              )}
+                            </button>
                             
                             {/* Line index */}
                             <span className="text-xs text-t-text3 flex-shrink-0">#{audio.lineIndex + 1}</span>
@@ -2530,6 +2866,59 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             )}
             {language === 'zh' ? '一键生成全部' : 'Generate All Sections'}
           </button>
+        )}
+
+        {/* Listen warning dialog */}
+        {showListenWarning && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowListenWarning(false)}>
+            <div 
+              className="mx-4 max-w-md w-full rounded-2xl border border-t-border p-6 space-y-4 shadow-2xl"
+              style={{ background: 'var(--t-bg-base)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-amber-500/20">
+                  <Headphones size={20} className="text-amber-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-t-text1">
+                  {language === 'zh' ? '尚未全部审听' : 'Not all clips reviewed'}
+                </h3>
+              </div>
+              <p className="text-sm text-t-text2">
+                {language === 'zh' 
+                  ? `您还有 ${totalSegments - totalListened} 条音频未审听。确定跳过审听继续下一步吗？`
+                  : `You have ${totalSegments - totalListened} audio clip${totalSegments - totalListened > 1 ? 's' : ''} not yet reviewed. Continue anyway?`
+                }
+              </p>
+              <div className="flex items-center gap-3 justify-end pt-2">
+                <button
+                  onClick={() => setShowListenWarning(false)}
+                  className="px-4 py-2 rounded-lg text-sm text-t-text2 hover:text-t-text1 hover:bg-t-card-hover transition-colors"
+                >
+                  {language === 'zh' ? '返回审听' : 'Go back'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowListenWarning(false);
+                    // Proceed to next step directly
+                    const hasMedia = specData.addBgm || specData.addSoundEffects || specData.hasVisualContent;
+                    if (!hasMedia) {
+                      dispatch(actions.updateProductionPhase('media-production', 'completed', 100));
+                      setCurrentStep(7);
+                      setTimeout(() => { performMixing(); }, 100);
+                    } else {
+                      setCurrentStep(6);
+                      setTimeout(() => { performMediaProduction(); }, 100);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-t-text1 transition-all hover:scale-105"
+                  style={{ background: theme.primary }}
+                >
+                  {language === 'zh' ? '继续下一步' : 'Continue anyway'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     );
@@ -3229,9 +3618,27 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             </div>
             <div className="min-w-0">
               <h2 className="text-base sm:text-xl font-serif text-t-text1 truncate">{t.projectCreator.title}</h2>
-              <p className="text-xs sm:text-sm text-t-text3 truncate">
-                {t.projectCreator.step} {currentStep} {t.projectCreator.of} {STEPS.length} · {STEPS[currentStep - 1]?.title}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs sm:text-sm text-t-text3 truncate">
+                  {t.projectCreator.step} {currentStep} {t.projectCreator.of} {STEPS.length} · {STEPS[currentStep - 1]?.title}
+                </p>
+                {currentStep === 4 && totalLineCount > 0 && (
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <div className="w-16 sm:w-20 h-1.5 rounded-full bg-t-border overflow-hidden">
+                      <div 
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{ 
+                          width: `${Math.min((totalLineCount / MAX_SCRIPT_LINES) * 100, 100)}%`,
+                          background: totalLineCount >= MAX_SCRIPT_LINES ? '#ef4444' : totalLineCount >= MAX_SCRIPT_LINES * 0.8 ? '#f59e0b' : theme.primary 
+                        }}
+                      />
+                    </div>
+                    <span className={`text-[10px] tabular-nums ${totalLineCount >= MAX_SCRIPT_LINES ? 'text-red-500' : totalLineCount >= MAX_SCRIPT_LINES * 0.8 ? 'text-amber-500' : 'text-t-text3/60'}`}>
+                      {totalLineCount}/{MAX_SCRIPT_LINES}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 sm:p-2 hover:bg-t-card-hover rounded-lg transition-colors flex-shrink-0">

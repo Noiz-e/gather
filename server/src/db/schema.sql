@@ -11,13 +11,8 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TYPE religion_type AS ENUM (
   'default',
-  'christianity',
-  'catholicism',
-  'buddhism',
-  'islam',
-  'judaism',
-  'hinduism',
-  'taoism'
+  'educational',
+  'faithful'
 );
 
 CREATE TYPE project_stage AS ENUM (

@@ -330,6 +330,55 @@ export async function playVoiceSample(voiceId: string, language: 'en' | 'zh' = '
   return playAudio(sample.audioData, sample.mimeType);
 }
 
+// ============ Voice Design API ============
+
+export interface VoiceDesignPreview {
+  audioBase64: string;
+  generatedVoiceId: string;
+  mediaType: string;
+  durationSecs: number;
+  language: string;
+}
+
+export interface VoiceDesignResult {
+  previews: VoiceDesignPreview[];
+  text: string;
+}
+
+export interface VoiceDesignOptions {
+  text?: string;
+  guidanceScale?: number;
+  loudness?: number;
+}
+
+/**
+ * Design voice from text description using ElevenLabs text-to-voice API.
+ * Returns 3 voice preview candidates with audio and generated_voice_id.
+ */
+export async function designVoice(
+  voiceDescription: string,
+  options: VoiceDesignOptions = {}
+): Promise<VoiceDesignResult> {
+  const response = await apiFetch(`${API_BASE}/voice/design`, {
+    ...fetchOptions,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      voiceDescription,
+      text: options.text,
+      guidanceScale: options.guidanceScale,
+      loudness: options.loudness,
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to design voice');
+  }
+
+  return response.json();
+}
+
 /**
  * Check TTS service status
  */
@@ -424,6 +473,7 @@ export interface GeneratedSegment {
   speaker?: string;
   audioData: string;
   mimeType: string;
+  audioUrl?: string; // GCS URL for persistent storage
 }
 
 export interface BatchResult {
@@ -440,6 +490,7 @@ export interface BatchProgressEvent {
   speaker?: string;
   audioData?: string;
   mimeType?: string;
+  audioUrl?: string; // GCS URL for persistent storage
   error?: string;
 }
 
@@ -1024,7 +1075,8 @@ export async function deleteMediaFileFromCloud(
 // ============ Audio Mixing API ============
 
 export interface AudioTrack {
-  audioData: string;   // base64
+  audioData?: string;   // base64 (optional if audioUrl is provided)
+  audioUrl?: string;    // GCS URL for persistent storage (fallback when audioData is missing)
   mimeType: string;
   speaker?: string;    // Speaker identifier for gap calculation
   sectionStart?: boolean; // True if this is the first segment of a new section

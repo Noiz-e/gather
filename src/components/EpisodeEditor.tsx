@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { Episode, Project, PROJECT_STAGES, ProjectStage, ScriptSection, ScriptLine, EpisodeCharacter } from '../types';
-import { X, Save, FileText, ChevronRight, Plus, Trash2, User, Volume2, Pause } from 'lucide-react';
+import { X, Save, FileText, ChevronRight, Plus, Trash2, User, Volume2, Pause, Scissors } from 'lucide-react';
 import { ReligionIconMap, StageIconMap } from './icons/ReligionIcons';
 
 // Storage key for voice characters (same as VoiceStudio)
@@ -56,8 +56,37 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
   
   const [activeTab, setActiveTab] = useState<'info' | 'script' | 'characters' | 'notes'>('info');
 
+  // Split line: track which textarea is focused and cursor position
+  const [splitCursor, setSplitCursor] = useState<{ sectionId: string; itemId: string; lineIndex: number; cursorPos: number } | null>(null);
+
   const ReligionIcon = ReligionIconMap[religion];
   const spec = project.spec;
+
+  // Maximum number of script lines allowed (matches server-side batch limit)
+  const MAX_SCRIPT_LINES = 100;
+  
+  // Compute total line count across all sections
+  const totalLineCount = useMemo(() => {
+    return scriptSections.reduce((total, section) => {
+      return total + section.timeline.reduce((sectionTotal, item) => {
+        return sectionTotal + (item.lines?.length || 0);
+      }, 0);
+    }, 0);
+  }, [scriptSections]);
+
+  // Compute known speaker names from characters + script lines (for dropdown selection)
+  const knownSpeakers = useMemo(() => {
+    const names = new Set<string>();
+    characters.forEach(c => { if (c.name) names.add(c.name); });
+    scriptSections.forEach(section => {
+      section.timeline.forEach(item => {
+        (item.lines || []).forEach(line => {
+          if (line.speaker?.trim()) names.add(line.speaker.trim());
+        });
+      });
+    });
+    return Array.from(names);
+  }, [characters, scriptSections]);
 
   const handleSubmit = () => {
     if (!formData.title.trim()) { 
@@ -130,20 +159,40 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
   };
 
   const addScriptLine = (sectionId: string, itemId: string) => {
-    setScriptSections(sections =>
-      sections.map(section =>
+    setScriptSections(sections => {
+      // Count current total lines
+      const currentTotal = sections.reduce((total, section) => {
+        return total + section.timeline.reduce((sectionTotal, item) => {
+          return sectionTotal + (item.lines?.length || 0);
+        }, 0);
+      }, 0);
+      if (currentTotal >= MAX_SCRIPT_LINES) {
+        return sections; // Limit reached, don't add
+      }
+      // Find the last speaker in this timeline item to use as default
+      let lastSpeaker = '';
+      for (const section of sections) {
+        if (section.id === sectionId) {
+          for (const item of section.timeline) {
+            if (item.id === itemId && item.lines && item.lines.length > 0) {
+              lastSpeaker = item.lines[item.lines.length - 1].speaker || '';
+            }
+          }
+        }
+      }
+      return sections.map(section =>
         section.id === sectionId
           ? {
               ...section,
               timeline: section.timeline.map(item =>
                 item.id === itemId
-                  ? { ...item, lines: [...(item.lines || []), { speaker: '', line: '' }] }
+                  ? { ...item, lines: [...(item.lines || []), { speaker: lastSpeaker, line: '' }] }
                   : item
               )
             }
           : section
-      )
-    );
+      );
+    });
   };
 
   const removeScriptLine = (sectionId: string, itemId: string, lineIndex: number) => {
@@ -163,14 +212,49 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
     );
   };
 
-  const addTimelineItem = (sectionId: string) => {
+  // Split a script line at cursor position
+  const splitScriptLine = (sectionId: string, itemId: string, lineIndex: number, cursorPos: number) => {
     setScriptSections(sections =>
       sections.map(section =>
         section.id === sectionId
-          ? { ...section, timeline: [...section.timeline, { id: `item-${Date.now()}`, timeStart: '', timeEnd: '', lines: [{ speaker: '', line: '' }], soundMusic: '' }] }
+          ? {
+              ...section,
+              timeline: section.timeline.map(item => {
+                if (item.id !== itemId || !item.lines?.[lineIndex]) return item;
+                const line = item.lines[lineIndex];
+                const textBefore = line.line.slice(0, cursorPos);
+                const textAfter = line.line.slice(cursorPos);
+                const newLines = [...item.lines];
+                newLines[lineIndex] = { ...line, line: textBefore };
+                newLines.splice(lineIndex + 1, 0, { speaker: line.speaker, line: textAfter });
+                return { ...item, lines: newLines };
+              })
+            }
           : section
       )
     );
+  };
+
+  const addTimelineItem = (sectionId: string) => {
+    setScriptSections(sections => {
+      // Find the last speaker used in this section
+      let lastSpeaker = '';
+      for (const section of sections) {
+        if (section.id === sectionId) {
+          for (const item of section.timeline) {
+            if (item.lines && item.lines.length > 0) {
+              const last = item.lines[item.lines.length - 1].speaker;
+              if (last) lastSpeaker = last;
+            }
+          }
+        }
+      }
+      return sections.map(section =>
+        section.id === sectionId
+          ? { ...section, timeline: [...section.timeline, { id: `item-${Date.now()}`, timeStart: '', timeEnd: '', lines: [{ speaker: lastSpeaker, line: '' }], soundMusic: '' }] }
+          : section
+      );
+    });
   };
 
   const removeTimelineItem = (sectionId: string, itemId: string) => {
@@ -234,7 +318,25 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
             </div>
             <div>
               <h2 className="text-lg font-serif text-t-text1">{episode ? t.episodeEditor.editTitle : t.episodeEditor.createTitle}</h2>
-              <p className="text-sm text-t-text3">{project.title}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-t-text3">{project.title}</p>
+                {activeTab === 'script' && totalLineCount > 0 && (
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <div className="w-16 h-1.5 rounded-full bg-t-border overflow-hidden">
+                      <div 
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{ 
+                          width: `${Math.min((totalLineCount / MAX_SCRIPT_LINES) * 100, 100)}%`,
+                          background: totalLineCount >= MAX_SCRIPT_LINES ? '#ef4444' : totalLineCount >= MAX_SCRIPT_LINES * 0.8 ? '#f59e0b' : theme.primary 
+                        }}
+                      />
+                    </div>
+                    <span className={`text-[10px] tabular-nums ${totalLineCount >= MAX_SCRIPT_LINES ? 'text-red-500' : totalLineCount >= MAX_SCRIPT_LINES * 0.8 ? 'text-amber-500' : 'text-t-text3/60'}`}>
+                      {totalLineCount}/{MAX_SCRIPT_LINES}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-t-card-hover rounded-lg transition-colors">
@@ -447,20 +549,63 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
                                 {(item.lines || []).map((scriptLine, lineIndex) => (
                                   <div key={lineIndex}>
                                     <div className="flex items-start gap-2">
-                                      <input 
-                                        type="text" 
-                                        value={scriptLine.speaker} 
-                                        onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
-                                        placeholder={t.episodeEditor.script.speaker}
-                                        className="w-24 px-2 py-1.5 rounded border border-t-border bg-t-card text-t-text1 text-xs focus:outline-none flex-shrink-0" 
-                                      />
-                                      <textarea 
-                                        value={scriptLine.line} 
-                                        onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
-                                        placeholder={t.episodeEditor.script.lineContent}
-                                        rows={2}
-                                        className="flex-1 px-2 py-1.5 rounded border border-t-border bg-t-card text-t-text1 text-xs focus:outline-none resize-none" 
-                                      />
+                                      {knownSpeakers.length > 0 ? (
+                                        <select
+                                          value={scriptLine.speaker}
+                                          onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)}
+                                          className="w-24 px-1.5 py-1.5 rounded border border-t-border bg-t-card text-t-text1 text-xs focus:outline-none flex-shrink-0 appearance-none cursor-pointer"
+                                          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 4px center' }}
+                                        >
+                                          {!scriptLine.speaker && <option value="">{t.episodeEditor.script.speaker}</option>}
+                                          {knownSpeakers.map(name => (
+                                            <option key={name} value={name}>{name}</option>
+                                          ))}
+                                        </select>
+                                      ) : (
+                                        <input 
+                                          type="text" 
+                                          value={scriptLine.speaker} 
+                                          onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'speaker', e.target.value)} 
+                                          placeholder={t.episodeEditor.script.speaker}
+                                          className="w-24 px-2 py-1.5 rounded border border-t-border bg-t-card text-t-text1 text-xs focus:outline-none flex-shrink-0" 
+                                        />
+                                      )}
+                                      <div className="flex-1 relative group/split">
+                                        <textarea 
+                                          value={scriptLine.line} 
+                                          onChange={(e) => updateScriptLine(section.id, item.id, lineIndex, 'line', e.target.value)} 
+                                          placeholder={t.episodeEditor.script.lineContent}
+                                          rows={2}
+                                          className="w-full px-2 py-1.5 pr-7 rounded border border-t-border bg-t-card text-t-text1 text-xs focus:outline-none resize-none" 
+                                          onSelect={(e) => {
+                                            const ta = e.target as HTMLTextAreaElement;
+                                            const pos = ta.selectionStart;
+                                            if (pos > 0 && pos < scriptLine.line.length) {
+                                              setSplitCursor({ sectionId: section.id, itemId: item.id, lineIndex, cursorPos: pos });
+                                            } else {
+                                              setSplitCursor(null);
+                                            }
+                                          }}
+                                          onBlur={() => {
+                                            setTimeout(() => setSplitCursor(prev => 
+                                              prev?.sectionId === section.id && prev?.itemId === item.id && prev?.lineIndex === lineIndex ? null : prev
+                                            ), 150);
+                                          }}
+                                        />
+                                        {splitCursor?.sectionId === section.id && splitCursor?.itemId === item.id && splitCursor?.lineIndex === lineIndex && (
+                                          <button
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            onClick={() => {
+                                              splitScriptLine(section.id, item.id, lineIndex, splitCursor.cursorPos);
+                                              setSplitCursor(null);
+                                            }}
+                                            className="absolute right-1 top-1 p-0.5 rounded bg-t-bg2/90 border border-t-border text-t-text3 hover:text-t-text1 hover:bg-t-bg2 transition-all shadow-sm"
+                                            title={'Split at cursor'}
+                                          >
+                                            <Scissors size={10} />
+                                          </button>
+                                        )}
+                                      </div>
                                       <button 
                                         onClick={() => removeScriptLine(section.id, item.id, lineIndex)} 
                                         className="p-1.5 rounded hover:bg-red-500/20 text-t-text3 hover:text-red-400 flex-shrink-0"
@@ -515,7 +660,8 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
                                 ))}
                                 <button 
                                   onClick={() => addScriptLine(section.id, item.id)} 
-                                  className="flex items-center gap-1 text-[10px] text-t-text3 hover:text-t-text2 mt-2"
+                                  className={`flex items-center gap-1 text-[10px] mt-2 ${totalLineCount >= MAX_SCRIPT_LINES ? 'text-t-text3/40 cursor-not-allowed' : 'text-t-text3 hover:text-t-text2'}`}
+                                  disabled={totalLineCount >= MAX_SCRIPT_LINES}
                                 >
                                   <Plus size={10} />{t.episodeEditor.script.addLine}
                                 </button>
@@ -626,6 +772,7 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-t-text2 hover:text-t-text1 hover:bg-t-card transition-colors">
             {t.episodeEditor.buttons.cancel}
           </button>
+          
           <button
             onClick={handleSubmit}
             className="flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition-all hover:scale-105"

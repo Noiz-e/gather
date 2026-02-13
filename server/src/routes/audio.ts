@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { generateBatchCustomSpeech, isCustomTTSConfigured } from '../services/tts.js';
 import { generateSpeech } from '../services/gemini.js';
+import { isGCSConfigured, uploadFile, getBucketName } from '../services/gcs.js';
+import { randomUUID } from 'crypto';
 
 export const audioRouter = Router();
 
@@ -27,12 +29,37 @@ interface GeneratedSegment {
   speaker?: string;
   audioData: string;
   mimeType: string;
+  audioUrl?: string; // GCS URL for persistent storage
+}
+
+/**
+ * Upload a generated audio segment to GCS
+ * Returns the public URL, or null if GCS is not configured
+ */
+async function uploadSegmentToGCS(
+  audioData: string,
+  mimeType: string,
+  batchId: string,
+  index: number
+): Promise<string | null> {
+  if (!isGCSConfigured()) return null;
+  
+  try {
+    const ext = mimeType.includes('mp3') || mimeType.includes('mpeg') ? 'mp3' : 'wav';
+    const gcsPath = `killagent/voice-segments/${batchId}/${index}.${ext}`;
+    const buffer = Buffer.from(audioData, 'base64');
+    const url = await uploadFile(gcsPath, buffer, mimeType);
+    return url;
+  } catch (err) {
+    console.warn(`Failed to upload segment ${index} to GCS:`, err);
+    return null;
+  }
 }
 
 /**
  * POST /api/audio/batch
  * Generate audio for multiple segments using system voices (Gemini TTS) or custom TTS
- * Returns array of base64 audio segments
+ * Returns array of base64 audio segments with GCS URLs for persistent storage
  */
 audioRouter.post('/batch', async (req: Request, res: Response) => {
   try {
@@ -43,13 +70,16 @@ audioRouter.post('/batch', async (req: Request, res: Response) => {
       return;
     }
     
-    if (segments.length > 50) {
-      res.status(400).json({ error: 'Too many segments, max 50' });
+    if (segments.length > 100) {
+      res.status(400).json({ error: 'Too many segments, max 100' });
       return;
     }
     
     const results: GeneratedSegment[] = [];
     const errors: { index: number; error: string }[] = [];
+    
+    // Generate a batch ID for GCS storage
+    const batchId = randomUUID();
     
     // Separate segments into system voice (Gemini TTS) and custom TTS
     const systemVoiceSegments: { index: number; segment: AudioSegment }[] = [];
@@ -131,6 +161,15 @@ audioRouter.post('/batch', async (req: Request, res: Response) => {
       }
     }
     
+    // Upload all generated segments to GCS in parallel (non-blocking)
+    const uploadPromises = results.map(async (seg) => {
+      const url = await uploadSegmentToGCS(seg.audioData, seg.mimeType, batchId, seg.index);
+      if (url) {
+        seg.audioUrl = url;
+      }
+    });
+    await Promise.all(uploadPromises);
+    
     // Sort results by original index
     results.sort((a, b) => a.index - b.index);
     
@@ -160,6 +199,11 @@ audioRouter.post('/batch-stream', async (req: Request, res: Response) => {
       return;
     }
     
+    if (segments.length > 100) {
+      res.status(400).json({ error: 'Too many segments, max 100' });
+      return;
+    }
+    
     // Set up SSE
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -180,6 +224,9 @@ audioRouter.post('/batch-stream', async (req: Request, res: Response) => {
         customTTSSegments.push({ index: i, segment });
       }
     }
+    
+    // Generate a batch ID for GCS storage
+    const batchId = randomUUID();
     
     // Process system voice segments (Gemini TTS) concurrently
     if (systemVoiceSegments.length > 0) {
@@ -203,12 +250,15 @@ audioRouter.post('/batch-stream', async (req: Request, res: Response) => {
             error: error || 'Unknown error' 
           })}\n\n`);
         } else {
+          // Upload to GCS in background (don't block SSE)
+          const audioUrl = await uploadSegmentToGCS(result.audioData, result.mimeType, batchId, index);
           res.write(`data: ${JSON.stringify({
             type: 'segment',
             index,
             speaker: segment.speaker,
             audioData: result.audioData,
-            mimeType: result.mimeType
+            mimeType: result.mimeType,
+            ...(audioUrl ? { audioUrl } : {})
           })}\n\n`);
         }
       }
@@ -246,12 +296,15 @@ audioRouter.post('/batch-stream', async (req: Request, res: Response) => {
               error: result.error 
             })}\n\n`);
           } else {
+            // Upload to GCS
+            const audioUrl = await uploadSegmentToGCS(result.audioData!, result.mimeType!, batchId, index);
             res.write(`data: ${JSON.stringify({
               type: 'segment',
               index,
               speaker: segment.speaker,
               audioData: result.audioData,
-              mimeType: result.mimeType
+              mimeType: result.mimeType,
+              ...(audioUrl ? { audioUrl } : {})
             })}\n\n`);
           }
         }

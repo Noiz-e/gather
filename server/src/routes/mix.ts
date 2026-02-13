@@ -2,15 +2,21 @@ import { Router, Request, Response } from 'express';
 
 export const mixRouter = Router();
 
-// Audio track for mixing
+// Audio track for mixing (from API request)
 interface AudioTrack {
-  audioData: string;  // base64
+  audioData?: string;  // base64 (optional if audioUrl is provided)
+  audioUrl?: string;   // GCS/HTTP URL to fetch audio from (fallback when audioData is missing)
   mimeType: string;
   speaker?: string;   // Speaker identifier for gap calculation
   sectionStart?: boolean; // True if this is the first segment of a new section
   pauseAfterMs?: number; // Custom pause after this track (overrides default gap)
   startMs?: number;   // Start time offset (for future timeline editing)
   volume?: number;    // 0-1, default 1
+}
+
+// Audio track with resolved audioData (after URL fetch)
+interface ResolvedAudioTrack extends AudioTrack {
+  audioData: string;  // guaranteed to be present
 }
 
 // Audio mix configuration
@@ -46,13 +52,30 @@ const DEFAULT_MIX_CONFIG: AudioMixConfig = {
   differentSpeakerGapMs: 800,
   sectionGapMs: 2000,
   voiceVolume: 1.0,
-  bgmVolume: 0.15,
+  bgmVolume: 0.30,
   sfxVolume: 0.35,
   bgmFadeInMs: 1500,
   bgmFadeOutMs: 2000,
   normalizeAudio: true,
   compressAudio: false,
 };
+
+/**
+ * Fetch audio from a URL (GCS public URL, signed URL, or any HTTP URL)
+ * and return as base64 string
+ */
+async function fetchAudioFromUrl(url: string): Promise<{ audioData: string; mimeType: string }> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  const arrayBuffer = await response.arrayBuffer();
+  const base64 = Buffer.from(arrayBuffer).toString('base64');
+  const mimeType = response.headers.get('content-type') || 'audio/wav';
+  
+  return { audioData: base64, mimeType };
+}
 
 // Mix request
 interface MixRequest {
@@ -268,7 +291,7 @@ function applyFade(
  * Concatenate multiple audio tracks with gaps based on speaker
  */
 function concatenateWithGaps(
-  tracks: AudioTrack[],
+  tracks: ResolvedAudioTrack[],
   config: AudioMixConfig
 ): {
   audioData: string;
@@ -382,7 +405,7 @@ function concatenateWithGaps(
  */
 function mixWithBgm(
   voiceData: { audioData: string; mimeType: string; durationMs: number },
-  bgmTrack: AudioTrack,
+  bgmTrack: ResolvedAudioTrack,
   config: AudioMixConfig
 ): { audioData: string; mimeType: string; durationMs: number } {
   // Extract voice PCM
@@ -473,12 +496,50 @@ mixRouter.post('/', async (req: Request, res: Response) => {
       return;
     }
     
-    // Validate each track has required fields
+    // Resolve audioUrl → audioData for tracks that only have a URL
+    let urlResolvedCount = 0;
+    for (let i = 0; i < voiceTracks.length; i++) {
+      const track = voiceTracks[i];
+      if (!track.audioData && track.audioUrl) {
+        try {
+          const downloaded = await fetchAudioFromUrl(track.audioUrl);
+          track.audioData = downloaded.audioData;
+          if (!track.mimeType || track.mimeType === 'audio/wav') {
+            track.mimeType = downloaded.mimeType || track.mimeType;
+          }
+          urlResolvedCount++;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Unknown error';
+          res.status(400).json({ error: `Voice track ${i}: failed to fetch audio from URL: ${msg}` });
+          return;
+        }
+      }
+    }
+    
+    // Validate each track has audioData (either provided or resolved from URL)
     for (let i = 0; i < voiceTracks.length; i++) {
       const track = voiceTracks[i];
       if (!track.audioData) {
-        res.status(400).json({ error: `Voice track ${i} is missing audioData` });
+        res.status(400).json({ error: `Voice track ${i} is missing audioData and audioUrl` });
         return;
+      }
+    }
+    
+    if (urlResolvedCount > 0) {
+      console.log(`Resolved ${urlResolvedCount} voice tracks from URLs`);
+    }
+    
+    // Also resolve BGM audioUrl if needed
+    if (bgmTrack && !bgmTrack.audioData && bgmTrack.audioUrl) {
+      try {
+        const downloaded = await fetchAudioFromUrl(bgmTrack.audioUrl);
+        bgmTrack.audioData = downloaded.audioData;
+        if (!bgmTrack.mimeType) {
+          bgmTrack.mimeType = downloaded.mimeType || bgmTrack.mimeType;
+        }
+        console.log('Resolved BGM track from URL');
+      } catch (err) {
+        console.warn('Failed to fetch BGM from URL, skipping BGM:', err);
       }
     }
     
@@ -488,14 +549,17 @@ mixRouter.post('/', async (req: Request, res: Response) => {
       `sectionGap=${config.sectionGapMs}ms, ` +
       `bgmVolume=${config.bgmVolume}, bgmFadeIn=${config.bgmFadeInMs}ms, bgmFadeOut=${config.bgmFadeOutMs}ms`);
     
+    // All tracks are now guaranteed to have audioData (resolved from URL if needed)
+    const resolvedVoiceTracks = voiceTracks as ResolvedAudioTrack[];
+    
     // Step 1: Concatenate all voice tracks with gaps
-    let result = concatenateWithGaps(voiceTracks, config);
+    let result = concatenateWithGaps(resolvedVoiceTracks, config);
     console.log(`Concatenated voice with gaps: ${result.durationMs}ms`);
     
     // Step 2: Mix with BGM if provided
     if (bgmTrack && bgmTrack.audioData) {
       console.log('Mixing with BGM...');
-      result = mixWithBgm(result, bgmTrack, config);
+      result = mixWithBgm(result, bgmTrack as ResolvedAudioTrack, config);
       console.log(`Mixed with BGM: ${result.durationMs}ms`);
     }
     
@@ -506,7 +570,7 @@ mixRouter.post('/', async (req: Request, res: Response) => {
       audioData: result.audioData,
       mimeType: result.mimeType,
       durationMs: result.durationMs,
-      trackCount: voiceTracks.length + (bgmTrack ? 1 : 0) + (sfxTracks?.length || 0)
+      trackCount: resolvedVoiceTracks.length + (bgmTrack ? 1 : 0) + (sfxTracks?.length || 0)
     };
     
     res.json(response);
@@ -530,6 +594,26 @@ mixRouter.post('/preview', async (req: Request, res: Response) => {
       return;
     }
     
+    // Resolve audioUrl → audioData for tracks that only have a URL
+    for (let i = 0; i < voiceTracks.length; i++) {
+      const track = voiceTracks[i];
+      if (!track.audioData && track.audioUrl) {
+        try {
+          const downloaded = await fetchAudioFromUrl(track.audioUrl);
+          track.audioData = downloaded.audioData;
+          if (!track.mimeType) track.mimeType = downloaded.mimeType;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Unknown error';
+          res.status(400).json({ error: `Preview track ${i}: failed to fetch audio from URL: ${msg}` });
+          return;
+        }
+      }
+      if (!track.audioData) {
+        res.status(400).json({ error: `Preview track ${i} is missing audioData and audioUrl` });
+        return;
+      }
+    }
+    
     // Use minimal config for preview (faster)
     const previewConfig: AudioMixConfig = {
       ...DEFAULT_MIX_CONFIG,
@@ -538,13 +622,14 @@ mixRouter.post('/preview', async (req: Request, res: Response) => {
       silenceEndMs: 100,
     };
     
-    const result = concatenateWithGaps(voiceTracks, previewConfig);
+    const resolvedTracks = voiceTracks as ResolvedAudioTrack[];
+    const result = concatenateWithGaps(resolvedTracks, previewConfig);
     
     res.json({
       audioData: result.audioData,
       mimeType: result.mimeType,
       durationMs: result.durationMs,
-      trackCount: voiceTracks.length
+      trackCount: resolvedTracks.length
     });
   } catch (error) {
     console.error('Preview mix error:', error);
@@ -567,7 +652,7 @@ mixRouter.get('/presets', (_req: Request, res: Response) => {
         silenceEndMs: 3000,
         sameSpeakerGapMs: 400,
         differentSpeakerGapMs: 800,
-        bgmVolume: 0.08,
+        bgmVolume: 0.18,
         bgmFadeInMs: 2000,
         bgmFadeOutMs: 3000,
       }
@@ -580,7 +665,7 @@ mixRouter.get('/presets', (_req: Request, res: Response) => {
         silenceEndMs: 1000,
         sameSpeakerGapMs: 300,
         differentSpeakerGapMs: 600,
-        bgmVolume: 0.12,
+        bgmVolume: 0.25,
         bgmFadeInMs: 1500,
         bgmFadeOutMs: 2000,
       }
@@ -593,7 +678,7 @@ mixRouter.get('/presets', (_req: Request, res: Response) => {
         silenceEndMs: 1500,
         sameSpeakerGapMs: 500,
         differentSpeakerGapMs: 1000,
-        bgmVolume: 0.06,
+        bgmVolume: 0.15,
         bgmFadeInMs: 1000,
         bgmFadeOutMs: 1500,
       }
@@ -606,7 +691,7 @@ mixRouter.get('/presets', (_req: Request, res: Response) => {
         silenceEndMs: 2000,
         sameSpeakerGapMs: 350,
         differentSpeakerGapMs: 700,
-        bgmVolume: 0.18,
+        bgmVolume: 0.35,
         bgmFadeInMs: 2500,
         bgmFadeOutMs: 3500,
       }
@@ -619,7 +704,7 @@ mixRouter.get('/presets', (_req: Request, res: Response) => {
         silenceEndMs: 500,
         sameSpeakerGapMs: 200,
         differentSpeakerGapMs: 400,
-        bgmVolume: 0.10,
+        bgmVolume: 0.22,
         bgmFadeInMs: 500,
         bgmFadeOutMs: 800,
       }

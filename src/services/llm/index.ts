@@ -348,37 +348,47 @@ class LLMService {
 export const llm = new LLMService();
 
 /**
- * Analyze script characters and extract descriptive tags (gender, age, voice style, etc.)
- * Returns a map of character name → tags array.
+ * Analyze script characters and extract descriptive tags + voice descriptions.
+ * Returns a map of character name → { tags, voiceDescription }.
  */
 export async function analyzeScriptCharacters(
   scriptJson: string,
   characterNames: string[],
   language: 'en' | 'zh' = 'en'
-): Promise<Record<string, string[]>> {
+): Promise<Record<string, { tags: string[]; voiceDescription: string }>> {
   const { buildCharacterAnalysisPrompt } = await import('./prompts');
   const prompt = buildCharacterAnalysisPrompt(scriptJson, characterNames, language);
 
   try {
-    const result = await llm.generateJson<Record<string, string[]>>(prompt, {
+    const result = await llm.generateJson<Record<string, unknown>>(prompt, {
       temperature: 0.3,
       maxTokens: 2048,
     });
 
-    // Validate that all values are string arrays
-    const validated: Record<string, string[]> = {};
+    // Validate and normalize - handle both new format { tags, voiceDescription } and legacy string[] format
+    const validated: Record<string, { tags: string[]; voiceDescription: string }> = {};
     for (const name of characterNames) {
-      const tags = result[name];
-      if (Array.isArray(tags)) {
-        validated[name] = tags.filter((t): t is string => typeof t === 'string');
+      const entry = result[name];
+      if (Array.isArray(entry)) {
+        // Legacy format: string[] tags only
+        validated[name] = {
+          tags: entry.filter((t): t is string => typeof t === 'string'),
+          voiceDescription: '',
+        };
+      } else if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        const obj = entry as Record<string, unknown>;
+        validated[name] = {
+          tags: Array.isArray(obj.tags) ? obj.tags.filter((t): t is string => typeof t === 'string') : [],
+          voiceDescription: typeof obj.voiceDescription === 'string' ? obj.voiceDescription : '',
+        };
       } else {
-        validated[name] = [];
+        validated[name] = { tags: [], voiceDescription: '' };
       }
     }
     return validated;
   } catch (error) {
     console.error('Failed to analyze characters:', error);
-    // Return empty tags on failure - non-blocking
-    return Object.fromEntries(characterNames.map(n => [n, []]));
+    // Return empty on failure - non-blocking
+    return Object.fromEntries(characterNames.map(n => [n, { tags: [], voiceDescription: '' }]));
   }
 }

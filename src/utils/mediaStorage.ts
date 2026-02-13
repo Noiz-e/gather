@@ -140,6 +140,13 @@ export async function uploadMediaToCloud(
 }
 
 /**
+ * Check if a string is a valid UUID format
+ */
+function isValidUUID(str: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
+/**
  * Delete media file from cloud storage
  */
 export async function deleteMediaFromCloud(
@@ -149,6 +156,12 @@ export async function deleteMediaFromCloud(
 ): Promise<boolean> {
   if (!cloudStorageAvailable) {
     return true; // Nothing to delete in cloud
+  }
+  
+  // Skip cloud delete for client-side temporary IDs (not stored in DB)
+  if (!isValidUUID(mediaId)) {
+    console.log(`Skipping cloud delete for local media ID: ${mediaId}`);
+    return true;
   }
   
   try {
@@ -298,6 +311,53 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * Classify a soundMusic description as 'bgm' or 'sfx'.
+ * The LLM script's soundMusic field can contain both BGM-like descriptions
+ * (e.g. "Soft piano background music") and SFX-like descriptions (e.g. "Door slams shut").
+ * This helper uses keyword matching to determine the correct type.
+ */
+export function classifySoundMusic(description: string): 'bgm' | 'sfx' {
+  const lower = description.toLowerCase().trim();
+  
+  // Check for explicit [BGM] or [SFX] prefixes (from improved LLM prompt)
+  if (/^\[bgm\]/i.test(description.trim())) return 'bgm';
+  if (/^\[sfx\]/i.test(description.trim())) return 'sfx';
+  
+  // BGM keywords - background music, ambient music, instrumental, etc.
+  const bgmPatterns = [
+    'background music', 'bgm', 'background score',
+    'music plays', 'music playing', 'music fades', 'music continues',
+    'instrumental', 'soundtrack', 'score plays',
+    'ambient music', 'soft music', 'gentle music', 'calm music',
+    'upbeat music', 'dramatic music', 'suspenseful music',
+    'piano music', 'guitar music', 'orchestral',
+    'music begins', 'music starts', 'music ends', 'music stops',
+    'theme music', 'intro music', 'outro music', 'closing music', 'opening music',
+    'background tune', 'background melody', 'background instrumental',
+    'lofi', 'lo-fi', 'chill beats',
+    '背景音乐', '背景乐', 'bgm播放', '音乐响起', '音乐渐入', '音乐渐出',
+    '轻音乐', '配乐', '伴奏',
+  ];
+  
+  for (const pattern of bgmPatterns) {
+    if (lower.includes(pattern)) {
+      return 'bgm';
+    }
+  }
+  
+  // If it mentions "music" generically without SFX-like context, treat as BGM
+  if (/\bmusic\b/.test(lower) && !/sound\s*effect/i.test(lower)) {
+    return 'bgm';
+  }
+  if (/\b音乐\b/.test(lower)) {
+    return 'bgm';
+  }
+  
+  // Default to SFX
+  return 'sfx';
 }
 
 // Helper to format duration

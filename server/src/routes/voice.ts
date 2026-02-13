@@ -1,8 +1,17 @@
 import { Router, Request, Response } from 'express';
+import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import { AVAILABLE_VOICES, getVoiceSample, preGenerateVoiceSamples, hasCachedSamples, recommendVoicesForCharacters } from '../services/gemini.js';
 import { generateCustomSpeech, isCustomTTSConfigured, CustomTTSOptions } from '../services/tts.js';
 
 export const voiceRouter = Router();
+
+function getElevenLabsClient(apiKey?: string): ElevenLabsClient {
+  const key = apiKey || process.env.ELEVENLABS_API_KEY;
+  if (!key) {
+    throw new Error('ELEVENLABS_API_KEY not configured');
+  }
+  return new ElevenLabsClient({ apiKey: key });
+}
 
 interface SpeechRequest {
   text: string;
@@ -13,11 +22,63 @@ interface SpeechRequest {
   targetLanguage?: string;
 }
 
+interface VoiceDesignRequest {
+  voiceDescription: string;
+  text?: string;
+  guidanceScale?: number;
+  loudness?: number;
+}
+
 interface RecommendRequest {
   characters: Array<{ name: string; description?: string }>;
   voices: Array<{ id: string; name: string; description?: string; descriptionZh?: string }>;
   language?: 'en' | 'zh';
 }
+
+/**
+ * POST /api/voice/design
+ * Generate 3 voice previews from a text description using ElevenLabs text-to-voice design API.
+ * Mirrors the Python voice_design.py _generate_with_elevenlabs logic.
+ */
+voiceRouter.post('/design', async (req: Request, res: Response) => {
+  try {
+    const { voiceDescription, text, guidanceScale, loudness } = req.body as VoiceDesignRequest;
+
+    if (!voiceDescription || voiceDescription.trim().length < 10) {
+      res.status(400).json({ error: 'voiceDescription is required (min 10 characters)' });
+      return;
+    }
+
+    const client = getElevenLabsClient();
+
+    const response = await client.textToVoice.design({
+      voiceDescription: voiceDescription.trim(),
+      autoGenerateText: !text,
+      text: text || undefined,
+      modelId: 'eleven_ttv_v3',
+      outputFormat: 'mp3_22050_32',
+      guidanceScale: guidanceScale ?? 5.0,
+      loudness: loudness ?? 0.5,
+    });
+
+    const previews = (response.previews || []).slice(0, 3).map((p) => ({
+      audioBase64: p.audioBase64,
+      generatedVoiceId: p.generatedVoiceId,
+      mediaType: p.mediaType || 'audio/mpeg',
+      durationSecs: p.durationSecs || 0,
+      language: p.language || 'en',
+    }));
+
+    res.json({
+      previews,
+      text: response.text || '',
+    });
+  } catch (error) {
+    console.error('Voice design error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
 
 /**
  * POST /api/voice/recommend

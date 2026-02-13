@@ -11,25 +11,18 @@ import type { ScriptSection } from '../types';
  * - Incomplete blocks (no closing ```)
  */
 export function stripMarkdownCodeBlock(text: string): string {
-  let result = text;
-  
-  // Remove opening code block marker: ```json, ``` json, ```JSON, etc.
-  // Also handles just ``` without language specifier
-  result = result.replace(/^[\s\S]*?```\s*(?:json|JSON)?\s*\n?/, '');
-  
-  // If we didn't find an opening marker, check if the text starts with it after some content
-  if (result === text) {
-    // Try to find ```json anywhere and extract content after it
-    const codeBlockMatch = text.match(/```\s*(?:json|JSON)?\s*\n?([\s\S]*?)(?:```|$)/);
-    if (codeBlockMatch) {
-      result = codeBlockMatch[1];
-    }
+  // Try to extract content between ```json ... ``` (or ``` ... ```)
+  // Use a single regex that captures content between opening and closing markers.
+  // The closing ``` is optional (during streaming it hasn't arrived yet).
+  const codeBlockMatch = text.match(
+    /```\s*(?:json|JSON|js|JS)?\s*\n?([\s\S]*?)(?:\n\s*```(?:\s*\n?[\s\S]*)?$|$)/
+  );
+  if (codeBlockMatch) {
+    return codeBlockMatch[1].trim();
   }
   
-  // Remove closing code block marker if present
-  result = result.replace(/\s*```\s*$/, '');
-  
-  return result.trim();
+  // No code block markers found — return as-is
+  return text.trim();
 }
 
 /**
@@ -74,11 +67,19 @@ export function parseStreamingScriptSections(text: string): {
 
     for (let i = 0; i < parsed.length; i++) {
       const section = parsed[i];
-      if (isCompleteSection(section)) {
+      if (!section || typeof section !== 'object') continue;
+
+      if (i < parsed.length - 1) {
+        // Not the last element — treat as complete even if some fields are missing,
+        // because the stream has already moved past this section.
         completeSections.push(section as ScriptSection);
-      } else if (section && typeof section === 'object') {
-        // This is the partial section being streamed
-        partialSection = section as Partial<ScriptSection>;
+      } else {
+        // Last element — could still be streaming
+        if (isCompleteSection(section)) {
+          completeSections.push(section as ScriptSection);
+        } else {
+          partialSection = section as Partial<ScriptSection>;
+        }
       }
     }
 
@@ -111,7 +112,8 @@ function isCompleteSection(obj: unknown): boolean {
 }
 
 /**
- * Check if a timeline item is complete
+ * Check if a timeline item is complete.
+ * soundMusic is optional — the prompt only requests it when BGM/SFX are enabled.
  */
 function isCompleteTimelineItem(obj: unknown): boolean {
   if (!obj || typeof obj !== 'object') return false;
@@ -121,7 +123,7 @@ function isCompleteTimelineItem(obj: unknown): boolean {
   if (typeof item.timeStart !== 'string') return false;
   if (typeof item.timeEnd !== 'string') return false;
   if (!Array.isArray(item.lines)) return false;
-  if (typeof item.soundMusic !== 'string') return false;
+  // soundMusic is optional — don't require it for completeness
   
   return true;
 }

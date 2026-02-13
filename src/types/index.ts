@@ -27,6 +27,30 @@ export interface ScriptLine {
   pauseAfterMs?: number; // Custom pause after this line (overrides default gap)
 }
 
+/**
+ * Check if a speaker name is a valid human character (not a sound effect, annotation, etc.)
+ * Filters out common non-speaker values that LLMs sometimes generate.
+ */
+export function isValidSpeaker(speaker: string | undefined | null): boolean {
+  if (!speaker) return false;
+  const s = speaker.trim();
+  if (!s) return false;
+  const lower = s.toLowerCase();
+  // Filter out common non-speaker patterns
+  const invalidPatterns = [
+    'n/a', 'none', 'sfx', 'sound', 'music', 'bgm', 'transition',
+    'sound effect', 'sound effects', 'audio', 'ambience', 'ambient',
+    '[sfx]', '[sound]', '[music]', '[bgm]', '[transition]', '[fx]',
+    'fx', 'foley',
+  ];
+  if (invalidPatterns.includes(lower)) return false;
+  // Filter out anything that looks like a bracketed annotation: [Something]
+  if (/^\[.*\]$/.test(s)) return false;
+  // Filter out anything that looks like a stage direction: (Something)
+  if (/^\(.*\)$/.test(s)) return false;
+  return true;
+}
+
 // Script timeline item for episode
 export interface ScriptTimelineItem {
   id: string;
@@ -52,6 +76,8 @@ export interface EpisodeCharacter {
   assignedVoiceId?: string;
   /** Tags extracted from script analysis (e.g. gender, age group, voice style) */
   tags?: string[];
+  /** English voice description for TTS (~50 chars, e.g. "Warm deep male voice, moderate pace, studio-quality") */
+  voiceDescription?: string;
 }
 
 export interface Episode {
