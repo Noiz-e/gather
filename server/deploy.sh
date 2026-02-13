@@ -5,7 +5,8 @@ set -e
 PROJECT_ID="${GCP_PROJECT_ID:-noiz-430406}"
 REGION="${GCP_REGION:-asia-southeast1}"
 SERVICE_NAME="gather-api"
-GCS_BUCKET="${GCS_BUCKET:-gs://gatherin.org}"
+GCS_BUCKET_NAME="${GCS_BUCKET:-gatherin.org}"
+GCS_BUCKET_URI="gs://${GCS_BUCKET_NAME}"
 FRONTEND_DIR="$(dirname "$0")/.."
 
 # Cloud SQL Configuration
@@ -46,9 +47,8 @@ gcloud run deploy $SERVICE_NAME \
   --timeout 300s \
   --min-instances 1 \
   --max-instances 3 \
-  --cpu-always-allocated \
   --add-cloudsql-instances $CLOUD_SQL_CONNECTION_NAME \
-  --set-env-vars "GEMINI_API_KEY=${GEMINI_API_KEY},ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY},FAL_KEY=${FAL_KEY},TTS_ENDPOINT=${TTS_ENDPOINT},CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME},DB_NAME=${DB_NAME},DB_USER=${DB_USER},DB_PASSWORD=${DB_PASSWORD},JWT_SECRET=${JWT_SECRET},FRONTEND_URL=${FRONTEND_URL},NODE_ENV=production"
+  --set-env-vars "GEMINI_API_KEY=${GEMINI_API_KEY},ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY},FAL_KEY=${FAL_KEY},TTS_ENDPOINT=${TTS_ENDPOINT},CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME},DB_NAME=${DB_NAME},DB_USER=${DB_USER},DB_PASSWORD=${DB_PASSWORD},JWT_SECRET=${JWT_SECRET},FRONTEND_URL=${FRONTEND_URL},GCS_BUCKET=${GCS_BUCKET_NAME},NODE_ENV=production"
 
 echo "✅ Backend deployment complete!"
 
@@ -83,10 +83,10 @@ npm run build
 
 # Deploy frontend to GCS
 echo ""
-echo "☁️  Deploying frontend to $GCS_BUCKET..."
-gcloud storage cp --recursive dist/* "$GCS_BUCKET"
+echo "☁️  Deploying frontend to $GCS_BUCKET_URI..."
+gcloud storage cp --recursive dist/* "$GCS_BUCKET_URI"
 
 echo ""
 echo "✅ Full deployment complete!"
 echo "   Backend: $SERVICE_URL"
-echo "   Frontend: $GCS_BUCKET"
+echo "   Frontend: $GCS_BUCKET_URI"

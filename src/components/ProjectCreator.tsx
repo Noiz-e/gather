@@ -35,7 +35,7 @@ import {
 } from './ProjectCreator/reducer';
 import { PROJECT_TEMPLATES, getAudioMixConfig } from './ProjectCreator/templates';
 import { loadVoiceCharacters, addVoiceCharacter } from '../utils/voiceStorage';
-import { loadMediaItems, addMediaItem, classifySoundMusic } from '../utils/mediaStorage';
+import { loadMediaItems, addMediaItem } from '../utils/mediaStorage';
 import { PRESET_BGM_LIST } from './MediaPickerModal';
 import type { MediaItem } from '../types';
 import type { LandingData } from './Landing';
@@ -398,7 +398,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         const preset = PRESET_BGM_LIST.find(p => p.id === bgmRecommendation.presetId) || PRESET_BGM_LIST[0];
         dispatch(actions.setBgmAudio({
           audioUrl: preset.url,
-          mimeType: 'audio/mpeg',
+          mimeType: 'audio/wav',
         }));
         // Store recommendation for later use
         setBgmRecommendation(bgmRecommendation);
@@ -881,7 +881,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         : PRESET_BGM_LIST[0];
       dispatch(actions.setBgmAudio({
         audioUrl: preset.url,
-        mimeType: 'audio/mpeg',
+        mimeType: 'audio/wav',
       }));
     }
     if (specData.addSoundEffects) tasks.push({ type: 'sfx', label: language === 'zh' ? '添加音效' : 'Adding SFX' });
@@ -902,68 +902,35 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       try {
         if (task.type === 'sfx') {
           // Generate sound effects from script instructions
-          // Classify each soundMusic entry as BGM or SFX to avoid misclassification
+          // soundMusic field is SFX-only (BGM is handled globally)
           for (const section of scriptSections) {
             for (const item of section.timeline) {
               if (item.soundMusic?.trim()) {
-                const soundType = classifySoundMusic(item.soundMusic);
+                const sfxResult = await api.generateSoundEffect(item.soundMusic, 5);
                 
-                if (soundType === 'bgm') {
-                  // This is actually a BGM description, generate as music
-                  console.log(`Classified "${item.soundMusic}" as BGM (not SFX)`);
-                  const bgmResult = await api.generateBGM(item.soundMusic, 'peaceful', 30);
-                  
-                  // If no BGM has been set yet, use this as the BGM
-                  if (!stateRef.current.production.mediaProduction.bgmAudio) {
-                    dispatch(actions.setBgmAudio({
-                      audioData: bgmResult.audioData,
-                      mimeType: bgmResult.mimeType
-                    }));
-                  }
-                  
-                  // Save to media library as BGM
-                  const bgmMediaItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
-                    name: `${section.name} - BGM`,
-                    description: item.soundMusic,
-                    type: 'bgm',
-                    mimeType: bgmResult.mimeType,
-                    dataUrl: `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`,
-                    duration: 30,
-                    tags: ['generated', 'bgm'],
-                    projectIds: [],
-                    source: 'generated',
-                    prompt: item.soundMusic
-                  };
-                  mediaItems = addMediaItem(mediaItems, bgmMediaItem);
-                  console.log(`Added BGM to media library (from soundMusic)`);
-                } else {
-                  // This is a real sound effect
-                  const sfxResult = await api.generateSoundEffect(item.soundMusic, 5);
-                  
-                  // Save SFX to production state for preview
-                  dispatch(actions.addSfxAudio({
-                    name: `${section.name} - SFX`,
-                    prompt: item.soundMusic,
-                    audioData: sfxResult.audioData,
-                    mimeType: sfxResult.mimeType,
-                  }));
-                  
-                  // Save SFX to media library
-                  const sfxItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
-                    name: `${section.name} - SFX`,
-                    description: item.soundMusic,
-                    type: 'sfx',
-                    mimeType: sfxResult.mimeType,
-                    dataUrl: `data:${sfxResult.mimeType};base64,${sfxResult.audioData}`,
-                    duration: 5,
-                    tags: ['generated', 'sfx'],
-                    projectIds: [],
-                    source: 'generated',
-                    prompt: item.soundMusic
-                  };
-                  mediaItems = addMediaItem(mediaItems, sfxItem);
-                  console.log(`Added SFX to media library`);
-                }
+                // Save SFX to production state for preview
+                dispatch(actions.addSfxAudio({
+                  name: `${section.name} - SFX`,
+                  prompt: item.soundMusic,
+                  audioData: sfxResult.audioData,
+                  mimeType: sfxResult.mimeType,
+                }));
+                
+                // Save SFX to media library
+                const sfxItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
+                  name: `${section.name} - SFX`,
+                  description: item.soundMusic,
+                  type: 'sfx',
+                  mimeType: sfxResult.mimeType,
+                  dataUrl: `data:${sfxResult.mimeType};base64,${sfxResult.audioData}`,
+                  duration: 5,
+                  tags: ['generated', 'sfx'],
+                  projectIds: [],
+                  source: 'generated',
+                  prompt: item.soundMusic
+                };
+                mediaItems = addMediaItem(mediaItems, sfxItem);
+                console.log(`Added SFX to media library`);
               }
             }
           }

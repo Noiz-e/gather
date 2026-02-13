@@ -19,7 +19,7 @@ import { loadVoiceCharacters, addVoiceCharacter } from '../utils/voiceStorage';
 import { getAudioMixConfig } from './ProjectCreator/templates';
 import { VoicePickerModal } from './VoicePickerModal';
 import type { SectionVoiceAudio, SectionVoiceStatus, ProductionProgress, MixedAudioOutput } from './ProjectCreator/reducer';
-import { loadMediaItems, addMediaItem, getMediaByType, getMediaByProject, classifySoundMusic } from '../utils/mediaStorage';
+import { loadMediaItems, addMediaItem, getMediaByType, getMediaByProject } from '../utils/mediaStorage';
 import type { MediaItem } from '../types';
 import { MediaPickerModal, findBestMatch, PRESET_BGM_LIST } from './MediaPickerModal';
 import type { MediaPickerResult } from './MediaPickerModal';
@@ -1083,7 +1083,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     
     // First, apply preset selections immediately (no generation needed)
     if (spec?.addBgm && bgmSelection?.source === 'preset' && bgmSelection.audioUrl) {
-      setBgmAudio({ audioUrl: bgmSelection.audioUrl, mimeType: 'audio/mpeg' });
+      setBgmAudio({ audioUrl: bgmSelection.audioUrl, mimeType: 'audio/wav' });
     }
     
     // Apply library selections immediately (no generation needed)
@@ -1159,7 +1159,8 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
           mediaItems = addMediaItem(mediaItems, bgmItem);
           console.log(`Added BGM to media library for project ${project.id}`);
         } else if (task.type === 'sfx') {
-          // Classify each soundMusic entry as BGM or SFX to avoid misclassification
+          // Generate sound effects from script instructions
+          // soundMusic field is SFX-only (BGM is handled globally)
           for (const section of scriptSections) {
             for (const item of section.timeline) {
               if (item.soundMusic?.trim()) {
@@ -1167,64 +1168,31 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                 const sel = sfxSelections[key];
                 // Only generate if source is 'generate' (library items already applied above)
                 if (sel?.source === 'generate') {
-                  const soundType = classifySoundMusic(sel.prompt || item.soundMusic);
+                  const sfxResult = await api.generateSoundEffect(sel.prompt || item.soundMusic, 5);
                   
-                  if (soundType === 'bgm') {
-                    // This is actually a BGM description, generate as music
-                    console.log(`Classified "${item.soundMusic}" as BGM (not SFX)`);
-                    const bgmResult = await api.generateBGM(sel.prompt || item.soundMusic, 'peaceful', 30);
-                    
-                    // If no BGM has been set yet, use this as the BGM
-                    if (!production.mediaProduction.bgmAudio) {
-                      setBgmAudio({
-                        audioData: bgmResult.audioData,
-                        mimeType: bgmResult.mimeType
-                      });
-                    }
-                    
-                    // Save to media library as BGM
-                    const bgmMediaItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
-                      name: `${section.name} - BGM`,
-                      description: item.soundMusic,
-                      type: 'bgm',
-                      mimeType: bgmResult.mimeType,
-                      dataUrl: `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`,
-                      duration: 30,
-                      tags: ['generated', 'bgm'],
-                      projectIds: [project.id],
-                      source: 'generated',
-                      prompt: item.soundMusic
-                    };
-                    mediaItems = addMediaItem(mediaItems, bgmMediaItem);
-                    console.log(`Added BGM to media library (from soundMusic) for project ${project.id}`);
-                  } else {
-                    // This is a real sound effect
-                    const sfxResult = await api.generateSoundEffect(sel.prompt || item.soundMusic, 5);
-                    
-                    // Save SFX to production state for preview
-                    addSfxAudio({
-                      name: `${section.name} - SFX`,
-                      prompt: item.soundMusic,
-                      audioData: sfxResult.audioData,
-                      mimeType: sfxResult.mimeType,
-                    });
-                    
-                    // Save SFX to media library and link to project
-                    const sfxItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
-                      name: `${section.name} - SFX`,
-                      description: item.soundMusic,
-                      type: 'sfx',
-                      mimeType: sfxResult.mimeType,
-                      dataUrl: `data:${sfxResult.mimeType};base64,${sfxResult.audioData}`,
-                      duration: 5,
-                      tags: ['generated', 'sfx'],
-                      projectIds: [project.id],
-                      source: 'generated',
-                      prompt: item.soundMusic
-                    };
-                    mediaItems = addMediaItem(mediaItems, sfxItem);
-                    console.log(`Added SFX to media library for project ${project.id}`);
-                  }
+                  // Save SFX to production state for preview
+                  addSfxAudio({
+                    name: `${section.name} - SFX`,
+                    prompt: item.soundMusic,
+                    audioData: sfxResult.audioData,
+                    mimeType: sfxResult.mimeType,
+                  });
+                  
+                  // Save SFX to media library and link to project
+                  const sfxItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
+                    name: `${section.name} - SFX`,
+                    description: item.soundMusic,
+                    type: 'sfx',
+                    mimeType: sfxResult.mimeType,
+                    dataUrl: `data:${sfxResult.mimeType};base64,${sfxResult.audioData}`,
+                    duration: 5,
+                    tags: ['generated', 'sfx'],
+                    projectIds: [project.id],
+                    source: 'generated',
+                    prompt: item.soundMusic
+                  };
+                  mediaItems = addMediaItem(mediaItems, sfxItem);
+                  console.log(`Added SFX to media library for project ${project.id}`);
                 }
               }
             }

@@ -72,12 +72,9 @@ export function buildScriptGenerationPrompt(content: string, config: ScriptGener
     ? 'Include a "coverImageDescription" field for each section describing the visual.'
     : '';
   
-  const soundInstruction = config.addBgm || config.addSoundEffects
-    ? `  - soundMusic: sound/music instructions for this timeline item. ${config.addBgm && config.addSoundEffects 
-        ? 'Prefix with "[BGM]" for background music (e.g. "[BGM] Soft piano melody") or "[SFX]" for sound effects (e.g. "[SFX] Door creaking open"). Background music is continuous ambient/instrumental music; sound effects are short discrete sounds.'
-        : config.addBgm 
-          ? 'Describe background music (e.g. "Soft piano background music", "Upbeat instrumental").'
-          : 'Describe sound effects (e.g. "Door slams shut", "Birds chirping").'}`
+  // soundMusic is for sound effects ONLY — BGM is handled globally, not per-section
+  const soundInstruction = config.addSoundEffects
+    ? '  - soundMusic: sound effect instructions for this timeline item (short discrete sounds ONLY, e.g. "Door creaking open", "Thunder rumbling", "Birds chirping"). Do NOT put background music here — BGM is handled separately at the global level. Leave empty if no sound effect is needed for this item.'
     : '';
 
   // BGM recommendation instruction: ask AI to pick a preset and describe ideal BGM
