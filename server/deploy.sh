@@ -32,14 +32,21 @@ fi
 FRONTEND_URL="${FRONTEND_URL:-https://gatherin.org}"
 
 # Build and deploy backend with environment variables and Cloud SQL connection
+# --min-instances 1: Keep at least 1 instance always warm (avoids cold starts)
+# --max-instances 3: Cap scaling to control costs
+# --cpu-always-allocated: Keep CPU active even when idle (required for min-instances to be effective)
 gcloud run deploy $SERVICE_NAME \
   --source . \
   --project $PROJECT_ID \
   --region $REGION \
   --platform managed \
   --allow-unauthenticated \
-  --memory 512Mi \
+  --memory 1Gi \
+  --cpu 2 \
   --timeout 300s \
+  --min-instances 1 \
+  --max-instances 3 \
+  --cpu-always-allocated \
   --add-cloudsql-instances $CLOUD_SQL_CONNECTION_NAME \
   --set-env-vars "GEMINI_API_KEY=${GEMINI_API_KEY},ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY},FAL_KEY=${FAL_KEY},TTS_ENDPOINT=${TTS_ENDPOINT},CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME},DB_NAME=${DB_NAME},DB_USER=${DB_USER},DB_PASSWORD=${DB_PASSWORD},JWT_SECRET=${JWT_SECRET},FRONTEND_URL=${FRONTEND_URL},NODE_ENV=production"
 

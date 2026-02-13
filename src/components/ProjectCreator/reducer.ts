@@ -190,9 +190,10 @@ export interface ProductionProgress {
     status: 'idle' | 'processing' | 'completed' | 'error';
     progress: number;
     currentTask?: string;
-    // Generated BGM (if any)
+    // Generated or preset BGM (if any)
     bgmAudio?: {
-      audioData: string;
+      audioData?: string;
+      audioUrl?: string;
       mimeType: string;
     };
     // Generated SFX items (if any)
@@ -301,7 +302,7 @@ type Action =
   // Mixing output
   | { type: 'SET_MIXED_OUTPUT'; output: MixedAudioOutput }
   | { type: 'SET_MIXING_ERROR'; error: string }
-  | { type: 'SET_BGM_AUDIO'; audio: { audioData: string; mimeType: string } }
+  | { type: 'SET_BGM_AUDIO'; audio: { audioData?: string; audioUrl?: string; mimeType: string } }
   | { type: 'ADD_SFX_AUDIO'; sfx: { name: string; prompt: string; audioData: string; mimeType: string } }
   | { type: 'UPDATE_SFX_AUDIO'; index: number; sfx: { name: string; prompt: string; audioData: string; mimeType: string } }
   // Section-level voice generation
@@ -744,7 +745,7 @@ export const actions = {
     ({ type: 'SET_MIXED_OUTPUT', output }),
   setMixingError: (error: string): Action =>
     ({ type: 'SET_MIXING_ERROR', error }),
-  setBgmAudio: (audio: { audioData: string; mimeType: string }): Action =>
+  setBgmAudio: (audio: { audioData?: string; audioUrl?: string; mimeType: string }): Action =>
     ({ type: 'SET_BGM_AUDIO', audio }),
   addSfxAudio: (sfx: { name: string; prompt: string; audioData: string; mimeType: string }): Action =>
     ({ type: 'ADD_SFX_AUDIO', sfx }),

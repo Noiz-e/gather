@@ -17,8 +17,10 @@ import { parseStreamingScriptSections } from '../utils/partialJsonParser';
 import { 
   buildSpecAnalysisPrompt, 
   buildScriptGenerationPrompt,
+  parseScriptGenerationResponse,
   SpecAnalysisResult
 } from '../services/llm/prompts';
+import type { BgmRecommendation } from '../services/llm/prompts';
 import { analyzeScriptCharacters } from '../services/llm';
 import * as api from '../services/api';
 import { 
@@ -34,6 +36,7 @@ import {
 import { PROJECT_TEMPLATES, getAudioMixConfig } from './ProjectCreator/templates';
 import { loadVoiceCharacters, addVoiceCharacter } from '../utils/voiceStorage';
 import { loadMediaItems, addMediaItem, classifySoundMusic } from '../utils/mediaStorage';
+import { PRESET_BGM_LIST } from './MediaPickerModal';
 import type { MediaItem } from '../types';
 import type { LandingData } from './Landing';
 import { VoicePickerModal } from './VoicePickerModal';
@@ -120,6 +123,9 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   const [playingMediaId, setPlayingMediaId] = useState<string | null>(null);
   const mediaAudioRef = useRef<HTMLAudioElement | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+  
+  // AI-recommended BGM from script generation
+  const [bgmRecommendation, setBgmRecommendation] = useState<BgmRecommendation | null>(null);
   
   const performMixingRef = useRef<() => Promise<void>>(() => Promise.resolve());
   // Keep latest state in a ref so async callbacks avoid stale closures
@@ -377,16 +383,25 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         { attachments }
       );
       
-      // Parse JSON from final response
-      const jsonMatch = finalText.match(/```(?:json)?\s*([\s\S]*?)```/) || 
-                        finalText.match(/\[[\s\S]*\]/);
-      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]).trim() : finalText;
-      const sections = JSON.parse(jsonStr) as ScriptSection[];
+      // Parse JSON from final response (handles both array and object formats)
+      const { sections, bgmRecommendation } = parseScriptGenerationResponse(finalText);
+      const typedSections = sections as ScriptSection[];
       
-      if (sections && sections.length > 0) {
-        dispatch(actions.setScriptSections(sections));
+      if (typedSections && typedSections.length > 0) {
+        dispatch(actions.setScriptSections(typedSections));
         // Auto-expand the first section
-        setEditingSection(sections[0].id);
+        setEditingSection(typedSections[0].id);
+      }
+
+      // Use AI-recommended preset BGM if available
+      if (bgmRecommendation && specData.addBgm) {
+        const preset = PRESET_BGM_LIST.find(p => p.id === bgmRecommendation.presetId) || PRESET_BGM_LIST[0];
+        dispatch(actions.setBgmAudio({
+          audioUrl: preset.url,
+          mimeType: 'audio/mpeg',
+        }));
+        // Store recommendation for later use
+        setBgmRecommendation(bgmRecommendation);
       }
     } catch (error) {
       handleApiError(error);
@@ -859,7 +874,16 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   // and will link media to project after project is created
   const performMediaProduction = async () => {
     const tasks: { type: string; label: string }[] = [];
-    if (specData.addBgm) tasks.push({ type: 'bgm', label: language === 'zh' ? '生成背景音乐' : 'Generating BGM' });
+    // Use AI-recommended or default preset BGM (no generation needed)
+    if (specData.addBgm) {
+      const preset = bgmRecommendation
+        ? (PRESET_BGM_LIST.find(p => p.id === bgmRecommendation.presetId) || PRESET_BGM_LIST[0])
+        : PRESET_BGM_LIST[0];
+      dispatch(actions.setBgmAudio({
+        audioUrl: preset.url,
+        mimeType: 'audio/mpeg',
+      }));
+    }
     if (specData.addSoundEffects) tasks.push({ type: 'sfx', label: language === 'zh' ? '添加音效' : 'Adding SFX' });
     if (specData.hasVisualContent) tasks.push({ type: 'images', label: language === 'zh' ? '生成图片' : 'Generating Images' });
     
@@ -876,35 +900,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       dispatch(actions.updateProductionPhase('media-production', 'processing', Math.round((i / tasks.length) * 100), task.label));
       
       try {
-        if (task.type === 'bgm') {
-          // Generate background music and save to state
-          const bgmResult = await api.generateBGM(
-            specData.toneAndExpression,
-            'peaceful',
-            30
-          );
-          // Save BGM for mixing phase
-          dispatch(actions.setBgmAudio({
-            audioData: bgmResult.audioData,
-            mimeType: bgmResult.mimeType
-          }));
-          
-          // Save BGM to media library (projectIds will be updated after project creation)
-          const bgmItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
-            name: `Project - BGM`,
-            description: specData.toneAndExpression || 'Background music',
-            type: 'bgm',
-            mimeType: bgmResult.mimeType,
-            dataUrl: `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`,
-            duration: 30,
-            tags: ['generated', 'bgm'],
-            projectIds: [], // Will be linked after project creation
-            source: 'generated',
-            prompt: specData.toneAndExpression || ''
-          };
-          mediaItems = addMediaItem(mediaItems, bgmItem);
-          console.log(`Added BGM to media library`);
-        } else if (task.type === 'sfx') {
+        if (task.type === 'sfx') {
           // Generate sound effects from script instructions
           // Classify each soundMusic entry as BGM or SFX to avoid misclassification
           for (const section of scriptSections) {
@@ -1131,6 +1127,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
       if (latestSpec.addBgm && latestProduction.mediaProduction.bgmAudio) {
         mixRequest.bgmTrack = {
           audioData: latestProduction.mediaProduction.bgmAudio.audioData,
+          audioUrl: latestProduction.mediaProduction.bgmAudio.audioUrl,
           mimeType: latestProduction.mediaProduction.bgmAudio.mimeType,
         };
       }
@@ -3048,7 +3045,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
                         mediaAudioRef.current.pause();
                         mediaAudioRef.current = null;
                       }
-                      const url = api.audioDataToUrl(mediaProduction.bgmAudio!.audioData, mediaProduction.bgmAudio!.mimeType);
+                      const url = mediaProduction.bgmAudio!.audioUrl
+                        || api.audioDataToUrl(mediaProduction.bgmAudio!.audioData!, mediaProduction.bgmAudio!.mimeType);
                       const audio = new Audio(url);
                       audio.onended = () => { setPlayingMediaId(null); mediaAudioRef.current = null; };
                       audio.onerror = () => { setPlayingMediaId(null); mediaAudioRef.current = null; };

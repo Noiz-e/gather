@@ -4,22 +4,97 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { MediaItem } from '../types';
 import {
   X, Play, Loader2, Volume2, Square, Check,
-  Music, Sparkles, Library
+  Music, Sparkles, Library, Star
 } from 'lucide-react';
 
 export type MediaPickerMode = 'bgm' | 'sfx';
 
 /** What the user chose for a single media slot */
 export interface MediaPickerResult {
-  /** 'library' = use existing item, 'generate' = generate new */
-  source: 'library' | 'generate';
+  /** 'library' = use existing item, 'generate' = generate new, 'preset' = use preset from GCS */
+  source: 'library' | 'generate' | 'preset';
   /** If source === 'library', the selected media item */
   mediaItem?: MediaItem;
   /** The prompt/description for generation (used if source === 'generate') */
   prompt: string;
   /** Desired duration in seconds (for SFX) */
   duration?: number;
+  /** If source === 'preset', the GCS URL */
+  audioUrl?: string;
+  /** If source === 'preset', the preset id */
+  presetId?: string;
 }
+
+// ============ Preset BGM definitions ============
+
+const PRESET_BGM_BASE_URL = 'https://storage.googleapis.com/gatherin.org/killagent/preset-bgm';
+
+export interface PresetBGMItem {
+  id: string;
+  name: { zh: string; en: string };
+  description: { zh: string; en: string };
+  filename: string;
+  url: string;
+}
+
+export const PRESET_BGM_LIST: PresetBGMItem[] = [
+  {
+    id: 'piano',
+    name: { zh: '古典钢琴', en: 'Classic Piano' },
+    description: { zh: '古典优雅，舒缓的钢琴曲。适合古典故事主题。', en: 'Elegant, soothing piano. Great for classical story themes.' },
+    filename: 'piano.mp3',
+    url: `${PRESET_BGM_BASE_URL}/piano.mp3`,
+  },
+  {
+    id: 'tragic',
+    name: { zh: '悲壮伤感', en: 'Tragic' },
+    description: { zh: '略带悲壮伤感的音乐。适合带着悲凉的古典故事。', en: 'Music with a tragic, sorrowful tone for melancholic stories.' },
+    filename: 'tragic.mp3',
+    url: `${PRESET_BGM_BASE_URL}/tragic.mp3`,
+  },
+  {
+    id: 'gentle',
+    name: { zh: '优雅温柔', en: 'Gentle' },
+    description: { zh: '优雅的，温柔的，具有一定节奏的音乐。', en: 'Elegant, gentle music with a steady rhythm.' },
+    filename: 'gentle.mp3',
+    url: `${PRESET_BGM_BASE_URL}/gentle.mp3`,
+  },
+  {
+    id: 'calm',
+    name: { zh: '舒缓宁静', en: 'Calm' },
+    description: { zh: '非常舒缓的音乐，适合放松心情，让人感到宁静。', en: 'Very soothing music for relaxation and tranquility.' },
+    filename: 'calm.mp3',
+    url: `${PRESET_BGM_BASE_URL}/calm.mp3`,
+  },
+  {
+    id: 'epic',
+    name: { zh: '史诗压抑', en: 'Epic' },
+    description: { zh: '重大事件的背景音乐，充满故事性，氛围稍显压抑。', en: 'Grand event BGM, story-driven with a slightly somber atmosphere.' },
+    filename: 'epic.mp3',
+    url: `${PRESET_BGM_BASE_URL}/epic.mp3`,
+  },
+  {
+    id: 'mystery',
+    name: { zh: '神秘激昂', en: 'Mystery' },
+    description: { zh: '神秘的，从恬静中逐渐变得激昂的音乐。', en: 'Mysterious, building from calm to intense.' },
+    filename: 'mystery.mp3',
+    url: `${PRESET_BGM_BASE_URL}/mystery.mp3`,
+  },
+  {
+    id: 'cheerful',
+    name: { zh: '欢快明亮', en: 'Cheerful' },
+    description: { zh: '略显欢快的音乐，适合欢乐主题的背景音乐。', en: 'Upbeat music for cheerful, lighthearted topics.' },
+    filename: 'cheerful.mp3',
+    url: `${PRESET_BGM_BASE_URL}/cheerful.mp3`,
+  },
+  {
+    id: 'thinking',
+    name: { zh: '思考鼓点', en: 'Thinking' },
+    description: { zh: '轻微鼓点，神秘色彩较重，容易诱发思考。', en: 'Subtle drumbeat, mysterious tone that inspires reflection.' },
+    filename: 'thinking.mp3',
+    url: `${PRESET_BGM_BASE_URL}/thinking.mp3`,
+  },
+];
 
 interface MediaPickerModalProps {
   mode: MediaPickerMode;
@@ -31,6 +106,12 @@ interface MediaPickerModalProps {
   libraryItems: MediaItem[];
   /** Pre-selected media item ID (auto-matched) */
   preSelectedId?: string;
+  /** Pre-selected preset BGM ID */
+  preSelectedPresetId?: string;
+  /** AI-recommended preset BGM ID (shown with "AI" badge) */
+  aiRecommendedPresetId?: string;
+  /** AI ideal BGM description (prefills the generate prompt) */
+  aiIdealDescription?: string;
   /** Called when user confirms selection */
   onConfirm: (result: MediaPickerResult) => void;
   /** Called when modal closes */
@@ -95,6 +176,9 @@ export function MediaPickerModal({
   desiredDuration,
   libraryItems,
   preSelectedId,
+  preSelectedPresetId,
+  aiRecommendedPresetId,
+  aiIdealDescription,
   onConfirm,
   onClose,
   projectItemIds = [],
@@ -102,11 +186,21 @@ export function MediaPickerModal({
 }: MediaPickerModalProps) {
   const { theme } = useTheme();
   const { language } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'library' | 'generate'>(
-    preSelectedId ? 'library' : (libraryItems.length > 0 ? 'library' : 'generate')
-  );
+  const isBgmMode = mode === 'bgm';
+
+  // Determine initial tab
+  const getInitialTab = (): 'preset' | 'library' | 'generate' => {
+    if (preSelectedPresetId && isBgmMode) return 'preset';
+    if (preSelectedId) return 'library';
+    if (isBgmMode) return 'preset'; // default to preset for BGM
+    return libraryItems.length > 0 ? 'library' : 'generate';
+  };
+
+  const [activeTab, setActiveTab] = useState<'preset' | 'library' | 'generate'>(getInitialTab());
   const [selectedItemId, setSelectedItemId] = useState<string | null>(preSelectedId || null);
-  const [generatePrompt, setGeneratePrompt] = useState(prompt);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(preSelectedPresetId || null);
+  // Prefill generate prompt with AI ideal description if available, otherwise use the generic prompt
+  const [generatePrompt, setGeneratePrompt] = useState(aiIdealDescription || prompt);
   const [playingItemId, setPlayingItemId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -148,6 +242,35 @@ export function MediaPickerModal({
       });
     }
   }, [selectedItemId, libraryItems, onConfirm]);
+
+  const handlePlayPreset = useCallback((preset: PresetBGMItem) => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (playingItemId === preset.id) {
+      setPlayingItemId(null);
+      return;
+    }
+    const audio = new Audio(preset.url);
+    audio.onended = () => { setPlayingItemId(null); audioRef.current = null; };
+    audio.onerror = () => { setPlayingItemId(null); audioRef.current = null; };
+    audio.play().catch(() => setPlayingItemId(null));
+    audioRef.current = audio;
+    setPlayingItemId(preset.id);
+  }, [playingItemId]);
+
+  const handleConfirmPreset = useCallback(() => {
+    const preset = PRESET_BGM_LIST.find(p => p.id === selectedPresetId);
+    if (preset) {
+      onConfirm({
+        source: 'preset',
+        prompt: language === 'zh' ? preset.description.zh : preset.description.en,
+        audioUrl: preset.url,
+        presetId: preset.id,
+      });
+    }
+  }, [selectedPresetId, onConfirm, language]);
 
   const handleConfirmGenerate = useCallback(() => {
     onConfirm({
@@ -251,7 +374,76 @@ export function MediaPickerModal({
     );
   };
 
+  const renderPresetCard = (preset: PresetBGMItem) => {
+    const isSelected = selectedPresetId === preset.id;
+    const isPlaying = playingItemId === preset.id;
+
+    return (
+      <div
+        key={preset.id}
+        onClick={() => setSelectedPresetId(preset.id)}
+        className={`relative rounded-xl border p-3 transition-all cursor-pointer group ${
+          isSelected ? 'border-2' : 'border-t-border hover:border-t-border'
+        }`}
+        style={isSelected ? {
+          borderColor: theme.primary,
+          background: `${theme.primary}08`,
+        } : {
+          background: 'var(--t-bg-card)',
+        }}
+      >
+        {isSelected && (
+          <div
+            className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center"
+            style={{ background: theme.primary }}
+          >
+            <Check size={12} className="text-white" />
+          </div>
+        )}
+        <div className="flex items-center gap-3">
+          {/* Play button */}
+          <div
+            className="relative w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ background: `${theme.primary}20` }}
+            onClick={(e) => { e.stopPropagation(); handlePlayPreset(preset); }}
+          >
+            <span className={`transition-opacity duration-150 ${isPlaying ? 'opacity-0' : 'group-hover:opacity-0'}`}>
+              <Music size={16} style={{ color: theme.primaryLight }} />
+            </span>
+            <span
+              className={`absolute inset-0 flex items-center justify-center rounded-full transition-all duration-150 ${
+                isPlaying ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'
+              }`}
+              style={{ background: isPlaying ? theme.primary : `${theme.primary}40` }}
+            >
+              {isPlaying ? <Square size={10} className="text-white" /> : <Play size={14} className="ml-0.5 text-white" />}
+            </span>
+          </div>
+
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <h4 className="text-sm font-medium text-t-text1 truncate">
+              {language === 'zh' ? preset.name.zh : preset.name.en}
+              {aiRecommendedPresetId === preset.id && (
+                <span
+                  className="ml-2 inline-block text-[10px] px-1.5 py-0.5 rounded font-medium"
+                  style={{ background: `${theme.primary}15`, color: theme.primaryLight }}
+                >
+                  AI
+                </span>
+              )}
+            </h4>
+            <p className="text-xs text-t-text3 truncate mt-0.5">
+              {language === 'zh' ? preset.description.zh : preset.description.en}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const tabs = [
+    ...(isBgmMode ? [{ id: 'preset' as const, label: language === 'zh' ? '默认' : 'Preset', icon: Star }] : []),
     { id: 'library' as const, label: language === 'zh' ? '媒体库' : 'Library', icon: Library },
     { id: 'generate' as const, label: language === 'zh' ? '生成新的' : 'Generate New', icon: Sparkles },
   ];
@@ -318,6 +510,36 @@ export function MediaPickerModal({
 
         {/* Content */}
         <div className="flex-1 overflow-auto p-5">
+          {activeTab === 'preset' && isBgmMode && (
+            <div className="space-y-3">
+              {aiRecommendedPresetId && (
+                <div className="flex items-center gap-2 mb-1">
+                  <Sparkles size={12} style={{ color: theme.primaryLight }} />
+                  <span className="text-xs font-medium text-t-text3">
+                    {language === 'zh' ? 'AI 推荐' : 'AI Recommended'}
+                  </span>
+                  <div className="flex-1 h-px bg-t-border" />
+                </div>
+              )}
+              {/* Show AI-recommended preset first */}
+              {aiRecommendedPresetId && (() => {
+                const aiPreset = PRESET_BGM_LIST.find(p => p.id === aiRecommendedPresetId);
+                return aiPreset ? renderPresetCard(aiPreset) : null;
+              })()}
+              {aiRecommendedPresetId && (
+                <div className="flex items-center gap-2 mb-1 mt-4">
+                  <span className="text-xs font-medium text-t-text3">
+                    {language === 'zh' ? '全部' : 'All'}
+                  </span>
+                  <div className="flex-1 h-px bg-t-border" />
+                </div>
+              )}
+              {PRESET_BGM_LIST
+                .filter(p => !aiRecommendedPresetId || p.id !== aiRecommendedPresetId)
+                .map(preset => renderPresetCard(preset))}
+            </div>
+          )}
+
           {activeTab === 'library' && (
             <div className="space-y-3">
               {/* Project items */}
@@ -408,6 +630,17 @@ export function MediaPickerModal({
         <div className="px-5 py-3 border-t border-t-border flex items-center justify-between">
           {/* Current selection hint */}
           <div className="text-xs text-t-text3 flex-1 min-w-0 truncate">
+            {activeTab === 'preset' && selectedPresetId && (
+              <span className="flex items-center gap-1">
+                <Check size={12} style={{ color: theme.primaryLight }} />
+                {language === 'zh' ? '已选择: ' : 'Selected: '}
+                <span className="text-t-text2 font-medium">
+                  {language === 'zh'
+                    ? PRESET_BGM_LIST.find(p => p.id === selectedPresetId)?.name.zh
+                    : PRESET_BGM_LIST.find(p => p.id === selectedPresetId)?.name.en}
+                </span>
+              </span>
+            )}
             {activeTab === 'library' && selectedItemId && (
               <span className="flex items-center gap-1">
                 <Check size={12} style={{ color: theme.primaryLight }} />
@@ -420,7 +653,17 @@ export function MediaPickerModal({
           </div>
 
           {/* Action button */}
-          {activeTab === 'library' ? (
+          {activeTab === 'preset' ? (
+            <button
+              onClick={handleConfirmPreset}
+              disabled={!selectedPresetId}
+              className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              style={{ background: theme.primary, color: '#fff' }}
+            >
+              <Check size={14} />
+              {language === 'zh' ? '使用选中' : 'Use Selected'}
+            </button>
+          ) : activeTab === 'library' ? (
             <button
               onClick={handleConfirmLibrary}
               disabled={!selectedItemId}

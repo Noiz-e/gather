@@ -11,7 +11,8 @@ import {
 } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
 import { filterValidFiles, collectAnalysisContent } from '../utils/fileUtils';
-import { buildScriptGenerationPrompt } from '../services/llm/prompts';
+import { buildScriptGenerationPrompt, parseScriptGenerationResponse } from '../services/llm/prompts';
+import type { BgmRecommendation } from '../services/llm/prompts';
 import { analyzeScriptCharacters } from '../services/llm';
 import * as api from '../services/api';
 import { loadVoiceCharacters, addVoiceCharacter } from '../utils/voiceStorage';
@@ -20,7 +21,7 @@ import { VoicePickerModal } from './VoicePickerModal';
 import type { SectionVoiceAudio, SectionVoiceStatus, ProductionProgress, MixedAudioOutput } from './ProjectCreator/reducer';
 import { loadMediaItems, addMediaItem, getMediaByType, getMediaByProject, classifySoundMusic } from '../utils/mediaStorage';
 import type { MediaItem } from '../types';
-import { MediaPickerModal, findBestMatch } from './MediaPickerModal';
+import { MediaPickerModal, findBestMatch, PRESET_BGM_LIST } from './MediaPickerModal';
 import type { MediaPickerResult } from './MediaPickerModal';
 
 interface EpisodeCreatorProps {
@@ -109,6 +110,8 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
   const [mediaPickerOpen, setMediaPickerOpen] = useState<string | null>(null);
   // Cached media library items (loaded once when entering step 4)
   const [cachedMediaItems, setCachedMediaItems] = useState<MediaItem[]>([]);
+  // AI-recommended BGM from script generation
+  const [bgmRecommendation, setBgmRecommendation] = useState<BgmRecommendation | null>(null);
   
   // Production state - matching ProjectCreator
   const [production, setProduction] = useState<ProductionProgress>(initialProductionProgress);
@@ -254,7 +257,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     }));
   }, []);
 
-  const setBgmAudio = useCallback((audio: { audioData: string; mimeType: string }) => {
+  const setBgmAudio = useCallback((audio: { audioData?: string; audioUrl?: string; mimeType: string }) => {
     setProduction(prev => ({
       ...prev,
       mediaProduction: { ...prev.mediaProduction, bgmAudio: audio },
@@ -364,11 +367,17 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
           duration: bestMatch.item.duration,
         });
       } else {
-        // Default to generate
+        // Use AI-recommended preset BGM, or fall back to first preset
+        const aiPreset = bgmRecommendation
+          ? PRESET_BGM_LIST.find(p => p.id === bgmRecommendation.presetId)
+          : null;
+        const preset = aiPreset || PRESET_BGM_LIST[0];
         setBgmSelection({
-          source: 'generate',
-          prompt: bgmPrompt,
-          duration: 30,
+          source: 'preset',
+          prompt: bgmRecommendation?.description
+            || (language === 'zh' ? preset.description.zh : preset.description.en),
+          audioUrl: preset.url,
+          presetId: preset.id,
         });
       }
     }
@@ -403,7 +412,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       }
       setSfxSelections(newSfxSelections);
     }
-  }, [spec, scriptSections, project.id]);
+  }, [spec, scriptSections, project.id, language, bgmRecommendation]);
 
   const setMixedOutput = useCallback((output: MixedAudioOutput) => {
     setProduction(prev => ({
@@ -532,14 +541,18 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         { attachments }
       );
 
-      const jsonMatch = finalText.match(/```(?:json)?\s*([\s\S]*?)```/) || 
-                        finalText.match(/\[[\s\S]*\]/);
-      const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]).trim() : finalText;
-      const sections = JSON.parse(jsonStr) as ScriptSection[];
+      // Parse JSON from final response (handles both array and object formats)
+      const { sections, bgmRecommendation: bgmRec } = parseScriptGenerationResponse(finalText);
+      const typedSections = sections as ScriptSection[];
 
-      if (sections && sections.length > 0) {
-        setScriptSections(sections);
-        setEditingSection(sections[0].id);
+      if (typedSections && typedSections.length > 0) {
+        setScriptSections(typedSections);
+        setEditingSection(typedSections[0].id);
+      }
+
+      // Store AI BGM recommendation for later use in media selection
+      if (bgmRec) {
+        setBgmRecommendation(bgmRec);
       }
     } catch (error) {
       console.error('Script generation error:', error);
@@ -1060,7 +1073,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     setMediaSelectionsConfirmed(true);
     
     const tasks: { type: string; label: string }[] = [];
-    // Only add BGM task if we need to generate (not using library)
+    // Only add BGM task if we need to generate (not using library or preset)
     const needsBgmGeneration = spec?.addBgm && bgmSelection?.source === 'generate';
     const needsSfxGeneration = spec?.addSoundEffects && Object.values(sfxSelections).some(s => s.source === 'generate');
     
@@ -1068,7 +1081,12 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     if (needsSfxGeneration) tasks.push({ type: 'sfx', label: language === 'zh' ? '生成音效' : 'Generating SFX' });
     if (spec?.hasVisualContent) tasks.push({ type: 'images', label: language === 'zh' ? '生成图片' : 'Generating Images' });
     
-    // First, apply library selections immediately (no generation needed)
+    // First, apply preset selections immediately (no generation needed)
+    if (spec?.addBgm && bgmSelection?.source === 'preset' && bgmSelection.audioUrl) {
+      setBgmAudio({ audioUrl: bgmSelection.audioUrl, mimeType: 'audio/mpeg' });
+    }
+    
+    // Apply library selections immediately (no generation needed)
     if (spec?.addBgm && bgmSelection?.source === 'library' && bgmSelection.mediaItem) {
       // Extract audio data from the library item's dataUrl
       const dataUrl = bgmSelection.mediaItem.dataUrl;
@@ -1303,6 +1321,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       if (spec?.addBgm && production.mediaProduction.bgmAudio) {
         mixRequest.bgmTrack = {
           audioData: production.mediaProduction.bgmAudio.audioData,
+          audioUrl: production.mediaProduction.bgmAudio.audioUrl,
           mimeType: production.mediaProduction.bgmAudio.mimeType,
         };
       }
@@ -2427,7 +2446,20 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                   <Music size={18} style={{ color: theme.primaryLight }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  {bgmSelection?.source === 'library' && bgmSelection.mediaItem ? (
+                  {bgmSelection?.source === 'preset' && bgmSelection.presetId ? (
+                    <>
+                      <p className="text-sm font-medium text-t-text1 truncate">
+                        {(() => {
+                          const preset = PRESET_BGM_LIST.find(p => p.id === bgmSelection.presetId);
+                          return preset ? (language === 'zh' ? preset.name.zh : preset.name.en) : bgmSelection.presetId;
+                        })()}
+                        <span className="ml-2 inline-block text-[10px] px-1.5 py-0.5 rounded" style={{ background: `${theme.primary}15`, color: theme.primaryLight }}>
+                          {language === 'zh' ? '默认' : 'Preset'}
+                        </span>
+                      </p>
+                      <p className="text-xs text-t-text3 truncate">{bgmSelection.prompt}</p>
+                    </>
+                  ) : bgmSelection?.source === 'library' && bgmSelection.mediaItem ? (
                     <>
                       <p className="text-sm font-medium text-t-text1 truncate">
                         {bgmSelection.mediaItem.name}
@@ -2533,6 +2565,9 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
               prompt={spec?.toneAndExpression || ''}
               libraryItems={bgmLibraryItems}
               preSelectedId={bgmSelection?.source === 'library' ? bgmSelection.mediaItem?.id : undefined}
+              preSelectedPresetId={bgmSelection?.source === 'preset' ? bgmSelection.presetId : undefined}
+              aiRecommendedPresetId={bgmRecommendation?.presetId}
+              aiIdealDescription={bgmRecommendation?.description}
               projectItemIds={projectItemIds}
               onConfirm={(result) => {
                 setBgmSelection(result);
@@ -2632,7 +2667,8 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
                         mediaAudioRef.current.pause();
                         mediaAudioRef.current = null;
                       }
-                      const url = api.audioDataToUrl(mediaProduction.bgmAudio!.audioData, mediaProduction.bgmAudio!.mimeType);
+                      const url = mediaProduction.bgmAudio!.audioUrl
+                        || api.audioDataToUrl(mediaProduction.bgmAudio!.audioData!, mediaProduction.bgmAudio!.mimeType);
                       const audio = new Audio(url);
                       audio.onended = () => { setPlayingMediaId(null); mediaAudioRef.current = null; };
                       audio.onerror = () => { setPlayingMediaId(null); mediaAudioRef.current = null; };
