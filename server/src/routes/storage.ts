@@ -171,6 +171,50 @@ storageRouter.post('/voices/:id/sample', async (req: AuthenticatedRequest, res: 
   }
 });
 
+/**
+ * DELETE /api/storage/voices/:id
+ * Delete a voice character (removes from database and cleans up associated files)
+ */
+storageRouter.delete('/voices/:id', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
+    const { id } = req.params;
+    
+    // Get the voice character to find associated file IDs before deletion
+    const voice = await voicesRepo.getVoiceCharacterById(id, req.userId);
+    if (!voice || voice.userId !== req.userId) {
+      return res.status(404).json({ error: 'Voice character not found' });
+    }
+    
+    // Delete the voice character record (also deletes project associations via CASCADE or repo logic)
+    const deleted = await voicesRepo.deleteVoiceCharacter(id, req.userId);
+    if (!deleted) {
+      return res.status(500).json({ error: 'Failed to delete voice character' });
+    }
+    
+    // Hard delete associated files from GCS + files table
+    const fileIds = [voice.avatarFileId, voice.audioSampleFileId, voice.refAudioFileId].filter(Boolean) as string[];
+    for (const fileId of fileIds) {
+      try {
+        await filesRepo.hardDeleteFile(fileId);
+      } catch (e) {
+        console.warn(`Failed to delete file ${fileId} for voice ${id}:`, e);
+      }
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Failed to delete voice character:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete voice character',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // ============ Media Items API ============
 
 /**

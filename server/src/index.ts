@@ -10,6 +10,7 @@ import { musicRouter } from './routes/music.js';
 import { storageRouter } from './routes/storage.js';
 import { mixRouter } from './routes/mix.js';
 import { authRouter, authMiddleware } from './routes/auth.js';
+import { feedbackRouter } from './routes/feedback.js';
 import { preGenerateVoiceSamples } from './services/gemini.js';
 import { checkConnection, initializeSchema } from './db/index.js';
 
@@ -64,6 +65,7 @@ app.use('/api/image', authMiddleware, imageRouter);
 app.use('/api/music', authMiddleware, musicRouter);
 app.use('/api/storage', authMiddleware, storageRouter);
 app.use('/api/mix', authMiddleware, mixRouter);
+app.use('/api/feedback', authMiddleware, feedbackRouter);
 
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -94,12 +96,11 @@ async function startServer() {
     console.log(`🚀 Server running at http://localhost:${PORT}`);
     console.log(`   Health check: http://localhost:${PORT}/api/health`);
     
-    // Pre-generate voice samples in background (don't block server startup)
-    console.log('📢 Pre-generating voice samples...');
+    // Load pre-generated voice samples (or generate missing ones in background)
     preGenerateVoiceSamples('en')
       .then(() => preGenerateVoiceSamples('zh'))
-      .then(() => console.log('✅ All voice samples pre-generated'))
-      .catch(err => console.error('❌ Voice sample pre-generation failed:', err.message));
+      .then(() => console.log('✅ Voice samples ready'))
+      .catch(err => console.error('❌ Voice sample loading failed:', err.message));
   });
 }
 

@@ -236,9 +236,9 @@ export const BASIC_TEMPLATES: ProjectTemplate[] = [
     icon: 'BookOpen',
     tier: 'basic',
     defaultSpec: {
-      targetAudience: 'Audiobook listeners and readers',
-      formatAndDuration: 'Audiobook chapter, 15-45 minutes',
-      toneAndExpression: 'Engaging, clear, emotionally expressive',
+      targetAudience: '',
+      formatAndDuration: '',
+      toneAndExpression: '',
     },
     promptHints: {
       single: {
@@ -268,9 +268,9 @@ export const BASIC_TEMPLATES: ProjectTemplate[] = [
     icon: 'Mic2',
     tier: 'basic',
     defaultSpec: {
-      targetAudience: 'Podcast listeners interested in discussions',
-      formatAndDuration: 'Podcast episode, 15-45 minutes',
-      toneAndExpression: 'Conversational, engaging, informative',
+      targetAudience: '',
+      formatAndDuration: '',
+      toneAndExpression: '',
     },
     promptHints: {
       single: {
@@ -300,9 +300,9 @@ export const BASIC_TEMPLATES: ProjectTemplate[] = [
     icon: 'GraduationCap',
     tier: 'basic',
     defaultSpec: {
-      targetAudience: 'Learners seeking educational content',
-      formatAndDuration: 'Educational audio, 5-30 minutes',
-      toneAndExpression: 'Clear, engaging, informative',
+      targetAudience: '',
+      formatAndDuration: '',
+      toneAndExpression: '',
     },
     promptHints: {
       single: {
@@ -365,9 +365,9 @@ export const ADVANCED_TEMPLATES: ProjectTemplate[] = [
     standard: 'ACX/Audible and Global Distribution Compliant',
     genre: 'Fiction or Non-Fiction, Single Voice',
     defaultSpec: {
-      targetAudience: 'Audiobook listeners on Audible and Apple Books',
-      formatAndDuration: 'Audiobook chapter, 15-45 minutes per chapter',
-      toneAndExpression: 'Professional narration, emotionally expressive',
+      targetAudience: '',
+      formatAndDuration: '',
+      toneAndExpression: '',
     },
     promptHints: {
       single: {
@@ -404,9 +404,9 @@ export const ADVANCED_TEMPLATES: ProjectTemplate[] = [
     standard: 'ACX/Audible and Global Distribution Compliant',
     genre: 'Fiction (Multi-Voice / Duet Narration)',
     defaultSpec: {
-      targetAudience: 'Audiobook listeners seeking immersive experiences',
-      formatAndDuration: 'Audiobook chapter, 15-45 minutes per chapter',
-      toneAndExpression: 'Distinct character voices with strict continuity',
+      targetAudience: '',
+      formatAndDuration: '',
+      toneAndExpression: '',
     },
     promptHints: {
       single: {
@@ -443,9 +443,9 @@ export const ADVANCED_TEMPLATES: ProjectTemplate[] = [
     standard: 'ACX/Audible and Global Distribution Compliant',
     genre: 'Fiction or Non-Fiction (Enhanced / Cinematic)',
     defaultSpec: {
-      targetAudience: 'Listeners seeking cinematic audio experiences',
-      formatAndDuration: 'Audiobook chapter, 15-45 minutes per chapter',
-      toneAndExpression: 'Cinematic, immersive, high intelligibility',
+      targetAudience: '',
+      formatAndDuration: '',
+      toneAndExpression: '',
     },
     promptHints: {
       single: {
@@ -482,9 +482,9 @@ export const ADVANCED_TEMPLATES: ProjectTemplate[] = [
     standard: 'RSS/Podcast Distribution Compliant (Spotify, Apple Podcasts)',
     genre: 'Thought Leadership, Sermons, Op-Eds, Solo Storytelling',
     defaultSpec: {
-      targetAudience: 'Podcast listeners seeking thought leadership',
-      formatAndDuration: 'Podcast episode, 10-30 minutes',
-      toneAndExpression: 'Voice-forward, highly intelligible, authoritative',
+      targetAudience: '',
+      formatAndDuration: '',
+      toneAndExpression: '',
     },
     promptHints: {
       single: {
@@ -521,9 +521,9 @@ export const ADVANCED_TEMPLATES: ProjectTemplate[] = [
     standard: 'RSS/Podcast Distribution Compliant (Spotify, Apple Podcasts)',
     genre: 'Educational, Explainer, Expert and Host Dialogue',
     defaultSpec: {
-      targetAudience: 'Podcast listeners seeking expert discussions',
-      formatAndDuration: 'Podcast episode, 15-45 minutes',
-      toneAndExpression: 'Natural conversation, same-room feel',
+      targetAudience: '',
+      formatAndDuration: '',
+      toneAndExpression: '',
     },
     promptHints: {
       single: {
@@ -560,9 +560,9 @@ export const ADVANCED_TEMPLATES: ProjectTemplate[] = [
     standard: 'RSS/Podcast Distribution Compliant (Spotify, Apple Podcasts)',
     genre: 'News Digests, Daily Briefings, Bulletins',
     defaultSpec: {
-      targetAudience: 'Listeners seeking rapid daily updates',
-      formatAndDuration: 'Short-form audio, 2-10 minutes',
-      toneAndExpression: 'Clear, concise, highly intelligible',
+      targetAudience: '',
+      formatAndDuration: '',
+      toneAndExpression: '',
     },
     promptHints: {
       single: {
@@ -599,9 +599,9 @@ export const ADVANCED_TEMPLATES: ProjectTemplate[] = [
     standard: 'Modular / Catch-All, External Media Ready',
     genre: 'eLearning, Training, Guides',
     defaultSpec: {
-      targetAudience: 'Learners and educators using digital platforms',
-      formatAndDuration: 'Segment-based, variable length',
-      toneAndExpression: 'Clear, instructional, normalized volume',
+      targetAudience: '',
+      formatAndDuration: '',
+      toneAndExpression: '',
     },
     promptHints: {
       single: {
@@ -638,9 +638,9 @@ export const ADVANCED_TEMPLATES: ProjectTemplate[] = [
     standard: 'Modular / Catch-All, External Media Ready',
     genre: 'Video Scripts, Slide Presentations, Corporate Narrations',
     defaultSpec: {
-      targetAudience: 'Video producers and presentation creators',
-      formatAndDuration: 'Segment-based, variable length',
-      toneAndExpression: 'Professional, clear, externally aligned',
+      targetAudience: '',
+      formatAndDuration: '',
+      toneAndExpression: '',
     },
     promptHints: {
       single: {

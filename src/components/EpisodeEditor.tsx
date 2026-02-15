@@ -4,9 +4,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { Episode, Project, PROJECT_STAGES, ProjectStage, ScriptSection, ScriptLine, EpisodeCharacter } from '../types';
 import { X, Save, FileText, ChevronRight, Plus, Trash2, User, Volume2, Pause, Scissors } from 'lucide-react';
 import { ReligionIconMap, StageIconMap } from './icons/ReligionIcons';
-
-// Storage key for voice characters (same as VoiceStudio)
-const VOICE_CHARACTERS_KEY = 'gather-voice-characters';
+import { loadVoiceCharacters } from '../utils/voiceStorage';
 
 interface VoiceCharacter {
   id: string;
@@ -14,15 +12,6 @@ interface VoiceCharacter {
   description: string;
   audioSampleUrl?: string;
 }
-
-const loadVoiceCharacters = (): VoiceCharacter[] => {
-  try {
-    const data = localStorage.getItem(VOICE_CHARACTERS_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
-};
 
 interface EpisodeEditorProps {
   episode?: Episode;

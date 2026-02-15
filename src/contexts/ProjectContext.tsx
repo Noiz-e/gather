@@ -47,13 +47,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [isCloudSynced, setIsCloudSynced] = useState(false);
 
-  // Load from local storage first, then try cloud
+  // Load all data from cloud (sole source of truth) on mount.
+  // No localStorage fallback — cloud is always authoritative.
   useEffect(() => {
-    // Load from local storage immediately
-    const savedProjects = storage.getProjects();
-    setProjects(savedProjects);
-    
-    // Then try to load from cloud (async)
     const loadFromCloud = async () => {
       try {
         const cloudProjects = await storage.loadFromCloud();
@@ -67,6 +63,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('Failed to sync from cloud:', error);
         setIsCloudSynced(false);
+        // No fallback — show empty state; user can retry
       }
     };
     

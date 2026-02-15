@@ -69,80 +69,38 @@ Return ONLY the JSON object, no other text.`;
 
 export function buildScriptGenerationPrompt(content: string, config: ScriptGenerationConfig): string {
   const visualInstruction = config.hasVisualContent 
-    ? 'Include a "coverImageDescription" field for each section describing the visual.'
-    : '';
-  
-  // soundMusic is for sound effects ONLY — BGM is handled globally, not per-section
-  const soundInstruction = config.addSoundEffects
-    ? '  - soundMusic: sound effect instructions for this timeline item (short discrete sounds ONLY, e.g. "Door creaking open", "Thunder rumbling", "Birds chirping"). Do NOT put background music here — BGM is handled separately at the global level. Leave empty if no sound effect is needed for this item.'
+    ? '\n  - coverImageDescription: visual description for this section'
     : '';
 
-  // BGM recommendation instruction: ask AI to pick a preset and describe ideal BGM
-  const bgmRecommendationInstruction = config.addBgm
+  const soundInstruction = config.addSoundEffects
+    ? '\n  - soundMusic: short sound effect description (e.g. "Door creaking", "Thunder"). NOT background music. Empty if none.'
+    : '';
+
+  const bgmInstruction = config.addBgm
     ? `
 
-Additionally, recommend a background music for this content. Choose the BEST matching preset from the following list:
-- piano: Elegant, soothing classical piano. Good for classical story themes.
-- tragic: Music with a tragic, sorrowful tone. For melancholic or somber stories.
-- gentle: Elegant, gentle music with a steady rhythm.
-- calm: Very soothing music for relaxation and tranquility.
-- epic: Grand, story-driven BGM with a slightly somber atmosphere. For significant events.
-- mystery: Mysterious, building from calm to intense.
-- cheerful: Upbeat music for cheerful, lighthearted topics.
-- thinking: Subtle drumbeat with a mysterious tone that inspires reflection.
-
-Include a "bgmRecommendation" field in the top-level JSON object with:
-- description: A short ideal BGM description tailored to this specific content (1-2 sentences, in the SAME language as the content).
-- presetId: The id of the best matching preset from the list above.`
+Also include a top-level "bgmRecommendation" with:
+- description: ideal BGM description (1-2 sentences, same language as content)
+- presetId: one of [piano, tragic, gentle, calm, epic, mystery, cheerful, thinking]`
     : '';
 
-  return `Based on the following content and specifications, convert the content into a structured podcast script with multiple sections.
+  return `Convert this content into a structured podcast script.
 
-CRITICAL RULES:
-1. Only include lines that are ACTUAL SPOKEN CONTENT — meaningful narrative or dialogue that a speaker would read aloud.
-2. Do NOT include as lines:
-   - Chapter titles, section headers, volume/chapter numbers (e.g. "Volume X - Chapter 3", "Pre-Chapter Audio")
-   - Stage directions or performance notes (e.g. "[Tone: warm, conversational]", "[pause]", "[music fades in]")
-   - Production metadata, timestamps, or annotations
-   Instead, use these as context to inform the section "name", "description", or soundMusic fields.
-3. Preserve the wording of actual dialogue/narrative lines exactly as they appear in the source. Do NOT rewrite, paraphrase, or summarize spoken content. Do NOT expand or change contracted forms (e.g., keep "don't" as "don't", "it's" as "it's", "I'm" as "I'm" — never expand them to "do not", "it is", "I am", etc.).
-4. Include ALL lines from the source, even if they are repeated. Repetition is often intentional (e.g., vocabulary drills, pronunciation practice, emphasis). Do NOT deduplicate, merge, or skip repeated lines.
-5. Do NOT over-split sentences into tiny fragments. Keep continuous speech by the same speaker as a SINGLE line unless the source explicitly contains a pause marker, emotion/tone shift, or speaker change. For example, a full paragraph spoken by one narrator should be ONE line, not broken into one line per sentence.
+RULES:
+1. Lines must be ACTUAL SPOKEN CONTENT only — no titles, headers, stage directions, or annotations. Use those as section "name"/"description" instead.
+2. Preserve original wording exactly. Do NOT rewrite, paraphrase, or expand contractions (keep "don't", "it's", etc.).
+3. Include ALL lines, even repeated ones. Do NOT deduplicate or skip.
+4. Keep continuous speech by the same speaker as ONE line. Only split on pause markers, tone shifts, or speaker changes.
 
 Content: ${content}
 
-Specifications:
-- Title: ${config.title}
-- Audience: ${config.targetAudience}
-- Format: ${config.formatAndDuration}
-- Tone: ${config.toneAndExpression}
-- Background Music: ${config.addBgm ? 'Yes' : 'No'}
-- Sound Effects: ${config.addSoundEffects ? 'Yes' : 'No'}
-- Visual Content: ${config.hasVisualContent ? 'Yes' : 'No'}
+Specs: Title: ${config.title} | Audience: ${config.targetAudience} | Format: ${config.formatAndDuration} | Tone: ${config.toneAndExpression} | BGM: ${config.addBgm ? 'Yes' : 'No'} | SFX: ${config.addSoundEffects ? 'Yes' : 'No'} | Visual: ${config.hasVisualContent ? 'Yes' : 'No'}
 
-Generate a JSON ${config.addBgm ? 'object' : 'array of sections'}.${config.addBgm ? `
-The top-level JSON object has two keys:
-- "sections": the array of sections
-- "bgmRecommendation": { "description": "...", "presetId": "..." }` : ''}
-
-Each section has:
-- id: unique identifier
-- name: section name (e.g., "INTRO", "MAIN PART 1", "CONCLUSION") — use chapter titles/headers from the source here
-- description: brief description of the section — incorporate any tone/style/stage directions from the source here
-${visualInstruction}
-- timeline: array of timeline items, each with:
-  - id: unique identifier
-  - timeStart: start time (e.g., "00:00")
-  - timeEnd: end time (e.g., "00:15")
-  - lines: array of speaker-line pairs, each with:
-    - speaker: the character name (e.g., "Narrator", "Host", "Guest A")
-    - line: ONLY actual spoken narrative/dialogue — never titles, headers, or stage directions
-${soundInstruction}
-${bgmRecommendationInstruction}
-
-REMINDER: Each "line" must be something a voice actor would actually speak aloud. Titles, annotations, and directions belong in the section metadata, not in lines.
-
-Return ONLY the JSON, no other text.`;
+Return JSON ${config.addBgm ? '{ "sections": [...], "bgmRecommendation": {...} }' : 'array of sections'}. Each section:
+- id, name (use source headers), description (incorporate tone/stage directions)${visualInstruction}
+- timeline: [{ id, timeStart, timeEnd, lines: [{ speaker, line }]${soundInstruction} }]
+${bgmInstruction}
+Return ONLY valid JSON.`;
 }
 
 /**

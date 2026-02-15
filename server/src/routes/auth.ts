@@ -254,13 +254,15 @@ authRouter.post('/register', async (req: Request, res: Response) => {
       return res.status(409).json({ error: 'Email already registered' });
     }
     
-    // Create user
+    // Create user — auto-assign admin role for @noiz.ai emails
     const passwordHash = usersRepo.hashPassword(password);
+    const isNoizAdmin = email.toLowerCase().endsWith('@noiz.ai');
     const user = await usersRepo.createUser({
       email,
       passwordHash,
       displayName,
       authProvider: 'email',
+      role: isNoizAdmin ? 'admin' : 'user',
     });
     
     // Generate tokens
@@ -322,6 +324,12 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     const user = await usersRepo.validateCredentials(email, password);
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    
+    // Auto-promote @noiz.ai users to admin if not already
+    if (user.email.toLowerCase().endsWith('@noiz.ai') && user.role === 'user') {
+      await usersRepo.updateUserRole(user.id, 'admin');
+      user.role = 'admin';
     }
     
     // Generate tokens

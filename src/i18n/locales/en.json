@@ -20,7 +20,9 @@
     "projects": "Projects",
     "voice": "Voice",
     "media": "Media",
+    "feedback": "Feedback",
     "settings": "Settings",
+    "adminFeedback": "Tickets",
     "switchTheme": "Switch Theme"
   },
   "religionSelector": {
@@ -502,6 +504,68 @@
     "hasAccount": "Already have an account?",
     "displayNameRequired": "Display name is required",
     "errorOccurred": "An error occurred"
+  },
+  "feedback": {
+    "title": "Feedback",
+    "subtitle": "Get help or share your thoughts",
+    "newTicket": "New Ticket",
+    "myTickets": "My Tickets",
+    "noTickets": "No tickets yet",
+    "noTicketsDesc": "Create a ticket to get help or share feedback",
+    "subject": "Subject",
+    "subjectPlaceholder": "Brief description of your issue...",
+    "message": "Message",
+    "messagePlaceholder": "Describe your issue or feedback in detail...",
+    "category": "Category",
+    "categories": {
+      "bug": "Bug Report",
+      "feature": "Feature Request",
+      "question": "Question",
+      "other": "Other"
+    },
+    "priority": "Priority",
+    "priorities": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "status": {
+      "open": "Open",
+      "in_progress": "In Progress",
+      "resolved": "Resolved",
+      "closed": "Closed"
+    },
+    "send": "Send",
+    "sendMessage": "Send Message",
+    "typeMessage": "Type your message...",
+    "createTicket": "Create Ticket",
+    "creating": "Creating...",
+    "closeTicket": "Close Ticket",
+    "reopenTicket": "Reopen",
+    "backToTickets": "Back to Tickets",
+    "unread": "unread",
+    "adminReply": "Admin",
+    "you": "You",
+    "admin": {
+      "title": "Ticket Management",
+      "subtitle": "Manage user feedback and support tickets",
+      "allTickets": "All Tickets",
+      "filterByStatus": "Filter by status",
+      "all": "All",
+      "stats": {
+        "open": "Open",
+        "inProgress": "In Progress",
+        "resolved": "Resolved",
+        "closed": "Closed",
+        "total": "Total"
+      },
+      "markResolved": "Mark Resolved",
+      "markInProgress": "Mark In Progress",
+      "reopen": "Reopen",
+      "close": "Close",
+      "from": "From",
+      "noTickets": "No tickets found"
+    }
   },
   "common": {
     "loading": "Loading...",

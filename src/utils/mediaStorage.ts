@@ -1,4 +1,7 @@
 // Media library storage utilities
+// Cloud is the sole source of truth — no localStorage for user data.
+// An in-memory cache is kept so synchronous reads (loadMediaItems)
+// return the latest known state between cloud loads.
 
 import { MediaItem, MediaType } from '../types';
 import { 
@@ -6,123 +9,99 @@ import {
   saveMediaItemsToCloud, 
   uploadMediaFileToCloud,
   deleteMediaFileFromCloud,
-  checkStorageStatus
 } from '../services/api';
 
-const STORAGE_KEY = 'gather-media-library';
+// ============ In-Memory Cache ============
+let _cache: MediaItem[] = [];
 
-// Track if cloud storage is available
-let cloudStorageAvailable = false;
-let cloudSyncInProgress = false;
+// ============ Cloud Save Queue ============
 
-// Check cloud storage status on module load
-checkStorageStatus()
-  .then(status => {
-    cloudStorageAvailable = status.configured;
-  })
-  .catch(() => {
-    cloudStorageAvailable = false;
-  });
+let _pendingSave: MediaItem[] | null = null;
+let _saveInFlight = false;
 
-/**
- * Debounce function to prevent too many cloud sync calls
- */
-function debounce<TArgs extends unknown[]>(
-  func: (...args: TArgs) => void | Promise<void>, 
-  wait: number
-): (...args: TArgs) => void {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-  return (...args: TArgs) => {
-    if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
+async function drainSaveQueue(): Promise<void> {
+  if (_saveInFlight) return;
+
+  while (_pendingSave !== null) {
+    const items = _pendingSave;
+    _pendingSave = null;
+    _saveInFlight = true;
+    try {
+      await saveMediaItemsToCloud(items as unknown as { id: string; type: 'image' | 'bgm' | 'sfx'; [key: string]: unknown }[]);
+      console.log(`Cloud sync: saved ${items.length} media items`);
+    } catch (error) {
+      console.error('Cloud sync failed for media:', error);
+    } finally {
+      _saveInFlight = false;
+    }
+  }
+}
+
+function enqueueCloudSave(items: MediaItem[]): void {
+  _pendingSave = items;
+  drainSaveQueue();
+}
+
+function flushPendingSave(): void {
+  if (_pendingSave === null) return;
+  const items = _pendingSave;
+  _pendingSave = null;
+  try {
+    const url = `${import.meta.env.VITE_API_BASE || '/api'}/storage/media`;
+    const blob = new Blob(
+      [JSON.stringify({ items })],
+      { type: 'application/json' }
+    );
+    navigator.sendBeacon(url, blob);
+  } catch (error) {
+    console.error('Failed to flush pending media save:', error);
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', flushPendingSave);
 }
 
 /**
- * Sync media items to cloud storage (debounced)
+ * Synchronous read from in-memory cache.
+ * Returns the latest known media items (populated by cloud load or saves).
  */
-const syncMediaToCloud = debounce(async (items: MediaItem[]) => {
-  if (!cloudStorageAvailable || cloudSyncInProgress) return;
-  
-  cloudSyncInProgress = true;
-  try {
-    await saveMediaItemsToCloud(items as unknown as { id: string; type: 'image' | 'bgm' | 'sfx'; [key: string]: unknown }[]);
-    console.log(`Cloud sync: saved ${items.length} media items`);
-  } catch (error) {
-    console.error('Cloud sync failed for media:', error);
-  } finally {
-    cloudSyncInProgress = false;
-  }
-}, 2000);
-
 export function loadMediaItems(): MediaItem[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch (error) {
-    console.error('Failed to load media items:', error);
-    return [];
-  }
+  return _cache;
 }
 
 export function saveMediaItems(items: MediaItem[]): void {
-  try {
-    // Save to localStorage first (fast, offline-capable)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-    
-    // Then sync to cloud (async, debounced)
-    syncMediaToCloud(items);
-  } catch (error) {
-    console.error('Failed to save media items:', error);
-  }
+  _cache = items;
+  enqueueCloudSave(items);
 }
 
 /**
- * Load media items from cloud and merge with local
+ * Load media items from cloud (source of truth).
+ * Always calls the server; never falls back to localStorage.
+ * Updates the in-memory cache on success.
  */
 export async function loadMediaItemsFromCloudStorage(): Promise<MediaItem[]> {
-  if (!cloudStorageAvailable) {
-    console.log('Cloud storage not available for media, using local data');
-    return loadMediaItems();
-  }
-  
   try {
     const cloudItems = await loadMediaItemsFromCloud();
-    if (cloudItems.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudItems));
-      console.log(`Loaded ${cloudItems.length} media items from cloud`);
-      return cloudItems as unknown as MediaItem[];
-    }
-    
-    // If cloud is empty, push local data to cloud
-    const localItems = loadMediaItems();
-    if (localItems.length > 0) {
-      await saveMediaItemsToCloud(localItems as unknown as { id: string; type: 'image' | 'bgm' | 'sfx'; [key: string]: unknown }[]);
-      console.log(`Pushed ${localItems.length} local media items to cloud`);
-    }
-    
-    return localItems;
+    _cache = cloudItems as unknown as MediaItem[];
+    console.log(`Loaded ${cloudItems.length} media items from cloud`);
+    return _cache;
   } catch (error) {
     console.error('Failed to load media from cloud:', error);
-    return loadMediaItems();
+    return _cache; // return whatever is in memory
   }
 }
 
 /**
- * Upload media file to cloud and return URL
+ * Upload media file to cloud and return URL.
  * If the dataUrl is a base64 data URL, it will be uploaded to GCS
- * and the returned URL will be a public GCS URL
+ * and the returned URL will be a public GCS URL.
  */
 export async function uploadMediaToCloud(
   mediaId: string, 
   dataUrl: string, 
   type: MediaType
 ): Promise<string> {
-  if (!cloudStorageAvailable) {
-    console.log('Cloud storage not available, returning original dataUrl');
-    return dataUrl;
-  }
-  
   // Only upload if it's a base64 data URL (not already a cloud URL)
   if (!dataUrl.startsWith('data:')) {
     console.log('Media is already a URL, skipping upload');
@@ -154,10 +133,6 @@ export async function deleteMediaFromCloud(
   type: MediaType, 
   fileUrl?: string
 ): Promise<boolean> {
-  if (!cloudStorageAvailable) {
-    return true; // Nothing to delete in cloud
-  }
-  
   // Skip cloud delete for client-side temporary IDs (not stored in DB)
   if (!isValidUUID(mediaId)) {
     console.log(`Skipping cloud delete for local media ID: ${mediaId}`);

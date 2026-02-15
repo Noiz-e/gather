@@ -173,26 +173,33 @@ export async function initializeSchema(): Promise<void> {
       );
     `);
     
-    if (result.rows[0].exists) {
-      console.log('✅ Database schema already exists');
-      return;
-    }
-    
-    console.log('🔨 Initializing database schema...');
-    
-    // Read and execute schema
     const fs = await import('fs');
     const path = await import('path');
     const { fileURLToPath } = await import('url');
     
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    const schemaPath = path.join(__dirname, 'schema.sql');
     
-    const schema = fs.readFileSync(schemaPath, 'utf-8');
-    await client.query(schema);
-    
-    console.log('✅ Database schema initialized');
+    if (!result.rows[0].exists) {
+      console.log('🔨 Initializing database schema...');
+      
+      // Read and execute full schema
+      const schemaPath = path.join(__dirname, 'schema.sql');
+      const schema = fs.readFileSync(schemaPath, 'utf-8');
+      await client.query(schema);
+      
+      console.log('✅ Database schema initialized');
+    } else {
+      console.log('✅ Database schema already exists, running migrations...');
+      
+      // Always run migrations to add new tables/columns safely
+      const migrationsPath = path.join(__dirname, 'migrations.sql');
+      if (fs.existsSync(migrationsPath)) {
+        const migrations = fs.readFileSync(migrationsPath, 'utf-8');
+        await client.query(migrations);
+        console.log('✅ Migrations applied');
+      }
+    }
   } catch (error) {
     console.error('❌ Failed to initialize schema:', error);
     throw error;

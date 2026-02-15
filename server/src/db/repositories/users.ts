@@ -56,6 +56,7 @@ export interface CreateUserInput {
   providerUserId?: string;
   displayName: string;
   avatarGcsPath?: string;
+  role?: UserRole;
 }
 
 export interface UpdateUserInput {
@@ -221,9 +222,9 @@ export async function getUserByProvider(
 export async function createUser(input: CreateUserInput): Promise<User> {
   const result = await query<UserRow>(`
     INSERT INTO users (
-      email, password_hash, auth_provider, provider_user_id, display_name, avatar_gcs_path
+      email, password_hash, auth_provider, provider_user_id, display_name, avatar_gcs_path, role
     )
-    VALUES ($1, $2, $3, $4, $5, $6)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *
   `, [
     input.email.toLowerCase(),
@@ -232,6 +233,7 @@ export async function createUser(input: CreateUserInput): Promise<User> {
     input.providerUserId || null,
     input.displayName,
     input.avatarGcsPath || null,
+    input.role || 'user',
   ]);
   
   return mapUserRow(result.rows[0]);
@@ -285,6 +287,18 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<Us
   }
   
   return mapUserRow(result.rows[0]);
+}
+
+/**
+ * Update user role
+ */
+export async function updateUserRole(id: string, role: UserRole): Promise<boolean> {
+  const result = await query(`
+    UPDATE users SET role = $2
+    WHERE id = $1
+  `, [id, role]);
+  
+  return (result.rowCount ?? 0) > 0;
 }
 
 /**

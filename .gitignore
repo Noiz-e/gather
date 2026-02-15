@@ -48,8 +48,8 @@ coverage/
 *.pem
 .cache/
 
-# Voice sample cache
-server/.voice-cache/
+# Voice sample cache (pre-generated, committed for faster startup)
+# server/.voice-cache/
 
 .cursor/
 .env*

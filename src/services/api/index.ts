@@ -985,6 +985,23 @@ export async function uploadVoiceSampleToCloud(voiceId: string, dataUrl: string)
   return data.url;
 }
 
+/**
+ * Delete a voice character from cloud storage
+ */
+export async function deleteVoiceFromCloud(voiceId: string): Promise<boolean> {
+  const response = await apiFetch(`${API_BASE}/storage/voices/${voiceId}`, {
+    ...fetchOptions,
+    method: 'DELETE',
+  });
+  
+  if (!response.ok) {
+    return false;
+  }
+  
+  const data = await response.json();
+  return data.success;
+}
+
 // ============ Media Items Persistence ============
 
 export interface MediaItemData {
@@ -1186,6 +1203,186 @@ export async function getMixPresets(): Promise<{
   }
   
   return response.json();
+}
+
+// ============ Feedback / Tickets API ============
+
+export interface FeedbackTicket {
+  id: string;
+  userId: string;
+  subject: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  priority: 'low' | 'medium' | 'high';
+  category?: string;
+  assignedAdminId?: string;
+  closedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  unreadCount: number;
+  // Admin-visible
+  userDisplayName?: string;
+  userEmail?: string;
+}
+
+export interface FeedbackMessage {
+  id: string;
+  ticketId: string;
+  senderId: string;
+  senderName: string;
+  content: string;
+  isAdminReply: boolean;
+  readAt?: string;
+  createdAt: string;
+}
+
+export interface FeedbackStats {
+  open_count: string;
+  in_progress_count: string;
+  resolved_count: string;
+  closed_count: string;
+  total_count: string;
+}
+
+/**
+ * Get current user's tickets
+ */
+export async function getMyTickets(): Promise<FeedbackTicket[]> {
+  const response = await apiFetch(`${API_BASE}/feedback/tickets`, fetchOptions);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch tickets');
+  }
+  const data = await response.json();
+  return data.tickets;
+}
+
+/**
+ * Create a new feedback ticket
+ */
+export async function createTicket(params: {
+  subject: string;
+  message: string;
+  category?: string;
+  priority?: string;
+}): Promise<FeedbackTicket> {
+  const response = await apiFetch(`${API_BASE}/feedback/tickets`, {
+    ...fetchOptions,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to create ticket');
+  }
+  const data = await response.json();
+  return data.ticket;
+}
+
+/**
+ * Get a ticket with its messages
+ */
+export async function getTicketDetail(ticketId: string): Promise<{
+  ticket: FeedbackTicket;
+  messages: FeedbackMessage[];
+}> {
+  const response = await apiFetch(`${API_BASE}/feedback/tickets/${ticketId}`, fetchOptions);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch ticket');
+  }
+  return response.json();
+}
+
+/**
+ * Send a message in a ticket
+ */
+export async function sendTicketMessage(ticketId: string, content: string): Promise<FeedbackMessage> {
+  const response = await apiFetch(`${API_BASE}/feedback/tickets/${ticketId}/messages`, {
+    ...fetchOptions,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to send message');
+  }
+  const data = await response.json();
+  return data.message;
+}
+
+/**
+ * Close a ticket
+ */
+export async function closeTicket(ticketId: string): Promise<FeedbackTicket> {
+  const response = await apiFetch(`${API_BASE}/feedback/tickets/${ticketId}/close`, {
+    ...fetchOptions,
+    method: 'PATCH',
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to close ticket');
+  }
+  const data = await response.json();
+  return data.ticket;
+}
+
+// ---- Admin feedback endpoints ----
+
+/**
+ * Get all tickets (admin only)
+ */
+export async function getAdminTickets(params?: {
+  status?: string;
+  page?: number;
+  limit?: number;
+}): Promise<{ tickets: FeedbackTicket[]; total: number; page: number; limit: number }> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set('status', params.status);
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+
+  const response = await apiFetch(
+    `${API_BASE}/feedback/admin/tickets?${searchParams.toString()}`,
+    fetchOptions
+  );
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch admin tickets');
+  }
+  return response.json();
+}
+
+/**
+ * Update ticket status (admin only)
+ */
+export async function updateTicketStatus(ticketId: string, status: string): Promise<FeedbackTicket> {
+  const response = await apiFetch(`${API_BASE}/feedback/admin/tickets/${ticketId}/status`, {
+    ...fetchOptions,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to update ticket status');
+  }
+  const data = await response.json();
+  return data.ticket;
+}
+
+/**
+ * Get feedback stats (admin only)
+ */
+export async function getFeedbackStats(): Promise<FeedbackStats> {
+  const response = await apiFetch(`${API_BASE}/feedback/admin/stats`, fetchOptions);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch stats');
+  }
+  const data = await response.json();
+  return data.stats;
 }
 
 // ============ Bulk Sync Operations ============

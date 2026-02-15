@@ -20,7 +20,9 @@
     "projects": "Proyectos",
     "voice": "Voz",
     "media": "Medios",
+    "feedback": "Comentarios",
     "settings": "Configuración",
+    "adminFeedback": "Tickets",
     "switchTheme": "Cambiar Tema"
   },
   "religionSelector": {
@@ -498,6 +500,68 @@
     "hasAccount": "¿Ya tienes cuenta?",
     "displayNameRequired": "El nombre para mostrar es obligatorio",
     "errorOccurred": "Ocurrió un error"
+  },
+  "feedback": {
+    "title": "Comentarios",
+    "subtitle": "Obtén ayuda o comparte tus ideas",
+    "newTicket": "Nuevo Ticket",
+    "myTickets": "Mis Tickets",
+    "noTickets": "Sin tickets aún",
+    "noTicketsDesc": "Crea un ticket para obtener ayuda o compartir comentarios",
+    "subject": "Asunto",
+    "subjectPlaceholder": "Breve descripción de tu problema...",
+    "message": "Mensaje",
+    "messagePlaceholder": "Describe tu problema o comentario en detalle...",
+    "category": "Categoría",
+    "categories": {
+      "bug": "Reporte de Error",
+      "feature": "Solicitud de Función",
+      "question": "Pregunta",
+      "other": "Otro"
+    },
+    "priority": "Prioridad",
+    "priorities": {
+      "low": "Baja",
+      "medium": "Media",
+      "high": "Alta"
+    },
+    "status": {
+      "open": "Abierto",
+      "in_progress": "En Progreso",
+      "resolved": "Resuelto",
+      "closed": "Cerrado"
+    },
+    "send": "Enviar",
+    "sendMessage": "Enviar Mensaje",
+    "typeMessage": "Escribe tu mensaje...",
+    "createTicket": "Crear Ticket",
+    "creating": "Creando...",
+    "closeTicket": "Cerrar Ticket",
+    "reopenTicket": "Reabrir",
+    "backToTickets": "Volver a Tickets",
+    "unread": "sin leer",
+    "adminReply": "Admin",
+    "you": "Tú",
+    "admin": {
+      "title": "Gestión de Tickets",
+      "subtitle": "Gestionar comentarios y tickets de soporte",
+      "allTickets": "Todos los Tickets",
+      "filterByStatus": "Filtrar por estado",
+      "all": "Todos",
+      "stats": {
+        "open": "Abiertos",
+        "inProgress": "En Progreso",
+        "resolved": "Resueltos",
+        "closed": "Cerrados",
+        "total": "Total"
+      },
+      "markResolved": "Marcar Resuelto",
+      "markInProgress": "Marcar En Progreso",
+      "reopen": "Reabrir",
+      "close": "Cerrar",
+      "from": "De",
+      "noTickets": "No se encontraron tickets"
+    }
   },
   "common": {
     "loading": "Cargando...",

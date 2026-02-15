@@ -3,7 +3,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Language, LANGUAGE_OPTIONS } from '../i18n/types';
-import { LayoutDashboard, FolderOpen, Settings, AudioWaveform, Globe, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Menu, X, Image, LogOut } from 'lucide-react';
+import { LayoutDashboard, FolderOpen, Settings, AudioWaveform, Globe, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Menu, X, Image, LogOut, MessageSquare, ShieldCheck } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
 import { RoleBadge } from './RoleBadge';
 
@@ -76,12 +76,16 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
     return () => { document.body.style.overflow = ''; };
   }, [mobileMenuOpen]);
 
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+
   const navItems = [
     { id: 'dashboard', label: t.nav.workspace, icon: LayoutDashboard },
     { id: 'projects', label: t.nav.projects, icon: FolderOpen },
     { id: 'voice', label: t.nav.voice, icon: AudioWaveform },
     { id: 'media', label: t.nav.media || 'Media', icon: Image },
+    { id: 'feedback', label: t.nav.feedback || 'Feedback', icon: MessageSquare },
     { id: 'settings', label: t.nav.settings, icon: Settings },
+    ...(isAdmin ? [{ id: 'admin-feedback', label: t.nav.adminFeedback || 'Tickets', icon: ShieldCheck }] : []),
   ];
 
   const religionT = t.religions[religion];

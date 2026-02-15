@@ -20,7 +20,9 @@
     "projects": "项目",
     "voice": "音色",
     "media": "媒体库",
+    "feedback": "反馈",
     "settings": "设置",
+    "adminFeedback": "工单管理",
     "switchTheme": "切换宗教主题"
   },
   "religionSelector": {
@@ -502,6 +504,68 @@
     "hasAccount": "已有账号？",
     "displayNameRequired": "请输入显示名称",
     "errorOccurred": "发生错误"
+  },
+  "feedback": {
+    "title": "反馈",
+    "subtitle": "获取帮助或分享你的想法",
+    "newTicket": "新建工单",
+    "myTickets": "我的工单",
+    "noTickets": "暂无工单",
+    "noTicketsDesc": "创建工单以获取帮助或分享反馈",
+    "subject": "主题",
+    "subjectPlaceholder": "简要描述你的问题...",
+    "message": "消息",
+    "messagePlaceholder": "详细描述你的问题或反馈...",
+    "category": "分类",
+    "categories": {
+      "bug": "Bug 报告",
+      "feature": "功能建议",
+      "question": "问题咨询",
+      "other": "其他"
+    },
+    "priority": "优先级",
+    "priorities": {
+      "low": "低",
+      "medium": "中",
+      "high": "高"
+    },
+    "status": {
+      "open": "待处理",
+      "in_progress": "处理中",
+      "resolved": "已解决",
+      "closed": "已关闭"
+    },
+    "send": "发送",
+    "sendMessage": "发送消息",
+    "typeMessage": "输入消息...",
+    "createTicket": "创建工单",
+    "creating": "创建中...",
+    "closeTicket": "关闭工单",
+    "reopenTicket": "重新打开",
+    "backToTickets": "返回工单列表",
+    "unread": "未读",
+    "adminReply": "管理员",
+    "you": "我",
+    "admin": {
+      "title": "工单管理",
+      "subtitle": "管理用户反馈和支持工单",
+      "allTickets": "所有工单",
+      "filterByStatus": "按状态筛选",
+      "all": "全部",
+      "stats": {
+        "open": "待处理",
+        "inProgress": "处理中",
+        "resolved": "已解决",
+        "closed": "已关闭",
+        "total": "总计"
+      },
+      "markResolved": "标记已解决",
+      "markInProgress": "标记处理中",
+      "reopen": "重新打开",
+      "close": "关闭",
+      "from": "来自",
+      "noTickets": "暂无工单"
+    }
   },
   "common": {
     "loading": "加载中...",

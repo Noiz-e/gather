@@ -1,117 +1,102 @@
 // Voice character storage utilities
+// Cloud is the sole source of truth — no localStorage for user data.
+// An in-memory cache is kept so synchronous reads (loadVoiceCharacters)
+// return the latest known state between cloud loads.
 
 import { VoiceCharacter } from '../types';
 import { 
   loadVoicesFromCloud, 
   saveVoicesToCloud, 
   uploadVoiceSampleToCloud,
-  checkStorageStatus
+  deleteVoiceFromCloud,
 } from '../services/api';
 
-const STORAGE_KEY = 'gather-voice-characters';
+// ============ In-Memory Cache ============
+let _cache: VoiceCharacter[] = [];
 
-// Track if cloud storage is available
-let cloudStorageAvailable = false;
-let cloudSyncInProgress = false;
+// ============ Cloud Save Queue ============
 
-// Check cloud storage status on module load
-checkStorageStatus()
-  .then(status => {
-    cloudStorageAvailable = status.configured;
-  })
-  .catch(() => {
-    cloudStorageAvailable = false;
-  });
+let _pendingSave: VoiceCharacter[] | null = null;
+let _saveInFlight = false;
 
-/**
- * Debounce function to prevent too many cloud sync calls
- */
-function debounce<TArgs extends unknown[]>(
-  func: (...args: TArgs) => void | Promise<void>, 
-  wait: number
-): (...args: TArgs) => void {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-  return (...args: TArgs) => {
-    if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
+async function drainSaveQueue(): Promise<void> {
+  if (_saveInFlight) return;
+
+  while (_pendingSave !== null) {
+    const voices = _pendingSave;
+    _pendingSave = null;
+    _saveInFlight = true;
+    try {
+      await saveVoicesToCloud(voices as unknown as { id: string; [key: string]: unknown }[]);
+      console.log(`Cloud sync: saved ${voices.length} voice characters`);
+    } catch (error) {
+      console.error('Cloud sync failed for voices:', error);
+    } finally {
+      _saveInFlight = false;
+    }
+  }
+}
+
+function enqueueCloudSave(voices: VoiceCharacter[]): void {
+  _pendingSave = voices;
+  drainSaveQueue();
+}
+
+function flushPendingSave(): void {
+  if (_pendingSave === null) return;
+  const voices = _pendingSave;
+  _pendingSave = null;
+  try {
+    const url = `${import.meta.env.VITE_API_BASE || '/api'}/storage/voices`;
+    const blob = new Blob(
+      [JSON.stringify({ voices })],
+      { type: 'application/json' }
+    );
+    navigator.sendBeacon(url, blob);
+  } catch (error) {
+    console.error('Failed to flush pending voice save:', error);
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', flushPendingSave);
 }
 
 /**
- * Sync voices to cloud storage (debounced)
+ * Synchronous read from in-memory cache.
+ * Returns the latest known voice characters (populated by cloud load or saves).
  */
-const syncVoicesToCloud = debounce(async (voices: VoiceCharacter[]) => {
-  if (!cloudStorageAvailable || cloudSyncInProgress) return;
-  
-  cloudSyncInProgress = true;
-  try {
-    await saveVoicesToCloud(voices as unknown as { id: string; [key: string]: unknown }[]);
-    console.log(`Cloud sync: saved ${voices.length} voice characters`);
-  } catch (error) {
-    console.error('Cloud sync failed for voices:', error);
-  } finally {
-    cloudSyncInProgress = false;
-  }
-}, 2000);
-
 export function loadVoiceCharacters(): VoiceCharacter[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch (error) {
-    console.error('Failed to load voice characters:', error);
-    return [];
-  }
+  return _cache;
 }
 
 export function saveVoiceCharacters(characters: VoiceCharacter[]): void {
-  try {
-    // Save to localStorage first (fast, offline-capable)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(characters));
-    
-    // Then sync to cloud (async, debounced)
-    syncVoicesToCloud(characters);
-  } catch (error) {
-    console.error('Failed to save voice characters:', error);
-  }
+  _cache = characters;
+  enqueueCloudSave(characters);
 }
 
 /**
- * Load voice characters from cloud and merge with local
+ * Load voice characters from cloud (source of truth).
+ * Always calls the server; never falls back to localStorage.
+ * Updates the in-memory cache on success.
  */
 export async function loadVoiceCharactersFromCloud(): Promise<VoiceCharacter[]> {
-  if (!cloudStorageAvailable) {
-    console.log('Cloud storage not available for voices, using local data');
-    return loadVoiceCharacters();
-  }
-  
   try {
     const cloudVoices = await loadVoicesFromCloud();
-    if (cloudVoices.length > 0) {
-      // Map server field names to client field names
-      // Server returns refAudioUrl (signed GCS URL), client expects refAudioDataUrl
-      const mapped: VoiceCharacter[] = cloudVoices.map((v: Record<string, unknown>) => ({
-        ...v,
-        // Map refAudioUrl -> refAudioDataUrl if the client field is missing
-        refAudioDataUrl: (v.refAudioDataUrl as string) || (v.refAudioUrl as string) || undefined,
-        // audioSampleUrl is returned with the same name from server
-      })) as unknown as VoiceCharacter[];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
-      console.log(`Loaded ${mapped.length} voice characters from cloud`);
-      return mapped;
-    }
-    
-    // If cloud is empty, push local data to cloud
-    const localVoices = loadVoiceCharacters();
-    if (localVoices.length > 0) {
-      await saveVoicesToCloud(localVoices as unknown as { id: string; [key: string]: unknown }[]);
-      console.log(`Pushed ${localVoices.length} local voice characters to cloud`);
-    }
-    
-    return localVoices;
+    // Map server field names to client field names
+    // Server returns refAudioUrl (signed GCS URL), client expects refAudioDataUrl
+    const mapped: VoiceCharacter[] = cloudVoices.map((v: Record<string, unknown>) => ({
+      ...v,
+      // Map refAudioUrl -> refAudioDataUrl if the client field is missing
+      refAudioDataUrl: (v.refAudioDataUrl as string) || (v.refAudioUrl as string) || undefined,
+      // audioSampleUrl is returned with the same name from server
+    })) as unknown as VoiceCharacter[];
+    _cache = mapped;
+    console.log(`Loaded ${mapped.length} voice characters from cloud`);
+    return mapped;
   } catch (error) {
     console.error('Failed to load voices from cloud:', error);
-    return loadVoiceCharacters();
+    return _cache; // return whatever is in memory
   }
 }
 
@@ -119,11 +104,6 @@ export async function loadVoiceCharactersFromCloud(): Promise<VoiceCharacter[]> 
  * Upload voice sample to cloud and return URL
  */
 export async function uploadVoiceSample(voiceId: string, dataUrl: string): Promise<string> {
-  if (!cloudStorageAvailable) {
-    console.log('Cloud storage not available, returning original dataUrl');
-    return dataUrl;
-  }
-  
   try {
     const url = await uploadVoiceSampleToCloud(voiceId, dataUrl);
     console.log(`Uploaded voice sample for ${voiceId}: ${url}`);
@@ -131,6 +111,22 @@ export async function uploadVoiceSample(voiceId: string, dataUrl: string): Promi
   } catch (error) {
     console.error('Failed to upload voice sample:', error);
     return dataUrl;
+  }
+}
+
+/**
+ * Delete a voice character from cloud storage
+ */
+export async function deleteVoiceCharacterFromCloud(voiceId: string): Promise<boolean> {
+  try {
+    const deleted = await deleteVoiceFromCloud(voiceId);
+    if (deleted) {
+      console.log(`Deleted voice character from cloud: ${voiceId}`);
+    }
+    return deleted;
+  } catch (error) {
+    console.error('Failed to delete voice from cloud:', error);
+    return false;
   }
 }
 

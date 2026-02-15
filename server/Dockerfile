@@ -20,6 +20,10 @@ COPY package*.json ./
 RUN npm ci --only=production
 
 COPY --from=builder /app/dist ./dist
+COPY src/db/*.sql ./dist/db/
+
+# Pre-generated voice samples (avoids API calls on startup)
+COPY .voice-cache ./.voice-cache
 
 # Cloud Run uses PORT env var
 ENV PORT=8080

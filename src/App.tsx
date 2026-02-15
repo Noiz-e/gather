@@ -16,10 +16,12 @@ import { EpisodeEditor } from './components/EpisodeEditor';
 import { VoiceStudio } from './components/VoiceStudio';
 import { MediaLibrary } from './components/MediaLibrary';
 import { Settings } from './components/Settings';
+import { FeedbackPanel } from './components/FeedbackPanel';
+import { AdminFeedback } from './components/AdminFeedback';
 import { AuthPage } from './components/AuthPage';
 import { Loader2 } from 'lucide-react';
 
-type Page = 'dashboard' | 'projects' | 'voice' | 'media' | 'settings' | 'project-detail';
+type Page = 'dashboard' | 'projects' | 'voice' | 'media' | 'feedback' | 'admin-feedback' | 'settings' | 'project-detail';
 
 interface AppContentProps {
   initialLandingData: LandingData | null;
@@ -98,6 +100,10 @@ function AppContent({ initialLandingData, onClearLandingData }: AppContentProps)
         return <VoiceStudio />;
       case 'media':
         return <MediaLibrary />;
+      case 'feedback':
+        return <FeedbackPanel />;
+      case 'admin-feedback':
+        return <AdminFeedback />;
       case 'settings':
         return <Settings />;
       default:

@@ -5,23 +5,12 @@ import { useProjects } from '../contexts/ProjectContext';
 import { VoiceCharacter } from '../types';
 import { Mic, Square, Play, Pause, Download, Trash2, Plus, User, Volume2, Edit2, X, Upload, AudioWaveform, FolderOpen, Link2, Sparkles, RotateCcw, Loader2, Check } from 'lucide-react';
 import { designVoice, type VoiceDesignPreview } from '../services/api';
-
-// Storage key for voice characters
-const VOICE_CHARACTERS_KEY = 'gather-voice-characters';
-
-// Helper functions for voice characters storage
-const loadVoiceCharacters = (): VoiceCharacter[] => {
-  try {
-    const data = localStorage.getItem(VOICE_CHARACTERS_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
-};
-
-const saveVoiceCharacters = (characters: VoiceCharacter[]) => {
-  localStorage.setItem(VOICE_CHARACTERS_KEY, JSON.stringify(characters));
-};
+import { 
+  loadVoiceCharacters, 
+  saveVoiceCharacters, 
+  deleteVoiceCharacterFromCloud,
+  loadVoiceCharactersFromCloud,
+} from '../utils/voiceStorage';
 
 export function VoiceStudio() {
   const { theme } = useTheme();
@@ -76,6 +65,16 @@ export function VoiceStudio() {
   const timerRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const characterAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Load voices from cloud on mount
+  useEffect(() => {
+    loadVoiceCharactersFromCloud().then(voices => {
+      setCharacters(voices);
+      if (voices.length > 0 && activeTab === 'record') {
+        setActiveTab('characters');
+      }
+    });
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -372,11 +371,16 @@ export function VoiceStudio() {
     ? characters.filter(c => c.projectIds?.includes(filterProjectId))
     : characters;
 
-  const deleteCharacter = (id: string) => {
+  const deleteCharacter = async (id: string) => {
     if (confirm(t.voiceStudio.characters.deleteConfirm)) {
       const updated = characters.filter(c => c.id !== id);
       setCharacters(updated);
       saveVoiceCharacters(updated);
+      
+      // Also delete from cloud storage (async, non-blocking)
+      deleteVoiceCharacterFromCloud(id).catch(err => {
+        console.error('Failed to delete voice from cloud:', err);
+      });
     }
   };
 
