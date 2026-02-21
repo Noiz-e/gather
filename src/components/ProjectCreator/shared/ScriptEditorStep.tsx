@@ -33,6 +33,8 @@ interface ScriptEditorStepProps {
   };
   /** i18n translations */
   t: Record<string, any>;
+  /** Hide the AI generate button (for edit-only mode) */
+  hideGenerateButton?: boolean;
 }
 
 export function ScriptEditorStep({
@@ -49,6 +51,7 @@ export function ScriptEditorStep({
   hasVisualContent,
   hasAudio,
   t,
+  hideGenerateButton,
 }: ScriptEditorStepProps) {
   const { theme } = useTheme();
   const { language } = useLanguage();
@@ -57,7 +60,7 @@ export function ScriptEditorStep({
   return (
     <div className="space-y-6">
       {/* Generate Script Button - shown when no sections and not generating */}
-      {scriptSections.length === 0 && !isGeneratingScript && (
+      {scriptSections.length === 0 && !isGeneratingScript && !hideGenerateButton && (
         <button
           onClick={onGenerateScript}
           disabled={isGeneratingScript}

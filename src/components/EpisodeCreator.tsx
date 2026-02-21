@@ -15,14 +15,13 @@ import type { BgmRecommendation } from '../services/llm/prompts';
 import { analyzeScriptCharacters } from '../services/llm';
 import * as api from '../services/api';
 import { loadVoiceCharacters, addVoiceCharacter, saveVoiceCharacters } from '../utils/voiceStorage';
-import { getAudioMixConfig } from './ProjectCreator/templates';
 import type { SectionVoiceAudio, SectionVoiceStatus, ProductionProgress, MixedAudioOutput } from './ProjectCreator/reducer';
-import { loadMediaItems, addMediaItem, getMediaByType, getMediaByProject } from '../utils/mediaStorage';
+import { loadMediaItems, getMediaByType, getMediaByProject } from '../utils/mediaStorage';
 import type { MediaItem } from '../types';
 import { MediaPickerModal, findBestMatch, PRESET_BGM_LIST } from './MediaPickerModal';
 import type { MediaPickerResult } from './MediaPickerModal';
 
-// Shared components
+// Shared components and hooks
 import {
   ContentInputStep,
   ScriptEditorStep,
@@ -31,6 +30,9 @@ import {
   MixingStep,
   MediaPreviewSection,
   useScriptEditorWithState,
+  useVoiceGeneration,
+  useMediaProduction,
+  useMixingPipeline,
 } from './ProjectCreator/shared';
 import type { CharacterForVoice } from './ProjectCreator/shared';
 
@@ -408,141 +410,67 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     }
   };
 
+  // ============================================================
+  // Shared orchestration hooks (voice, media, mixing)
+  // ============================================================
+  const scriptSectionsRef = useRef(scriptSections);
+  scriptSectionsRef.current = scriptSections;
+  const charactersRef = useRef(characters);
+  charactersRef.current = characters;
+  const availableVoicesRef = useRef(availableVoices);
+  availableVoicesRef.current = availableVoices;
+  const systemVoicesRef = useRef(systemVoices);
+  systemVoicesRef.current = systemVoices;
+  const productionRef = useRef(production);
+  productionRef.current = production;
+  const bgmSelectionRef = useRef(bgmSelection);
+  bgmSelectionRef.current = bgmSelection;
+  const sfxSelectionsRef = useRef(sfxSelections);
+  sfxSelectionsRef.current = sfxSelections;
+
+  const { generateVoiceForSection, performVoiceGeneration, regenerateVoiceForLine } = useVoiceGeneration({
+    getScriptSections: () => scriptSectionsRef.current,
+    getCharacters: () => charactersRef.current,
+    getAvailableVoices: () => availableVoicesRef.current,
+    getSystemVoices: () => systemVoicesRef.current,
+    language,
+    updateSectionVoiceStatus,
+    setCurrentSection,
+    addSectionVoiceAudio,
+    replaceSectionVoiceAudio,
+    updateProductionPhase,
+    setRegeneratingLineId,
+    setListenedSegments,
+  });
+
+  const { performMediaProduction, handleRegenMedia } = useMediaProduction({
+    getScriptSections: () => scriptSectionsRef.current,
+    getSpec: () => spec || { addBgm: false, addSoundEffects: false, hasVisualContent: false, toneAndExpression: '' },
+    getBgmSelection: () => bgmSelectionRef.current,
+    getSfxSelections: () => sfxSelectionsRef.current,
+    getProduction: () => productionRef.current,
+    language,
+    projectId: project.id,
+    title,
+    setBgmAudio,
+    addSfxAudio,
+    updateSfxAudio,
+    updateProductionPhase,
+    setMediaSelectionsConfirmed,
+    setRegeneratingId,
+  });
+
+  const { performMixing } = useMixingPipeline({
+    getScriptSections: () => scriptSectionsRef.current,
+    getProduction: () => productionRef.current,
+    getSpec: () => spec || { addBgm: false },
+    language,
+    updateProductionPhase,
+    setMixedOutput,
+    setMixingError,
+  });
+
   const startVoiceGeneration = () => { setVoicesConfirmed(true); performVoiceGeneration(); };
-
-  // ============================================================
-  // Voice generation (real TTS)
-  // ============================================================
-  const generateVoiceForSection = async (section: ScriptSection): Promise<boolean> => {
-    const sectionId = section.id;
-    const segments: Array<{ text: string; speaker: string; voiceName?: string; refAudioDataUrl?: string; lineIndex: number; pauseAfterMs?: number }> = [];
-    let lineIndex = 0;
-    for (const item of section.timeline) {
-      for (const line of item.lines) {
-        if (line.line.trim()) {
-          const character = characters.find(c => c.name === line.speaker);
-          const assignedId = character?.assignedVoiceId;
-          const customVoice = availableVoices.find(v => v.id === assignedId);
-          const systemVoice = systemVoices.find(v => v.id === assignedId);
-          segments.push({
-            text: line.line, speaker: line.speaker || 'Narrator',
-            voiceName: systemVoice ? systemVoice.id : undefined,
-            refAudioDataUrl: customVoice?.refAudioDataUrl || customVoice?.audioSampleUrl,
-            lineIndex, pauseAfterMs: line.pauseAfterMs
-          });
-        }
-        lineIndex++;
-      }
-    }
-    if (segments.length === 0) { updateSectionVoiceStatus(sectionId, 'completed', 100); return true; }
-    updateSectionVoiceStatus(sectionId, 'processing', 0);
-    setCurrentSection(sectionId);
-    let success = false;
-    try {
-      const batchSegments: api.AudioSegment[] = segments.map(seg => ({ text: seg.text, speaker: seg.speaker, voiceName: seg.voiceName, refAudioDataUrl: seg.refAudioDataUrl }));
-      const result = await api.generateAudioBatch(batchSegments);
-      for (const generated of result.segments) {
-        const segment = segments[generated.index];
-        if (segment) {
-          addSectionVoiceAudio(sectionId, { lineIndex: segment.lineIndex, speaker: segment.speaker, text: segment.text, audioData: generated.audioData, mimeType: generated.mimeType, audioUrl: generated.audioUrl, pauseAfterMs: segment.pauseAfterMs });
-        }
-      }
-      if (result.totalGenerated === 0 || (result.segments && result.segments.length === 0)) {
-        const errorMessages = result.errors?.map(e => e.error).filter(Boolean) || [];
-        updateSectionVoiceStatus(sectionId, 'error', 0, errorMessages[0] || (language === 'zh' ? '所有音频生成失败' : 'All audio segments failed to generate'));
-        success = false;
-      } else {
-        if (result.errors?.length) console.warn(`${result.errors.length}/${segments.length} segments failed`);
-        updateSectionVoiceStatus(sectionId, 'completed', 100);
-        success = true;
-      }
-    } catch (error) {
-      console.error('Section voice generation failed:', error);
-      updateSectionVoiceStatus(sectionId, 'error', 0, error instanceof Error ? error.message : 'Generation failed');
-      success = false;
-    }
-    setCurrentSection(undefined);
-    return success;
-  };
-
-  const regenerateVoiceForLine = async (_section: ScriptSection, sectionId: string, audioIndex: number, audio: SectionVoiceAudio) => {
-    const segId = `${sectionId}-${audioIndex}`;
-    setRegeneratingLineId(segId);
-    try {
-      const character = characters.find(c => c.name === audio.speaker);
-      const assignedId = character?.assignedVoiceId;
-      const customVoice = availableVoices.find(v => v.id === assignedId);
-      const systemVoice = systemVoices.find(v => v.id === assignedId);
-
-      const batchSegments: api.AudioSegment[] = [{
-        text: audio.text,
-        speaker: audio.speaker,
-        voiceName: systemVoice ? systemVoice.id : undefined,
-        refAudioDataUrl: customVoice?.refAudioDataUrl || customVoice?.audioSampleUrl,
-      }];
-
-      const result = await api.generateAudioBatch(batchSegments);
-      if (result.segments && result.segments.length > 0) {
-        const generated = result.segments[0];
-        const newAudio: SectionVoiceAudio = {
-          lineIndex: audio.lineIndex,
-          speaker: audio.speaker,
-          text: audio.text,
-          audioData: generated.audioData,
-          mimeType: generated.mimeType,
-          audioUrl: generated.audioUrl,
-          pauseAfterMs: audio.pauseAfterMs,
-        };
-        replaceSectionVoiceAudio(sectionId, audioIndex, newAudio);
-        setListenedSegments(prev => {
-          const next = new Set(prev);
-          next.delete(segId);
-          return next;
-        });
-      }
-    } catch (error) {
-      console.error('Line regeneration failed:', error);
-    } finally {
-      setRegeneratingLineId(null);
-    }
-  };
-
-  const performVoiceGeneration = async () => {
-    if (scriptSections.length === 0) { updateProductionPhase('voice-generation', 'completed', 100); return; }
-    updateProductionPhase('voice-generation', 'processing', 0);
-    let failedSections = 0;
-    for (let i = 0; i < scriptSections.length; i++) {
-      const section = scriptSections[i];
-      if (!await generateVoiceForSection(section)) failedSections++;
-      updateProductionPhase('voice-generation', 'processing', Math.round(((i + 1) / scriptSections.length) * 100), section.name);
-    }
-    if (failedSections === scriptSections.length) updateProductionPhase('voice-generation', 'error', 0, language === 'zh' ? '所有段落生成失败' : 'All sections failed');
-    else if (failedSections > 0) updateProductionPhase('voice-generation', 'completed', 100, language === 'zh' ? `${failedSections} 个段落失败` : `${failedSections} section(s) failed`);
-    else updateProductionPhase('voice-generation', 'completed', 100);
-  };
-
-  // ============================================================
-  // Media production
-  // ============================================================
-  const handleRegenMedia = useCallback(async (type: 'bgm' | 'sfx', index?: number) => {
-    const regenId = type === 'bgm' ? 'bgm' : `sfx-${index}`;
-    setRegeneratingId(regenId);
-    try {
-      if (type === 'bgm') {
-        const bgmResult = await api.generateBGM(spec?.toneAndExpression || '', 'peaceful', 30);
-        setBgmAudio({ audioData: bgmResult.audioData, mimeType: bgmResult.mimeType });
-        let mediaItems = loadMediaItems();
-        mediaItems = addMediaItem(mediaItems, { name: `${title} - BGM`, description: spec?.toneAndExpression || 'Background music', type: 'bgm', mimeType: bgmResult.mimeType, dataUrl: `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`, duration: 30, tags: ['generated', 'bgm'], projectIds: [project.id], source: 'generated', prompt: spec?.toneAndExpression || '' });
-      } else if (type === 'sfx' && index !== undefined) {
-        const sfxItem = production.mediaProduction.sfxAudios?.[index];
-        if (sfxItem) {
-          const sfxResult = await api.generateSoundEffect(sfxItem.prompt, 5);
-          updateSfxAudio(index, { name: sfxItem.name, prompt: sfxItem.prompt, audioData: sfxResult.audioData, mimeType: sfxResult.mimeType });
-        }
-      }
-    } catch (error) { console.error(`Regen ${type} failed:`, error); }
-    finally { setRegeneratingId(null); }
-  }, [spec, production.mediaProduction.sfxAudios, setBgmAudio, updateSfxAudio, title, project.id]);
 
   const initializeMediaSelections = useCallback(() => {
     const allItems = loadMediaItems();
@@ -578,108 +506,6 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       setSfxSelections(newSfxSelections);
     }
   }, [spec, scriptSections, project.id, language, bgmRecommendation]);
-
-  const performMediaProduction = async () => {
-    setMediaSelectionsConfirmed(true);
-    const tasks: { type: string; label: string }[] = [];
-    const needsBgmGeneration = spec?.addBgm && bgmSelection?.source === 'generate';
-    const needsSfxGeneration = spec?.addSoundEffects && Object.values(sfxSelections).some(s => s.source === 'generate');
-    if (needsBgmGeneration) tasks.push({ type: 'bgm', label: language === 'zh' ? '生成背景音乐' : 'Generating BGM' });
-    if (needsSfxGeneration) tasks.push({ type: 'sfx', label: language === 'zh' ? '生成音效' : 'Generating SFX' });
-    if (spec?.hasVisualContent) tasks.push({ type: 'images', label: language === 'zh' ? '生成图片' : 'Generating Images' });
-    // Apply preset/library selections immediately
-    if (spec?.addBgm && bgmSelection?.source === 'preset' && bgmSelection.audioUrl) setBgmAudio({ audioUrl: bgmSelection.audioUrl, mimeType: 'audio/wav' });
-    if (spec?.addBgm && bgmSelection?.source === 'library' && bgmSelection.mediaItem) {
-      const mimeMatch = bgmSelection.mediaItem.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-      if (mimeMatch) setBgmAudio({ audioData: mimeMatch[2], mimeType: mimeMatch[1] });
-    }
-    if (spec?.addSoundEffects) {
-      for (const section of scriptSections) {
-        for (const item of section.timeline) {
-          if (item.soundMusic?.trim()) {
-            const sel = sfxSelections[`${section.id}-${item.id}`];
-            if (sel?.source === 'library' && sel.mediaItem) {
-              const mimeMatch = sel.mediaItem.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-              if (mimeMatch) addSfxAudio({ name: `${section.name} - SFX`, prompt: item.soundMusic, audioData: mimeMatch[2], mimeType: mimeMatch[1] });
-            }
-          }
-        }
-      }
-    }
-    if (tasks.length === 0) { updateProductionPhase('media-production', 'completed', 100); return; }
-    let mediaItems = loadMediaItems();
-    for (let i = 0; i < tasks.length; i++) {
-      const task = tasks[i];
-      updateProductionPhase('media-production', 'processing', Math.round((i / tasks.length) * 100), task.label);
-      try {
-        if (task.type === 'bgm') {
-          const bgmResult = await api.generateBGM(bgmSelection?.prompt || spec?.toneAndExpression || '', 'peaceful', 30);
-          setBgmAudio({ audioData: bgmResult.audioData, mimeType: bgmResult.mimeType });
-          mediaItems = addMediaItem(mediaItems, { name: `${title} - BGM`, description: bgmSelection?.prompt || spec?.toneAndExpression || 'Background music', type: 'bgm', mimeType: bgmResult.mimeType, dataUrl: `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`, duration: 30, tags: ['generated', 'bgm'], projectIds: [project.id], source: 'generated', prompt: bgmSelection?.prompt || spec?.toneAndExpression || '' });
-        } else if (task.type === 'sfx') {
-          for (const section of scriptSections) {
-            for (const item of section.timeline) {
-              if (item.soundMusic?.trim()) {
-                const sel = sfxSelections[`${section.id}-${item.id}`];
-                if (sel?.source === 'generate') {
-                  const sfxResult = await api.generateSoundEffect(sel.prompt || item.soundMusic, 5);
-                  addSfxAudio({ name: `${section.name} - SFX`, prompt: item.soundMusic, audioData: sfxResult.audioData, mimeType: sfxResult.mimeType });
-                  mediaItems = addMediaItem(mediaItems, { name: `${section.name} - SFX`, description: item.soundMusic, type: 'sfx', mimeType: sfxResult.mimeType, dataUrl: `data:${sfxResult.mimeType};base64,${sfxResult.audioData}`, duration: 5, tags: ['generated', 'sfx'], projectIds: [project.id], source: 'generated', prompt: item.soundMusic });
-                }
-              }
-            }
-          }
-        } else if (task.type === 'images') {
-          for (const section of scriptSections) {
-            if (section.coverImageDescription?.trim()) {
-              const imageResult = await api.generateCoverImage(section.coverImageDescription);
-              mediaItems = addMediaItem(mediaItems, { name: `${section.name} - Cover`, description: section.coverImageDescription, type: 'image', mimeType: imageResult.mimeType || 'image/png', dataUrl: imageResult.imageData, tags: ['generated', 'cover'], projectIds: [project.id], source: 'generated', prompt: section.coverImageDescription });
-            }
-          }
-        }
-      } catch (error) { console.error(`${task.type} generation failed:`, error); }
-      updateProductionPhase('media-production', 'processing', Math.round(((i + 1) / tasks.length) * 100), task.label);
-    }
-    updateProductionPhase('media-production', 'completed', 100);
-  };
-
-  // ============================================================
-  // Mixing
-  // ============================================================
-  const performMixing = async () => {
-    try {
-      updateProductionPhase('mixing-editing', 'processing', 10);
-      const mixConfig = getAudioMixConfig(null);
-      const voiceTracks: api.AudioTrack[] = [];
-      for (const section of scriptSections) {
-        const sectionStatus = production.voiceGeneration.sectionStatus[section.id];
-        if (sectionStatus?.audioSegments) {
-          let isFirstInSection = true;
-          for (const segment of sectionStatus.audioSegments) {
-            if (segment.audioData || segment.audioUrl) {
-              voiceTracks.push({ audioData: segment.audioData, audioUrl: segment.audioUrl, mimeType: segment.mimeType || 'audio/wav', speaker: segment.speaker, sectionStart: isFirstInSection, pauseAfterMs: segment.pauseAfterMs, volume: 1 });
-              isFirstInSection = false;
-            }
-          }
-        }
-      }
-      if (voiceTracks.length === 0) { setMixingError(language === 'zh' ? '没有可用的语音数据' : 'No voice data available'); updateProductionPhase('mixing-editing', 'completed', 100); return; }
-      updateProductionPhase('mixing-editing', 'processing', 30);
-      const mixRequest: api.MixRequest = { voiceTracks, config: { ...mixConfig } };
-      if (spec?.addBgm && production.mediaProduction.bgmAudio) {
-        mixRequest.bgmTrack = { audioData: production.mediaProduction.bgmAudio.audioData, audioUrl: production.mediaProduction.bgmAudio.audioUrl, mimeType: production.mediaProduction.bgmAudio.mimeType };
-      }
-      updateProductionPhase('mixing-editing', 'processing', 50);
-      const result = await api.mixAudioTracks(mixRequest);
-      updateProductionPhase('mixing-editing', 'processing', 90);
-      setMixedOutput({ audioData: result.audioData, mimeType: result.mimeType, durationMs: result.durationMs });
-      updateProductionPhase('mixing-editing', 'completed', 100);
-    } catch (error) {
-      console.error('Mixing failed:', error);
-      setMixingError(error instanceof Error ? error.message : 'Unknown error');
-      updateProductionPhase('mixing-editing', 'completed', 100);
-    }
-  };
 
   // ============================================================
   // Save episode

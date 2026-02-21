@@ -341,7 +341,7 @@
     "buttons": {
       "cancel": "Cancel",
       "save": "Save Changes",
-      "create": "Create Episode"
+      "create": "Save"
     },
     "validation": {
       "titleRequired": "Please enter an episode title"

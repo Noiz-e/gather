@@ -1,5 +1,5 @@
 /**
- * Shared components and hooks for ProjectCreator and EpisodeCreator.
+ * Shared components and hooks for ProjectCreator, EpisodeCreator, and EpisodeEditor.
  */
 export { ContentInputStep } from './ContentInputStep';
 export { ScriptEditorStep } from './ScriptEditorStep';
@@ -10,3 +10,9 @@ export { MixingStep } from './MixingStep';
 export { MediaPreviewSection } from './MediaPreviewSection';
 export { useScriptEditorWithState } from './useScriptEditor';
 export type { ScriptEditorActions } from './useScriptEditor';
+export { useVoiceGeneration } from './useVoiceGeneration';
+export type { VoiceGenerationDeps } from './useVoiceGeneration';
+export { useMediaProduction } from './useMediaProduction';
+export type { MediaProductionDeps } from './useMediaProduction';
+export { useMixingPipeline } from './useMixingPipeline';
+export type { MixingPipelineDeps } from './useMixingPipeline';

@@ -28,22 +28,23 @@ import {
   initialState, 
   actions,
   SpecData,
-  SectionVoiceAudio,
   saveDraft,
   loadDraft,
   clearDraft
 } from './ProjectCreator/reducer';
-import { PROJECT_TEMPLATES, getAudioMixConfig } from './ProjectCreator/templates';
+import { PROJECT_TEMPLATES } from './ProjectCreator/templates';
 import { loadVoiceCharacters, addVoiceCharacter } from '../utils/voiceStorage';
-import { loadMediaItems, addMediaItem, saveMediaItems } from '../utils/mediaStorage';
+import { loadMediaItems, saveMediaItems } from '../utils/mediaStorage';
 import { PRESET_BGM_LIST, MediaPickerModal } from './MediaPickerModal';
 import type { MediaPickerResult } from './MediaPickerModal';
-import type { MediaItem } from '../types';
 import type { LandingData } from './Landing';
 import { VoicePickerModal } from './VoicePickerModal';
 import {
   ScriptEditorStep,
   MixingStep,
+  useVoiceGeneration,
+  useMediaProduction,
+  useMixingPipeline,
 } from './ProjectCreator/shared';
 import type { ScriptEditorActions } from './ProjectCreator/shared';
 
@@ -783,503 +784,58 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     removeTimelineItem,
   }), [updateSectionCover, updateTimelineItem, updateScriptLine, addScriptLine, removeScriptLine, splitScriptLine, addTimelineItem, removeTimelineItem]);
 
-  // Voice generation for a single section (concurrent batch processing)
-  // Returns true on success, false on failure
-  const generateVoiceForSection = async (section: ScriptSection): Promise<boolean> => {
-    const sectionId = section.id;
-    
-    // Collect lines for this section
-    const segments: Array<{ text: string; speaker: string; voiceName?: string; refAudioDataUrl?: string; lineIndex: number; pauseAfterMs?: number; voiceId?: string }> = [];
-    let lineIndex = 0;
-    
-    for (const item of section.timeline) {
-      for (const line of item.lines) {
-        if (line.line.trim()) {
-          // Find assigned voice for this speaker
-          const character = extractedCharacters.find(c => c.name === line.speaker);
-          const assignedId = character?.assignedVoiceId;
-          // Find custom voice with reference audio
-          const customVoice = availableVoices.find(v => v.id === assignedId);
-          // Find system voice (Gemini TTS)
-          const systemVoice = systemVoices.find(v => v.id === assignedId);
-          // Get reference audio from voice character (audioSampleUrl or refAudioDataUrl)
-          const refAudioDataUrl = customVoice?.refAudioDataUrl || customVoice?.audioSampleUrl;
-          // System voices use voiceName (Gemini TTS), custom voices use refAudioDataUrl
-          const voiceName = systemVoice ? systemVoice.id : undefined;
-          
-          segments.push({
-            text: line.line,
-            speaker: line.speaker || 'Narrator',
-            voiceName,
-            refAudioDataUrl,
-            lineIndex,
-            pauseAfterMs: line.pauseAfterMs,
-            voiceId: assignedId,
-          });
-        }
-        lineIndex++;
-      }
-    }
-    
-    if (segments.length === 0) {
-      dispatch(actions.updateSectionVoiceStatus(sectionId, 'completed', 100));
-      return true;
-    }
-    
-    // Update section status to processing
-    dispatch(actions.updateSectionVoiceStatus(sectionId, 'processing', 0));
-    dispatch(actions.setCurrentSection(sectionId));
-    
-    let success = false;
-    try {
-      // Use batch API for concurrent TTS generation
-      const batchSegments: api.AudioSegment[] = segments.map(seg => ({
-        text: seg.text,
-        speaker: seg.speaker,
-        voiceName: seg.voiceName,
-        refAudioDataUrl: seg.refAudioDataUrl
-      }));
-      
-      const result = await api.generateAudioBatch(batchSegments);
-      
-      // Process results
-      for (const generated of result.segments) {
-        const segment = segments[generated.index];
-        if (segment) {
-          const audio: SectionVoiceAudio = {
-            lineIndex: segment.lineIndex,
-            speaker: segment.speaker,
-            text: segment.text,
-            audioData: generated.audioData,
-            mimeType: generated.mimeType,
-            audioUrl: generated.audioUrl,
-            pauseAfterMs: segment.pauseAfterMs,
-            voiceId: segment.voiceId,
-          };
-          dispatch(actions.addSectionVoiceAudio(sectionId, audio));
-        }
-      }
-      
-      // Check if generation actually produced any audio
-      if (result.errors && result.errors.length > 0) {
-        console.warn('Some segments failed:', result.errors);
-      }
-      
-      if (result.totalGenerated === 0 || (result.segments && result.segments.length === 0)) {
-        // All segments failed - treat as error
-        const errorMessages = result.errors?.map(e => e.error).filter(Boolean) || [];
-        const errorMsg = errorMessages.length > 0 
-          ? errorMessages[0] 
-          : (language === 'zh' ? '所有音频生成失败' : 'All audio segments failed to generate');
-        dispatch(actions.updateSectionVoiceStatus(sectionId, 'error', 0, errorMsg));
-        success = false;
-      } else if (result.errors && result.errors.length > 0) {
-        // Partial success - mark completed but note the failures
-        const failedCount = result.errors.length;
-        const totalCount = segments.length;
-        console.warn(`${failedCount}/${totalCount} segments failed`);
-        dispatch(actions.updateSectionVoiceStatus(sectionId, 'completed', 100));
-        success = true;
-      } else {
-        // Full success
-        dispatch(actions.updateSectionVoiceStatus(sectionId, 'completed', 100));
-        success = true;
-      }
-    } catch (error) {
-      console.error('Section voice generation failed:', error);
-      dispatch(actions.updateSectionVoiceStatus(sectionId, 'error', 0, 
-        error instanceof Error ? error.message : 'Generation failed'));
-      success = false;
-    }
-    
-    dispatch(actions.setCurrentSection(undefined));
-    return success;
-  };
+  // ============================================================
+  // Shared orchestration hooks (voice, media, mixing)
+  // ============================================================
+  const availableVoicesRef = useRef(availableVoices);
+  availableVoicesRef.current = availableVoices;
+  const systemVoicesRef = useRef(systemVoices);
+  systemVoicesRef.current = systemVoices;
+  const bgmSelectionRef = useRef(bgmSelection);
+  bgmSelectionRef.current = bgmSelection;
 
-  // Regenerate voice for a single line within a section
-  const regenerateVoiceForLine = async (_section: ScriptSection, sectionId: string, audioIndex: number, audio: SectionVoiceAudio) => {
-    const segId = `${sectionId}-${audioIndex}`;
-    setRegeneratingLineId(segId);
-    try {
-      // Find the voice assignment for this speaker
-      const character = extractedCharacters.find(c => c.name === audio.speaker);
-      const assignedId = character?.assignedVoiceId;
-      const customVoice = availableVoices.find(v => v.id === assignedId);
-      const systemVoice = systemVoices.find(v => v.id === assignedId);
-      const refAudioDataUrl = customVoice?.refAudioDataUrl || customVoice?.audioSampleUrl;
-      const voiceName = systemVoice ? systemVoice.id : undefined;
+  const { generateVoiceForSection, performVoiceGeneration, regenerateVoiceForLine } = useVoiceGeneration({
+    getScriptSections: () => stateRef.current.scriptSections,
+    getCharacters: () => stateRef.current.characters,
+    getAvailableVoices: () => availableVoicesRef.current,
+    getSystemVoices: () => systemVoicesRef.current,
+    language,
+    updateSectionVoiceStatus: (sectionId, status, progress, error) => dispatch(actions.updateSectionVoiceStatus(sectionId, status, progress, error)),
+    setCurrentSection: (sectionId) => dispatch(actions.setCurrentSection(sectionId)),
+    addSectionVoiceAudio: (sectionId, audio) => dispatch(actions.addSectionVoiceAudio(sectionId, audio)),
+    replaceSectionVoiceAudio: (sectionId, audioIndex, audio) => dispatch(actions.replaceSectionVoiceAudio(sectionId, audioIndex, audio)),
+    updateProductionPhase: (_phase, status, progress, detail) => dispatch(actions.updateProductionPhase('voice-generation', status, progress, detail)),
+    setRegeneratingLineId,
+    setListenedSegments,
+  });
 
-      const batchSegments: api.AudioSegment[] = [{
-        text: audio.text,
-        speaker: audio.speaker,
-        voiceName,
-        refAudioDataUrl
-      }];
+  const { performMediaProduction, handleRegenMedia } = useMediaProduction({
+    getScriptSections: () => stateRef.current.scriptSections,
+    getSpec: () => stateRef.current.spec,
+    getBgmSelection: () => bgmSelectionRef.current,
+    getSfxSelections: () => ({}),
+    getProduction: () => stateRef.current.production,
+    language,
+    title: stateRef.current.spec.storyTitle,
+    setBgmAudio: (audio) => dispatch(actions.setBgmAudio(audio)),
+    addSfxAudio: (sfx) => dispatch(actions.addSfxAudio(sfx)),
+    updateSfxAudio: (index, sfx) => dispatch(actions.updateSfxAudio(index, sfx)),
+    updateProductionPhase: (_phase, status, progress, detail) => dispatch(actions.updateProductionPhase('media-production', status, progress, detail)),
+    setMediaSelectionsConfirmed,
+    setRegeneratingId,
+  });
 
-      const result = await api.generateAudioBatch(batchSegments);
+  const { performMixing } = useMixingPipeline({
+    getScriptSections: () => stateRef.current.scriptSections,
+    getProduction: () => stateRef.current.production,
+    getSpec: () => stateRef.current.spec,
+    templateId: stateRef.current.selectedTemplateId,
+    language,
+    updateProductionPhase: (_phase, status, progress, detail) => dispatch(actions.updateProductionPhase('mixing-editing', status, progress, detail)),
+    setMixedOutput: (output) => dispatch(actions.setMixedOutput(output)),
+    setMixingError: (error) => dispatch(actions.setMixingError(error)),
+  });
 
-      if (result.segments && result.segments.length > 0) {
-        const generated = result.segments[0];
-        const newAudio: SectionVoiceAudio = {
-          lineIndex: audio.lineIndex,
-          speaker: audio.speaker,
-          text: audio.text,
-          audioData: generated.audioData,
-          mimeType: generated.mimeType,
-          audioUrl: generated.audioUrl,
-          pauseAfterMs: audio.pauseAfterMs,
-          voiceId: assignedId,
-        };
-        dispatch(actions.replaceSectionVoiceAudio(sectionId, audioIndex, newAudio));
-        // Remove listened status since this is new audio
-        setListenedSegments(prev => {
-          const next = new Set(prev);
-          next.delete(segId);
-          return next;
-        });
-      }
-    } catch (error) {
-      console.error('Line voice regeneration failed:', error);
-    } finally {
-      setRegeneratingLineId(null);
-    }
-  };
-  
-  // Voice generation for sections sequentially.
-  // When `onlySectionIds` is provided, only those sections are generated; the rest are skipped.
-  const performVoiceGeneration = async (onlySectionIds?: Set<string>) => {
-    if (scriptSections.length === 0) {
-      dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100));
-      return;
-    }
-    
-    dispatch(actions.updateProductionPhase('voice-generation', 'processing', 0));
-    
-    let failedSections = 0;
-    for (let i = 0; i < scriptSections.length; i++) {
-      const section = scriptSections[i];
-
-      // Skip unchanged sections
-      if (onlySectionIds && !onlySectionIds.has(section.id)) {
-        const overallProgress = Math.round(((i + 1) / scriptSections.length) * 100);
-        dispatch(actions.updateProductionPhase('voice-generation', 'processing', overallProgress, section.name));
-        continue;
-      }
-
-      const success = await generateVoiceForSection(section);
-      if (!success) failedSections++;
-      
-      const overallProgress = Math.round(((i + 1) / scriptSections.length) * 100);
-      dispatch(actions.updateProductionPhase('voice-generation', 'processing', overallProgress, section.name));
-    }
-
-    const totalGenerated = onlySectionIds ? onlySectionIds.size : scriptSections.length;
-    if (failedSections === totalGenerated) {
-      dispatch(actions.updateProductionPhase('voice-generation', 'error', 0, 
-        language === 'zh' ? '所有段落生成失败' : 'All sections failed'));
-    } else if (failedSections > 0) {
-      dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100, 
-        language === 'zh' ? `${failedSections} 个段落失败` : `${failedSections} section(s) failed`));
-    } else {
-      dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100));
-    }
-  };
-
-  // Media production using real APIs (BGM, SFX, Images)
-  // Note: projectId is not available yet during creation, so we use a temporary ID
-  // and will link media to project after project is created
-  const performMediaProduction = async () => {
-    // Mark selections as confirmed when production starts
-    setMediaSelectionsConfirmed(true);
-    
-    const tasks: { type: string; label: string }[] = [];
-    // Use user-selected BGM (preset, library, or generate)
-    if (specData.addBgm && bgmSelection) {
-      if (bgmSelection.source === 'preset' && bgmSelection.audioUrl) {
-        // Preset BGM from GCS
-        dispatch(actions.setBgmAudio({
-          audioUrl: bgmSelection.audioUrl,
-          mimeType: 'audio/wav',
-        }));
-      } else if (bgmSelection.source === 'library' && bgmSelection.mediaItem) {
-        // Library BGM
-        dispatch(actions.setBgmAudio({
-          audioUrl: bgmSelection.mediaItem.dataUrl || '',
-          mimeType: bgmSelection.mediaItem.mimeType || 'audio/wav',
-        }));
-      } else if (bgmSelection.source === 'generate') {
-        // Generate BGM via API
-        tasks.push({ type: 'bgm-generate', label: language === 'zh' ? '生成背景音乐' : 'Generating BGM' });
-      }
-    }
-    if (specData.addSoundEffects) tasks.push({ type: 'sfx', label: language === 'zh' ? '添加音效' : 'Adding SFX' });
-    if (specData.hasVisualContent) tasks.push({ type: 'images', label: language === 'zh' ? '生成图片' : 'Generating Images' });
-    
-    if (tasks.length === 0) {
-      dispatch(actions.updateProductionPhase('media-production', 'completed', 100));
-      return;
-    }
-    
-    // Load current media items for adding new ones
-    let mediaItems = loadMediaItems();
-    
-    for (let i = 0; i < tasks.length; i++) {
-      const task = tasks[i];
-      dispatch(actions.updateProductionPhase('media-production', 'processing', Math.round((i / tasks.length) * 100), task.label));
-      
-      try {
-        if (task.type === 'bgm-generate') {
-          // Generate BGM from prompt
-          const bgmPrompt = bgmSelection?.prompt || specData.toneAndExpression || 'background music';
-          const bgmResult = await api.generateBGM(bgmPrompt, undefined, 180); // 3 minutes
-          
-          // Save BGM to production state
-          dispatch(actions.setBgmAudio({
-            audioData: bgmResult.audioData,
-            mimeType: bgmResult.mimeType,
-          }));
-          
-          // Save BGM to media library
-          const bgmItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
-            name: 'Generated BGM',
-            description: bgmPrompt,
-            type: 'bgm',
-            mimeType: bgmResult.mimeType,
-            dataUrl: `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`,
-            duration: 180,
-            tags: ['generated', 'bgm'],
-            projectIds: [],
-            source: 'generated',
-            prompt: bgmPrompt
-          };
-          mediaItems = addMediaItem(mediaItems, bgmItem);
-          console.log(`Added BGM to media library`);
-        } else if (task.type === 'sfx') {
-          // Generate sound effects from script instructions
-          // soundMusic field is SFX-only (BGM is handled globally)
-          for (const section of scriptSections) {
-            for (const item of section.timeline) {
-              if (item.soundMusic?.trim()) {
-                const sfxResult = await api.generateSoundEffect(item.soundMusic, 5);
-                
-                // Save SFX to production state for preview
-                dispatch(actions.addSfxAudio({
-                  name: `${section.name} - SFX`,
-                  prompt: item.soundMusic,
-                  audioData: sfxResult.audioData,
-                  mimeType: sfxResult.mimeType,
-                }));
-                
-                // Save SFX to media library
-                const sfxItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
-                  name: `${section.name} - SFX`,
-                  description: item.soundMusic,
-                  type: 'sfx',
-                  mimeType: sfxResult.mimeType,
-                  dataUrl: `data:${sfxResult.mimeType};base64,${sfxResult.audioData}`,
-                  duration: 5,
-                  tags: ['generated', 'sfx'],
-                  projectIds: [],
-                  source: 'generated',
-                  prompt: item.soundMusic
-                };
-                mediaItems = addMediaItem(mediaItems, sfxItem);
-                console.log(`Added SFX to media library`);
-              }
-            }
-          }
-        } else if (task.type === 'images') {
-          // Generate cover images for sections
-          for (const section of scriptSections) {
-            if (section.coverImageDescription?.trim()) {
-              const imageResult = await api.generateCoverImage(section.coverImageDescription);
-              
-              // Save image to media library
-              const imageItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
-                name: `${section.name} - Cover`,
-                description: section.coverImageDescription,
-                type: 'image',
-                mimeType: imageResult.mimeType || 'image/png',
-                dataUrl: imageResult.imageData,
-                tags: ['generated', 'cover'],
-                projectIds: [], // Will be linked after project creation
-                source: 'generated',
-                prompt: section.coverImageDescription
-              };
-              mediaItems = addMediaItem(mediaItems, imageItem);
-              console.log(`Added image to media library`);
-            }
-          }
-        }
-      } catch (error) {
-        console.error(`${task.type} generation failed:`, error);
-        // Continue with other tasks even if one fails
-      }
-      
-      dispatch(actions.updateProductionPhase('media-production', 'processing', Math.round(((i + 1) / tasks.length) * 100), task.label));
-    }
-    
-    dispatch(actions.updateProductionPhase('media-production', 'completed', 100));
-  };
-
-  // Regenerate a single BGM or SFX item
-  const handleRegenMedia = async (type: 'bgm' | 'sfx', index?: number) => {
-    const regenId = type === 'bgm' ? 'bgm' : `sfx-${index}`;
-    setRegeneratingId(regenId);
-    // Stop any currently playing preview
-    if (mediaAudioRef.current) {
-      mediaAudioRef.current.pause();
-      mediaAudioRef.current = null;
-      setPlayingMediaId(null);
-    }
-    try {
-      if (type === 'bgm') {
-        const bgmResult = await api.generateBGM(
-          stateRef.current.spec.toneAndExpression || '',
-          'peaceful',
-          30
-        );
-        dispatch(actions.setBgmAudio({ audioData: bgmResult.audioData, mimeType: bgmResult.mimeType }));
-        
-        // Also save regenerated BGM to media library
-        let mediaItems = loadMediaItems();
-        const bgmItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
-          name: `Project - BGM`,
-          description: stateRef.current.spec.toneAndExpression || 'Background music',
-          type: 'bgm',
-          mimeType: bgmResult.mimeType,
-          dataUrl: `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`,
-          duration: 30,
-          tags: ['generated', 'bgm'],
-          projectIds: [], // Will be linked after project creation
-          source: 'generated',
-          prompt: stateRef.current.spec.toneAndExpression || ''
-        };
-        mediaItems = addMediaItem(mediaItems, bgmItem);
-        console.log(`Added regenerated BGM to media library`);
-      } else if (type === 'sfx' && index !== undefined) {
-        const sfxItem = stateRef.current.production.mediaProduction.sfxAudios?.[index];
-        if (sfxItem) {
-          const sfxResult = await api.generateSoundEffect(sfxItem.prompt, 5);
-          dispatch(actions.updateSfxAudio(index, {
-            name: sfxItem.name,
-            prompt: sfxItem.prompt,
-            audioData: sfxResult.audioData,
-            mimeType: sfxResult.mimeType,
-          }));
-        }
-      }
-    } catch (error) {
-      console.error(`Regen ${type} failed:`, error);
-    } finally {
-      setRegeneratingId(null);
-    }
-  };
-
-  // Real mixing process (Phase 3)
-  const performMixing = async () => {
-    try {
-      dispatch(actions.updateProductionPhase('mixing-editing', 'processing', 10));
-      
-      // Read latest state from ref to avoid stale closures
-      const latestState = stateRef.current;
-      const latestProduction = latestState.production;
-      const latestScriptSections = latestState.scriptSections;
-      const latestSpec = latestState.spec;
-      
-      // Get audio mix config based on template
-      const mixConfig = getAudioMixConfig(latestState.selectedTemplateId);
-      console.log(`Using mix config for template "${latestState.selectedTemplateId || 'default'}":`, mixConfig);
-      
-      // Collect all voice audio segments from all sections with speaker info
-      const voiceTracks: api.AudioTrack[] = [];
-      
-      console.log(`[Mix] Scanning ${latestScriptSections.length} sections for voice data...`);
-      for (const section of latestScriptSections) {
-        const sectionStatus = latestProduction.voiceGeneration.sectionStatus[section.id];
-        console.log(`[Mix] Section ${section.id}: status=${sectionStatus?.status}, segments=${sectionStatus?.audioSegments?.length ?? 0}`);
-        if (sectionStatus?.audioSegments) {
-          let isFirstInSection = true;
-          for (const segment of sectionStatus.audioSegments) {
-            // Accept segment if it has audioData (in memory) or audioUrl (from cloud storage)
-            if (segment.audioData || segment.audioUrl) {
-              voiceTracks.push({
-                audioData: segment.audioData,
-                audioUrl: segment.audioUrl,
-                mimeType: segment.mimeType || 'audio/wav',
-                speaker: segment.speaker,  // Include speaker for gap calculation
-                sectionStart: isFirstInSection, // Mark first segment of each section
-                pauseAfterMs: segment.pauseAfterMs, // Custom per-line pause
-                volume: 1
-              });
-              isFirstInSection = false;
-            }
-          }
-        }
-      }
-      
-      if (voiceTracks.length === 0) {
-        console.warn('[Mix] No voice tracks found! sectionStatus keys:', Object.keys(latestProduction.voiceGeneration.sectionStatus));
-        dispatch(actions.setMixingError(language === 'zh' ? '没有可用的语音数据' : 'No voice data available'));
-        dispatch(actions.updateProductionPhase('mixing-editing', 'completed', 100));
-        return;
-      }
-      
-      dispatch(actions.updateProductionPhase('mixing-editing', 'processing', 30));
-      
-      // Prepare mix request with config
-      const mixRequest: api.MixRequest = {
-        voiceTracks,
-        config: {
-          silenceStartMs: mixConfig.silenceStartMs,
-          silenceEndMs: mixConfig.silenceEndMs,
-          sameSpeakerGapMs: mixConfig.sameSpeakerGapMs,
-          differentSpeakerGapMs: mixConfig.differentSpeakerGapMs,
-          sectionGapMs: mixConfig.sectionGapMs,
-          voiceVolume: mixConfig.voiceVolume,
-          bgmVolume: mixConfig.bgmVolume,
-          sfxVolume: mixConfig.sfxVolume,
-          bgmFadeInMs: mixConfig.bgmFadeInMs,
-          bgmFadeOutMs: mixConfig.bgmFadeOutMs,
-        }
-      };
-      
-      // Add BGM if available
-      if (latestSpec.addBgm && latestProduction.mediaProduction.bgmAudio) {
-        mixRequest.bgmTrack = {
-          audioData: latestProduction.mediaProduction.bgmAudio.audioData,
-          audioUrl: latestProduction.mediaProduction.bgmAudio.audioUrl,
-          mimeType: latestProduction.mediaProduction.bgmAudio.mimeType,
-        };
-      }
-      
-      dispatch(actions.updateProductionPhase('mixing-editing', 'processing', 50));
-      
-      // Call mixing API
-      console.log(`[Mix] Mixing ${voiceTracks.length} voice tracks${mixRequest.bgmTrack ? ' with BGM' : ''}...`);
-      const result = await api.mixAudioTracks(mixRequest);
-      
-      dispatch(actions.updateProductionPhase('mixing-editing', 'processing', 90));
-      
-      // Store the mixed output
-      dispatch(actions.setMixedOutput({
-        audioData: result.audioData,
-        mimeType: result.mimeType,
-        durationMs: result.durationMs
-      }));
-      
-      console.log(`Mixing complete: ${result.durationMs}ms, ${result.trackCount} tracks`);
-      dispatch(actions.updateProductionPhase('mixing-editing', 'completed', 100));
-      
-    } catch (error) {
-      console.error('Mixing failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      dispatch(actions.setMixingError(errorMessage));
-      dispatch(actions.updateProductionPhase('mixing-editing', 'completed', 100));
-    }
-  };
-
-  // Keep ref current so effects/callbacks always call the latest version
   performMixingRef.current = performMixing;
 
   // Handle create project
