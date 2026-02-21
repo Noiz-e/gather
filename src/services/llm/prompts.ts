@@ -108,6 +108,32 @@ Return ONLY valid JSON.`;
  * - Object format: { sections: [...], bgmRecommendation: {...} }
  * - Array format: [...]  (legacy, when addBgm is false)
  */
+/**
+ * Replace LLM-generated IDs (e.g. "section_1", "item_2") with proper UUIDs
+ * so they can be persisted to the database.
+ */
+function normalizeSectionIds(sections: unknown[]): unknown[] {
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return sections.map(raw => {
+    if (!raw || typeof raw !== 'object') return raw;
+    const section = raw as Record<string, unknown>;
+    if (typeof section.id === 'string' && !UUID_RE.test(section.id)) {
+      section.id = crypto.randomUUID();
+    }
+    if (Array.isArray(section.timeline)) {
+      for (const item of section.timeline) {
+        if (item && typeof item === 'object') {
+          const ti = item as Record<string, unknown>;
+          if (typeof ti.id === 'string' && !UUID_RE.test(ti.id)) {
+            ti.id = crypto.randomUUID();
+          }
+        }
+      }
+    }
+    return section;
+  });
+}
+
 export function parseScriptGenerationResponse(text: string): {
   sections: unknown[];
   bgmRecommendation?: BgmRecommendation;
@@ -133,7 +159,7 @@ export function parseScriptGenerationResponse(text: string): {
     const obj = parsed as Record<string, unknown>;
     if (Array.isArray(obj.sections)) {
       return {
-        sections: obj.sections,
+        sections: normalizeSectionIds(obj.sections),
         bgmRecommendation: obj.bgmRecommendation as BgmRecommendation | undefined,
       };
     }
@@ -141,7 +167,7 @@ export function parseScriptGenerationResponse(text: string): {
 
   // Array format (legacy)
   if (Array.isArray(parsed)) {
-    return { sections: parsed };
+    return { sections: normalizeSectionIds(parsed) };
   }
 
   throw new Error('Invalid script generation response format');

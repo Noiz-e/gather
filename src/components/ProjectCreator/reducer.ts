@@ -162,6 +162,7 @@ export interface SectionVoiceAudio {
   mimeType: string;
   audioUrl?: string; // GCS URL for persistent storage (used when audioData is not available)
   pauseAfterMs?: number; // Custom pause after this segment
+  voiceId?: string; // Tracks which voice was used, enabling smart re-generation diff
 }
 
 export interface SectionVoiceStatus {
@@ -470,7 +471,7 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
           }
         }
         section.timeline.push({
-          id: `item-${Date.now()}`,
+          id: crypto.randomUUID(),
           timeStart: '',
           timeEnd: '',
           lines: [{ speaker: lastSpeaker, line: '' }],

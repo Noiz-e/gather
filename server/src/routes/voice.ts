@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import { AVAILABLE_VOICES, getVoiceSample, preGenerateVoiceSamples, hasCachedSamples, recommendVoicesForCharacters } from '../services/gemini.js';
 import { generateCustomSpeech, isCustomTTSConfigured, CustomTTSOptions } from '../services/tts.js';
+import { applyLexicon, reloadLexicon, getLexiconStats } from '../services/lexicon.js';
 
 export const voiceRouter = Router();
 
@@ -220,7 +221,8 @@ voiceRouter.post('/synthesize', async (req: Request, res: Response) => {
       targetLanguage
     };
     
-    const result = await generateCustomSpeech(text, options);
+    const spokenText = applyLexicon(text);
+    const result = await generateCustomSpeech(spokenText, options);
     
     res.json({
       audioData: result.audioData,
@@ -249,8 +251,9 @@ voiceRouter.post('/preview', async (req: Request, res: Response) => {
       return;
     }
     
+    const spokenText = applyLexicon(previewText);
     const options: CustomTTSOptions = { refAudioDataUrl, refText };
-    const result = await generateCustomSpeech(previewText, options);
+    const result = await generateCustomSpeech(spokenText, options);
     
     res.json({
       audioData: result.audioData,
@@ -262,4 +265,35 @@ voiceRouter.post('/preview', async (req: Request, res: Response) => {
     const message = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({ error: message });
   }
+});
+
+/**
+ * GET /api/voice/lexicon/status
+ * Get lexicon stats
+ */
+voiceRouter.get('/lexicon/status', (_req: Request, res: Response) => {
+  res.json(getLexiconStats());
+});
+
+/**
+ * POST /api/voice/lexicon/reload
+ * Reload lexicon from disk (after editing lexicon.json)
+ */
+voiceRouter.post('/lexicon/reload', (_req: Request, res: Response) => {
+  const result = reloadLexicon();
+  res.json(result);
+});
+
+/**
+ * POST /api/voice/lexicon/test
+ * Test lexicon replacement on a given text (for debugging)
+ */
+voiceRouter.post('/lexicon/test', (req: Request, res: Response) => {
+  const { text } = req.body as { text?: string };
+  if (!text) {
+    res.status(400).json({ error: 'text is required' });
+    return;
+  }
+  const result = applyLexicon(text);
+  res.json({ original: text, processed: result });
 });

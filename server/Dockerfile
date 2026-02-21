@@ -21,6 +21,7 @@ RUN npm ci --only=production
 
 COPY --from=builder /app/dist ./dist
 COPY src/db/*.sql ./dist/db/
+COPY src/data/*.json ./dist/data/
 
 # Pre-generated voice samples (avoids API calls on startup)
 COPY .voice-cache ./.voice-cache

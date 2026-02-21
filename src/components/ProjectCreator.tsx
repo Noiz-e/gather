@@ -508,10 +508,74 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     setGeneratingVoicesProgress(null);
   }, [extractedCharacters, availableVoices]);
 
+  // Check if existing audio for a section still matches the current script + voice assignments
+  const isSectionAudioCurrent = (section: ScriptSection): boolean => {
+    const status = production.voiceGeneration.sectionStatus[section.id];
+    if (!status || status.status !== 'completed' || status.audioSegments.length === 0) {
+      return false;
+    }
+
+    // Build expected segments from current script + voice assignments
+    const expected: Array<{ text: string; speaker: string; voiceId?: string }> = [];
+    for (const item of section.timeline) {
+      for (const line of item.lines) {
+        if (line.line.trim()) {
+          const character = extractedCharacters.find(c => c.name === line.speaker);
+          expected.push({
+            text: line.line,
+            speaker: line.speaker || 'Narrator',
+            voiceId: character?.assignedVoiceId,
+          });
+        }
+      }
+    }
+
+    const existing = status.audioSegments;
+    if (expected.length !== existing.length) return false;
+
+    return expected.every((exp, i) =>
+      exp.text === existing[i].text &&
+      exp.speaker === existing[i].speaker &&
+      exp.voiceId === existing[i].voiceId
+    );
+  };
+
   // Start voice generation after confirming voice assignments
   const startVoiceGeneration = () => {
+    // Smart diff: only clear sections whose content or voice changed
+    const sectionsToRegenerate = new Set<string>();
+
+    for (const section of scriptSections) {
+      if (!isSectionAudioCurrent(section)) {
+        dispatch(actions.clearSectionVoice(section.id));
+        sectionsToRegenerate.add(section.id);
+        // Clear listened state for changed section
+        setListenedSegments(prev => {
+          const next = new Set(prev);
+          for (const key of prev) {
+            if (key.startsWith(`${section.id}-`)) next.delete(key);
+          }
+          return next;
+        });
+      }
+    }
+
+    // Clean up orphaned sections that no longer exist in the script
+    const currentSectionIds = new Set(scriptSections.map(s => s.id));
+    for (const sectionId of Object.keys(production.voiceGeneration.sectionStatus)) {
+      if (!currentSectionIds.has(sectionId)) {
+        dispatch(actions.clearSectionVoice(sectionId));
+      }
+    }
+
     setVoicesConfirmed(true);
-    performVoiceGeneration();
+
+    if (sectionsToRegenerate.size > 0) {
+      performVoiceGeneration(sectionsToRegenerate);
+    } else {
+      // Nothing changed — keep existing audio, mark completed
+      dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100));
+    }
   };
 
   // Play voice sample preview
@@ -725,7 +789,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     const sectionId = section.id;
     
     // Collect lines for this section
-    const segments: Array<{ text: string; speaker: string; voiceName?: string; refAudioDataUrl?: string; lineIndex: number; pauseAfterMs?: number }> = [];
+    const segments: Array<{ text: string; speaker: string; voiceName?: string; refAudioDataUrl?: string; lineIndex: number; pauseAfterMs?: number; voiceId?: string }> = [];
     let lineIndex = 0;
     
     for (const item of section.timeline) {
@@ -749,7 +813,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             voiceName,
             refAudioDataUrl,
             lineIndex,
-            pauseAfterMs: line.pauseAfterMs
+            pauseAfterMs: line.pauseAfterMs,
+            voiceId: assignedId,
           });
         }
         lineIndex++;
@@ -788,7 +853,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             audioData: generated.audioData,
             mimeType: generated.mimeType,
             audioUrl: generated.audioUrl,
-            pauseAfterMs: segment.pauseAfterMs
+            pauseAfterMs: segment.pauseAfterMs,
+            voiceId: segment.voiceId,
           };
           dispatch(actions.addSectionVoiceAudio(sectionId, audio));
         }
@@ -861,7 +927,8 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           audioData: generated.audioData,
           mimeType: generated.mimeType,
           audioUrl: generated.audioUrl,
-          pauseAfterMs: audio.pauseAfterMs
+          pauseAfterMs: audio.pauseAfterMs,
+          voiceId: assignedId,
         };
         dispatch(actions.replaceSectionVoiceAudio(sectionId, audioIndex, newAudio));
         // Remove listened status since this is new audio
@@ -878,8 +945,9 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     }
   };
   
-  // Voice generation for all sections sequentially
-  const performVoiceGeneration = async () => {
+  // Voice generation for sections sequentially.
+  // When `onlySectionIds` is provided, only those sections are generated; the rest are skipped.
+  const performVoiceGeneration = async (onlySectionIds?: Set<string>) => {
     if (scriptSections.length === 0) {
       dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100));
       return;
@@ -890,20 +958,26 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     let failedSections = 0;
     for (let i = 0; i < scriptSections.length; i++) {
       const section = scriptSections[i];
+
+      // Skip unchanged sections
+      if (onlySectionIds && !onlySectionIds.has(section.id)) {
+        const overallProgress = Math.round(((i + 1) / scriptSections.length) * 100);
+        dispatch(actions.updateProductionPhase('voice-generation', 'processing', overallProgress, section.name));
+        continue;
+      }
+
       const success = await generateVoiceForSection(section);
       if (!success) failedSections++;
       
-      // Update overall progress
       const overallProgress = Math.round(((i + 1) / scriptSections.length) * 100);
       dispatch(actions.updateProductionPhase('voice-generation', 'processing', overallProgress, section.name));
     }
-    
-    if (failedSections === scriptSections.length) {
-      // All sections failed
+
+    const totalGenerated = onlySectionIds ? onlySectionIds.size : scriptSections.length;
+    if (failedSections === totalGenerated) {
       dispatch(actions.updateProductionPhase('voice-generation', 'error', 0, 
         language === 'zh' ? '所有段落生成失败' : 'All sections failed'));
     } else if (failedSections > 0) {
-      // Some sections failed - still mark as completed so user can proceed, but warn
       dispatch(actions.updateProductionPhase('voice-generation', 'completed', 100, 
         language === 'zh' ? `${failedSections} 个段落失败` : `${failedSections} section(s) failed`));
     } else {
@@ -1451,7 +1525,13 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     if (currentStep < STEPS.length) setCurrentStep(currentStep + 1);
   };
   
-  const handleBack = () => { if (currentStep > 1) setCurrentStep(currentStep - 1); };
+  const handleBack = () => {
+    if (currentStep === 5 && voicesConfirmed) {
+      setVoicesConfirmed(false);
+      return;
+    }
+    if (currentStep > 1) setCurrentStep(currentStep - 1);
+  };
 
   // Calculate estimated time remaining
   const getEstimatedTime = () => {
@@ -2579,7 +2659,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         {/* Generate all button */}
         {!allCompleted && (
           <button
-            onClick={performVoiceGeneration}
+            onClick={() => performVoiceGeneration()}
             disabled={voiceGeneration.status === 'processing'}
             className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-xl text-base text-t-text1 font-medium transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             style={{ background: `${theme.primary}80` }}

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { generateBatchCustomSpeech, isCustomTTSConfigured } from '../services/tts.js';
 import { generateSpeech } from '../services/gemini.js';
 import { isGCSConfigured, uploadFile, getBucketName } from '../services/gcs.js';
+import { applyLexicon } from '../services/lexicon.js';
 import { randomUUID } from 'crypto';
 
 export const audioRouter = Router();
@@ -103,7 +104,8 @@ audioRouter.post('/batch', async (req: Request, res: Response) => {
       const systemResults = await Promise.all(
         systemVoiceSegments.map(async ({ index, segment }) => {
           try {
-            const result = await generateSpeech(segment.text, { voiceName: segment.voiceName });
+            const spokenText = applyLexicon(segment.text);
+            const result = await generateSpeech(spokenText, { voiceName: segment.voiceName });
             return { index, segment, result, error: null };
           } catch (err) {
             const message = err instanceof Error ? err.message : 'Unknown error';
@@ -135,7 +137,7 @@ audioRouter.post('/batch', async (req: Request, res: Response) => {
       } else {
         const batchItems = customTTSSegments.map(({ index, segment }) => ({
           id: String(index),
-          text: segment.text,
+          text: applyLexicon(segment.text),
           refAudioDataUrl: segment.refAudioDataUrl || defaultRefAudioDataUrl,
           refText: segment.refText || defaultRefText,
           speed: segment.speed
@@ -233,7 +235,8 @@ audioRouter.post('/batch-stream', async (req: Request, res: Response) => {
       const systemResults = await Promise.all(
         systemVoiceSegments.map(async ({ index, segment }) => {
           try {
-            const result = await generateSpeech(segment.text || '', { voiceName: segment.voiceName });
+            const spokenText = applyLexicon(segment.text || '');
+            const result = await generateSpeech(spokenText, { voiceName: segment.voiceName });
             return { index, segment, result, error: null };
           } catch (err) {
             const message = err instanceof Error ? err.message : 'Unknown error';
@@ -277,7 +280,7 @@ audioRouter.post('/batch-stream', async (req: Request, res: Response) => {
       } else {
         const batchItems = customTTSSegments.map(({ index, segment }) => ({
           id: String(index),
-          text: segment.text || '',
+          text: applyLexicon(segment.text || ''),
           refAudioDataUrl: segment.refAudioDataUrl || defaultRefAudioDataUrl,
           refText: segment.refText || defaultRefText,
           speed: segment.speed

@@ -96,6 +96,10 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
   const [bgmRecommendation, setBgmRecommendation] = useState<BgmRecommendation | null>(null);
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   
+  // Per-line voice regeneration state
+  const [regeneratingLineId, setRegeneratingLineId] = useState<string | null>(null);
+  const [listenedSegments, setListenedSegments] = useState<Set<string>>(new Set());
+
   // Production state
   const [production, setProduction] = useState<ProductionProgress>(initialProductionProgress);
 
@@ -170,6 +174,19 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
       const sectionStatus = { ...prev.voiceGeneration.sectionStatus };
       if (!sectionStatus[sectionId]) sectionStatus[sectionId] = { status: 'processing', progress: 0, audioSegments: [] };
       sectionStatus[sectionId] = { ...sectionStatus[sectionId], audioSegments: [...sectionStatus[sectionId].audioSegments, audio] };
+      return { ...prev, voiceGeneration: { ...prev.voiceGeneration, sectionStatus } };
+    });
+  }, []);
+
+  const replaceSectionVoiceAudio = useCallback((sectionId: string, audioIndex: number, audio: SectionVoiceAudio) => {
+    setProduction(prev => {
+      const sectionStatus = { ...prev.voiceGeneration.sectionStatus };
+      if (!sectionStatus[sectionId]) return prev;
+      const segments = [...sectionStatus[sectionId].audioSegments];
+      if (audioIndex >= 0 && audioIndex < segments.length) {
+        segments[audioIndex] = audio;
+        sectionStatus[sectionId] = { ...sectionStatus[sectionId], audioSegments: segments };
+      }
       return { ...prev, voiceGeneration: { ...prev.voiceGeneration, sectionStatus } };
     });
   }, []);
@@ -446,6 +463,48 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     }
     setCurrentSection(undefined);
     return success;
+  };
+
+  const regenerateVoiceForLine = async (_section: ScriptSection, sectionId: string, audioIndex: number, audio: SectionVoiceAudio) => {
+    const segId = `${sectionId}-${audioIndex}`;
+    setRegeneratingLineId(segId);
+    try {
+      const character = characters.find(c => c.name === audio.speaker);
+      const assignedId = character?.assignedVoiceId;
+      const customVoice = availableVoices.find(v => v.id === assignedId);
+      const systemVoice = systemVoices.find(v => v.id === assignedId);
+
+      const batchSegments: api.AudioSegment[] = [{
+        text: audio.text,
+        speaker: audio.speaker,
+        voiceName: systemVoice ? systemVoice.id : undefined,
+        refAudioDataUrl: customVoice?.refAudioDataUrl || customVoice?.audioSampleUrl,
+      }];
+
+      const result = await api.generateAudioBatch(batchSegments);
+      if (result.segments && result.segments.length > 0) {
+        const generated = result.segments[0];
+        const newAudio: SectionVoiceAudio = {
+          lineIndex: audio.lineIndex,
+          speaker: audio.speaker,
+          text: audio.text,
+          audioData: generated.audioData,
+          mimeType: generated.mimeType,
+          audioUrl: generated.audioUrl,
+          pauseAfterMs: audio.pauseAfterMs,
+        };
+        replaceSectionVoiceAudio(sectionId, audioIndex, newAudio);
+        setListenedSegments(prev => {
+          const next = new Set(prev);
+          next.delete(segId);
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error('Line regeneration failed:', error);
+    } finally {
+      setRegeneratingLineId(null);
+    }
   };
 
   const performVoiceGeneration = async () => {
@@ -852,7 +911,6 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
           scriptSections={scriptSections} production={production}
           onGenerateSection={async (section) => {
             const result = await generateVoiceForSection(section);
-            // After individual section generation, sync overall status
             setProduction(prev => {
               const allDone = scriptSections.every(s =>
                 prev.voiceGeneration.sectionStatus[s.id]?.status === 'completed'
@@ -867,7 +925,6 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
           onClearAndRegenSection={async (sectionId, section) => {
             clearSectionVoice(sectionId);
             await generateVoiceForSection(section);
-            // After section regen, sync overall status
             setProduction(prev => {
               const allDone = scriptSections.every(s =>
                 prev.voiceGeneration.sectionStatus[s.id]?.status === 'completed'
@@ -879,6 +936,10 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
             });
           }}
           onGenerateAll={performVoiceGeneration}
+          onRegenerateLine={regenerateVoiceForLine}
+          regeneratingLineId={regeneratingLineId}
+          listenedSegments={listenedSegments}
+          onSegmentListened={(segId) => setListenedSegments(prev => new Set(prev).add(segId))}
         />
       );
       case 4: return renderMediaProductionStep();

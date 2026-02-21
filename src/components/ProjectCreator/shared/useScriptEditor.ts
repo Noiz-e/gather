@@ -207,7 +207,7 @@ export function useScriptEditorWithState(
                 ...section,
                 timeline: [
                   ...section.timeline,
-                  { id: `item-${Date.now()}`, timeStart: '', timeEnd: '', lines: [{ speaker: lastSpeaker, line: '' }], soundMusic: '' }
+                  { id: crypto.randomUUID(), timeStart: '', timeEnd: '', lines: [{ speaker: lastSpeaker, line: '' }], soundMusic: '' }
                 ]
               }
             : section

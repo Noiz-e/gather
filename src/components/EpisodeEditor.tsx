@@ -240,7 +240,7 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
       }
       return sections.map(section =>
         section.id === sectionId
-          ? { ...section, timeline: [...section.timeline, { id: `item-${Date.now()}`, timeStart: '', timeEnd: '', lines: [{ speaker: lastSpeaker, line: '' }], soundMusic: '' }] }
+          ? { ...section, timeline: [...section.timeline, { id: crypto.randomUUID(), timeStart: '', timeEnd: '', lines: [{ speaker: lastSpeaker, line: '' }], soundMusic: '' }] }
           : section
       );
     });
@@ -258,10 +258,10 @@ export function EpisodeEditor({ episode, project, onSave, onClose }: EpisodeEdit
 
   const addSection = () => {
     const newSection: ScriptSection = {
-      id: `section-${Date.now()}`,
+      id: crypto.randomUUID(),
       name: `${t.episodeEditor.script.defaultSectionName} ${scriptSections.length + 1}`,
       description: '',
-      timeline: [{ id: `item-${Date.now()}`, timeStart: '', timeEnd: '', lines: [{ speaker: '', line: '' }], soundMusic: '' }]
+      timeline: [{ id: crypto.randomUUID(), timeStart: '', timeEnd: '', lines: [{ speaker: '', line: '' }], soundMusic: '' }]
     };
     setScriptSections([...scriptSections, newSection]);
     setEditingSection(newSection.id);
