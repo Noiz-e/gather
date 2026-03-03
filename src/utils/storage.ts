@@ -2,6 +2,8 @@ import { Project, Religion, ColorMode } from '../types';
 import { 
   loadProjectsFromCloud, 
   saveProjectsToCloud,
+  upsertProjectToCloud,
+  deleteProjectFromCloud,
 } from '../services/api';
 
 const STORAGE_KEYS = {
@@ -77,9 +79,27 @@ export const storage = {
   // No localStorage is used for user data.
 
   /**
-   * Save projects to cloud.
-   * The save is enqueued and serialized so rapid successive calls
-   * always end up persisting the latest state.
+   * Upsert a single project to cloud storage.
+   * Primary write path — call this on every create / update / episode change.
+   * Fire-and-forget: errors are logged but not re-thrown.
+   */
+  upsertProject(project: Project): void {
+    upsertProjectToCloud(project as unknown as { id: string; [key: string]: unknown })
+      .catch(err => console.error('Failed to upsert project:', err));
+  },
+
+  /**
+   * Delete a project from cloud storage.
+   * Fire-and-forget.
+   */
+  deleteProject(projectId: string): void {
+    deleteProjectFromCloud(projectId)
+      .catch(err => console.error('Failed to delete project:', err));
+  },
+
+  /**
+   * @deprecated Use upsertProject() for individual mutations.
+   * Kept for the full-sync / migration endpoint only.
    */
   saveProjects(projects: Project[]): void {
     enqueueCloudSave(projects);

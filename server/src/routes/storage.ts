@@ -63,8 +63,74 @@ storageRouter.get('/projects', async (req: AuthenticatedRequest, res: Response) 
 });
 
 /**
+ * PUT /api/storage/projects/:id
+ * Upsert a single project for the authenticated user.
+ * This is the primary write path — called on create, update, addEpisode,
+ * updateEpisode, and deleteEpisode.  Only the changed project is persisted.
+ */
+storageRouter.put('/projects/:id', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { id } = req.params;
+    const { project } = req.body;
+
+    if (!project || typeof project !== 'object') {
+      return res.status(400).json({ error: 'project body is required' });
+    }
+
+    if (project.id && project.id !== id) {
+      return res.status(400).json({ error: 'project.id must match URL :id' });
+    }
+
+    await projectsRepo.upsertSingleProject(req.userId, { ...project, id });
+    res.json({ success: true, id, storage: 'postgresql' });
+  } catch (error) {
+    console.error('Failed to upsert project:', error);
+    res.status(500).json({
+      error: 'Failed to upsert project',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * DELETE /api/storage/projects/:id
+ * Delete a single project (and all its episodes/sections/characters via CASCADE).
+ */
+storageRouter.delete('/projects/:id', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { id } = req.params;
+    const deleted = await projectsRepo.deleteProject(id, req.userId);
+
+    if (!deleted) {
+      return res.status(404).json({ error: 'Project not found or not owned by user' });
+    }
+
+    res.json({ success: true, id, storage: 'postgresql' });
+  } catch (error) {
+    console.error('Failed to delete project:', error);
+    res.status(500).json({
+      error: 'Failed to delete project',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
  * POST /api/storage/projects
- * Save all projects for the authenticated user
+ * Bulk-save all projects (initial cloud-load / migration only).
+ * Prefer PUT /projects/:id for individual mutations.
+ *
+ * Sending an empty array is a no-op when the user already has projects —
+ * this protects against a race condition where the frontend fires a save
+ * before its initial cloud-load has completed.
  */
 storageRouter.post('/projects', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -77,7 +143,7 @@ storageRouter.post('/projects', async (req: AuthenticatedRequest, res: Response)
     if (!Array.isArray(projects)) {
       return res.status(400).json({ error: 'Projects must be an array' });
     }
-    
+
     await projectsRepo.saveAllProjectsForUser(req.userId, projects);
     res.json({ success: true, count: projects.length, storage: 'postgresql' });
   } catch (error) {
@@ -114,7 +180,9 @@ storageRouter.get('/voices', async (req: AuthenticatedRequest, res: Response) =>
 
 /**
  * POST /api/storage/voices
- * Save all voice characters for the authenticated user
+ * Save all voice characters for the authenticated user (upsert + orphan cleanup).
+ *
+ * Same empty-array protection as /projects.
  */
 storageRouter.post('/voices', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -127,7 +195,7 @@ storageRouter.post('/voices', async (req: AuthenticatedRequest, res: Response) =
     if (!Array.isArray(voices)) {
       return res.status(400).json({ error: 'Voices must be an array' });
     }
-    
+
     await voicesRepo.saveAllVoiceCharactersForUser(req.userId, voices);
     res.json({ success: true, count: voices.length, storage: 'postgresql' });
   } catch (error) {
@@ -317,7 +385,8 @@ storageRouter.delete('/media/:id/file', async (req: AuthenticatedRequest, res: R
 
 /**
  * POST /api/storage/sync
- * Sync all data at once (projects, voices)
+ * Sync all data at once (projects, voices).
+ * Both saveAll* functions use UPSERT with empty-array protection.
  */
 storageRouter.post('/sync', async (req: AuthenticatedRequest, res: Response) => {
   try {

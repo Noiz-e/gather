@@ -91,15 +91,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const createProject = (data: CreateProjectData): Project => {
     const now = new Date().toISOString();
     
-    // Create episodes array - include first episode if provided
     const episodes: Episode[] = [];
     if (data.firstEpisode) {
-      const firstEpisode: Episode = {
+      episodes.push({
         id: uuidv4(),
         title: data.firstEpisode.title,
         subtitle: data.firstEpisode.subtitle,
         description: data.firstEpisode.description,
-        script: '', // Legacy field
+        script: '',
         scriptSections: data.firstEpisode.scriptSections,
         characters: data.firstEpisode.characters,
         audioData: data.firstEpisode.audioData,
@@ -109,8 +108,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         createdAt: now,
         updatedAt: now,
         notes: '',
-      };
-      episodes.push(firstEpisode);
+      });
     }
     
     const newProject: Project = {
@@ -126,9 +124,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       updatedAt: now,
     };
     
-    const updatedProjects = [...projects, newProject];
-    setProjects(updatedProjects);
-    storage.saveProjects(updatedProjects);
+    setProjects((prev) => [...prev, newProject]);
+    // Persist only this project — not the entire list
+    storage.upsertProject(newProject);
     
     return newProject;
   };
@@ -139,11 +137,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       updatedAt: new Date().toISOString(),
     };
     
-    const updatedProjects = projects.map((p) =>
-      p.id === updated.id ? updated : p
-    );
-    setProjects(updatedProjects);
-    storage.saveProjects(updatedProjects);
+    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    // Persist only the changed project
+    storage.upsertProject(updated);
     
     if (currentProject?.id === updated.id) {
       setCurrentProject(updated);
@@ -151,9 +147,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteProject = (projectId: string) => {
-    const updatedProjects = projects.filter((p) => p.id !== projectId);
-    setProjects(updatedProjects);
-    storage.saveProjects(updatedProjects);
+    setProjects((prev) => prev.filter((p) => p.id !== projectId));
+    // Delete only this project — no need to send the remaining list
+    storage.deleteProject(projectId);
     
     if (currentProject?.id === projectId) {
       setCurrentProject(null);
@@ -179,6 +175,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         episodes: [...project.episodes, newEpisode],
         updatedAt: now,
       };
+      // updateProject handles both state update and single-project persist
       updateProject(updatedProject);
     }
 

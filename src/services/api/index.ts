@@ -910,7 +910,8 @@ export async function loadProjectsFromCloud(): Promise<ProjectData[]> {
 }
 
 /**
- * Save all projects to cloud storage
+ * Save all projects to cloud storage (bulk — for migration / full sync only).
+ * Prefer upsertProjectToCloud for individual mutations.
  */
 export async function saveProjectsToCloud(projects: ProjectData[]): Promise<void> {
   const response = await apiFetch(`${API_BASE}/storage/projects`, {
@@ -923,6 +924,39 @@ export async function saveProjectsToCloud(projects: ProjectData[]): Promise<void
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || 'Failed to save projects');
+  }
+}
+
+/**
+ * Upsert a single project to cloud storage.
+ * This is the primary write path — call this on every create / update / delete-episode.
+ */
+export async function upsertProjectToCloud(project: ProjectData): Promise<void> {
+  const response = await apiFetch(`${API_BASE}/storage/projects/${project.id}`, {
+    ...fetchOptions,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ project }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error((error as { error?: string }).error || 'Failed to upsert project');
+  }
+}
+
+/**
+ * Delete a single project from cloud storage.
+ */
+export async function deleteProjectFromCloud(projectId: string): Promise<void> {
+  const response = await apiFetch(`${API_BASE}/storage/projects/${projectId}`, {
+    ...fetchOptions,
+    method: 'DELETE',
+  });
+
+  if (!response.ok && response.status !== 404) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error((error as { error?: string }).error || 'Failed to delete project');
   }
 }
 

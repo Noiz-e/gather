@@ -620,106 +620,197 @@ export async function deleteEpisode(id: string, userId: string): Promise<boolean
 }
 
 // ============================================
-// Legacy Support: Save All Projects
-// (For backward compatibility with existing API)
+// Per-project upsert — shared helper
 // ============================================
 
 /**
- * Save all projects for a user (replaces existing data)
- * This is for backward compatibility with the existing frontend
+ * Upsert one project (all nested data) inside an already-open transaction.
+ * Both upsertSingleProject and saveAllProjectsForUser delegate to this.
+ */
+async function _upsertProjectInTx(
+  client: pg.PoolClient,
+  userId: string,
+  project: Omit<Project, 'userId' | 'coverImage'> & { coverImage?: string; isPublic?: boolean }
+): Promise<void> {
+  await client.query(`
+    INSERT INTO projects (id, user_id, title, subtitle, description, religion, spec, tags, is_public, created_at, updated_at)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    ON CONFLICT (id) DO UPDATE SET
+      title       = EXCLUDED.title,
+      subtitle    = EXCLUDED.subtitle,
+      description = EXCLUDED.description,
+      religion    = EXCLUDED.religion,
+      spec        = EXCLUDED.spec,
+      tags        = EXCLUDED.tags,
+      is_public   = EXCLUDED.is_public,
+      updated_at  = EXCLUDED.updated_at
+  `, [
+    project.id,
+    userId,
+    project.title,
+    project.subtitle || null,
+    project.description,
+    project.religion,
+    project.spec ? JSON.stringify(project.spec) : null,
+    project.tags || [],
+    project.isPublic ?? false,
+    project.createdAt,
+    project.updatedAt,
+  ]);
+
+  const incomingEpisodeIds: string[] = [];
+
+  for (const episode of project.episodes || []) {
+    incomingEpisodeIds.push(episode.id);
+
+    await client.query(`
+      INSERT INTO episodes (id, project_id, title, subtitle, description, script, duration, stage, notes, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ON CONFLICT (id) DO UPDATE SET
+        title       = EXCLUDED.title,
+        subtitle    = EXCLUDED.subtitle,
+        description = EXCLUDED.description,
+        script      = EXCLUDED.script,
+        duration    = EXCLUDED.duration,
+        stage       = EXCLUDED.stage,
+        notes       = EXCLUDED.notes,
+        updated_at  = EXCLUDED.updated_at
+    `, [
+      episode.id, project.id,
+      episode.title, episode.subtitle || null, episode.description, episode.script,
+      episode.duration || null, episode.stage, episode.notes,
+      episode.createdAt, episode.updatedAt,
+    ]);
+
+    // Characters: no stable client IDs — replace per episode
+    await client.query('DELETE FROM episode_characters WHERE episode_id = $1', [episode.id]);
+    for (const char of episode.characters || []) {
+      await client.query(
+        'INSERT INTO episode_characters (episode_id, name, description, assigned_voice_id) VALUES ($1,$2,$3,$4)',
+        [episode.id, char.name, char.description, char.assignedVoiceId || null]
+      );
+    }
+
+    // Script sections — upsert then orphan cleanup
+    const incomingSectionIds: string[] = [];
+    let sectionOrder = 0;
+
+    for (const section of episode.scriptSections || []) {
+      incomingSectionIds.push(section.id);
+      await client.query(`
+        INSERT INTO script_sections (id, episode_id, name, description, cover_image_description, sort_order)
+        VALUES ($1,$2,$3,$4,$5,$6)
+        ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name, description = EXCLUDED.description,
+          cover_image_description = EXCLUDED.cover_image_description, sort_order = EXCLUDED.sort_order
+      `, [section.id, episode.id, section.name, section.description, section.coverImageDescription || null, sectionOrder++]);
+
+      const incomingTimelineIds: string[] = [];
+      let timelineOrder = 0;
+
+      for (const item of section.timeline || []) {
+        incomingTimelineIds.push(item.id);
+        await client.query(`
+          INSERT INTO script_timeline_items (id, section_id, time_start, time_end, sound_music, sort_order, lines)
+          VALUES ($1,$2,$3,$4,$5,$6,$7)
+          ON CONFLICT (id) DO UPDATE SET
+            time_start = EXCLUDED.time_start, time_end = EXCLUDED.time_end,
+            sound_music = EXCLUDED.sound_music, sort_order = EXCLUDED.sort_order, lines = EXCLUDED.lines
+        `, [item.id, section.id, item.timeStart, item.timeEnd, item.soundMusic, timelineOrder++, JSON.stringify(item.lines || [])]);
+      }
+
+      if (incomingTimelineIds.length > 0) {
+        await client.query(
+          'DELETE FROM script_timeline_items WHERE section_id=$1 AND id!=ALL($2)',
+          [section.id, incomingTimelineIds]
+        );
+      } else {
+        await client.query('DELETE FROM script_timeline_items WHERE section_id=$1', [section.id]);
+      }
+    }
+
+    if (incomingSectionIds.length > 0) {
+      await client.query(
+        'DELETE FROM script_sections WHERE episode_id=$1 AND id!=ALL($2)',
+        [episode.id, incomingSectionIds]
+      );
+    } else {
+      await client.query('DELETE FROM script_sections WHERE episode_id=$1', [episode.id]);
+    }
+  }
+
+  if (incomingEpisodeIds.length > 0) {
+    await client.query(
+      'DELETE FROM episodes WHERE project_id=$1 AND id!=ALL($2)',
+      [project.id, incomingEpisodeIds]
+    );
+  } else {
+    await client.query('DELETE FROM episodes WHERE project_id=$1', [project.id]);
+  }
+}
+
+// ============================================
+// Single-project write (primary CRUD path)
+// ============================================
+
+/**
+ * Upsert a single project for a user.
+ * Called by create / update / addEpisode / updateEpisode / deleteEpisode.
+ * Only the one project that changed is sent; no other user data is touched.
+ */
+export async function upsertSingleProject(
+  userId: string,
+  project: Omit<Project, 'userId' | 'coverImage'> & { coverImage?: string; isPublic?: boolean }
+): Promise<void> {
+  await transaction(async (client: pg.PoolClient) => {
+    await _upsertProjectInTx(client, userId, project);
+  });
+}
+
+// ============================================
+// Bulk save (initial sync / migration only)
+// ============================================
+
+/**
+ * Save ALL projects for a user at once.
+ * Only used for the initial cloud-load or explicit full-sync.
+ * Individual mutations should use upsertSingleProject instead.
+ *
+ * Safety: empty-array saves are silently ignored when the user already has data.
  */
 export async function saveAllProjectsForUser(
   userId: string, 
   projects: Array<Omit<Project, 'userId' | 'coverImage'> & { coverImage?: string }>
 ): Promise<void> {
+  // Guard: never wipe existing data with an accidental empty-array save.
+  if (projects.length === 0) {
+    const countResult = await query<{ count: string }>(
+      'SELECT COUNT(*) AS count FROM projects WHERE user_id = $1',
+      [userId]
+    );
+    const existingCount = parseInt(countResult.rows[0]?.count ?? '0', 10);
+    if (existingCount > 0) {
+      console.log(
+        `saveAllProjectsForUser: skipping empty-array save (${existingCount} projects exist for user)`
+      );
+      return;
+    }
+  }
+
   await transaction(async (client: pg.PoolClient) => {
-    // Delete existing projects for user
-    await client.query('DELETE FROM projects WHERE user_id = $1', [userId]);
-    
+    const incomingProjectIds: string[] = [];
+
     for (const project of projects) {
-      // Insert project
-      await client.query(`
-        INSERT INTO projects (id, user_id, title, subtitle, description, religion, spec, tags, is_public, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      `, [
-        project.id,
-        userId,
-        project.title,
-        project.subtitle || null,
-        project.description,
-        project.religion,
-        project.spec ? JSON.stringify(project.spec) : null,
-        project.tags || [],
-        project.isPublic ?? false,
-        project.createdAt,
-        project.updatedAt,
-      ]);
-      
-      // Insert episodes
-      for (const episode of project.episodes || []) {
-        await client.query(`
-          INSERT INTO episodes (id, project_id, title, subtitle, description, script, duration, stage, notes, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        `, [
-          episode.id,
-          project.id,
-          episode.title,
-          episode.subtitle || null,
-          episode.description,
-          episode.script,
-          episode.duration || null,
-          episode.stage,
-          episode.notes,
-          episode.createdAt,
-          episode.updatedAt,
-        ]);
-        
-        // Insert characters
-        for (const char of episode.characters || []) {
-          await client.query(`
-            INSERT INTO episode_characters (episode_id, name, description, assigned_voice_id)
-            VALUES ($1, $2, $3, $4)
-          `, [
-            episode.id,
-            char.name,
-            char.description,
-            char.assignedVoiceId || null,
-          ]);
-        }
-        
-        // Insert script sections
-        let sectionOrder = 0;
-        for (const section of episode.scriptSections || []) {
-          await client.query(`
-            INSERT INTO script_sections (id, episode_id, name, description, cover_image_description, sort_order)
-            VALUES ($1, $2, $3, $4, $5, $6)
-          `, [
-            section.id,
-            episode.id,
-            section.name,
-            section.description,
-            section.coverImageDescription || null,
-            sectionOrder++,
-          ]);
-          
-          // Insert timeline items
-          let timelineOrder = 0;
-          for (const item of section.timeline || []) {
-            await client.query(`
-              INSERT INTO script_timeline_items (id, section_id, time_start, time_end, sound_music, sort_order, lines)
-              VALUES ($1, $2, $3, $4, $5, $6, $7)
-            `, [
-              item.id,
-              section.id,
-              item.timeStart,
-              item.timeEnd,
-              item.soundMusic,
-              timelineOrder++,
-              JSON.stringify(item.lines || []),
-            ]);
-          }
-        }
-      }
+      incomingProjectIds.push(project.id);
+      await _upsertProjectInTx(client, userId, project);
+    }
+
+    // Delete projects that were removed from the user's list
+    if (incomingProjectIds.length > 0) {
+      await client.query(
+        'DELETE FROM projects WHERE user_id=$1 AND id!=ALL($2)',
+        [userId, incomingProjectIds]
+      );
     }
   });
 }

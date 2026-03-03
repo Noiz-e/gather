@@ -324,7 +324,12 @@ export async function uploadVoiceSample(
 // ============================================
 
 /**
- * Save all voice characters for a user (replaces existing data)
+ * Save all voice characters for a user using UPSERT semantics.
+ *
+ * Same safety rules as saveAllProjectsForUser:
+ *  - Empty-array saves are silently ignored when voices already exist in the DB.
+ *  - Voices that are no longer in the incoming payload are deleted AFTER all
+ *    upserts complete.
  */
 export async function saveAllVoiceCharactersForUser(
   userId: string,
@@ -340,15 +345,39 @@ export async function saveAllVoiceCharactersForUser(
     updatedAt: string;
   }>
 ): Promise<void> {
-  // Delete existing voice characters for user
-  await query('DELETE FROM voice_characters WHERE user_id = $1', [userId]);
-  
+  // Guard: never wipe existing data with an accidental empty-array save.
+  if (voices.length === 0) {
+    const countResult = await query<{ count: string }>(
+      'SELECT COUNT(*) AS count FROM voice_characters WHERE user_id = $1',
+      [userId]
+    );
+    const existingCount = parseInt(countResult.rows[0]?.count ?? '0', 10);
+    if (existingCount > 0) {
+      console.log(
+        `saveAllVoiceCharactersForUser: skipping empty-array save (${existingCount} voices exist for user)`
+      );
+      return;
+    }
+  }
+
+  const incomingVoiceIds: string[] = [];
+
   for (const voice of voices) {
+    incomingVoiceIds.push(voice.id);
+
+    // Upsert voice — never touch user_id or created_at on conflict
     await query(`
       INSERT INTO voice_characters (
         id, user_id, name, description, ref_text, tags, is_public, created_at, updated_at
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT (id) DO UPDATE SET
+        name        = EXCLUDED.name,
+        description = EXCLUDED.description,
+        ref_text    = EXCLUDED.ref_text,
+        tags        = EXCLUDED.tags,
+        is_public   = EXCLUDED.is_public,
+        updated_at  = EXCLUDED.updated_at
     `, [
       voice.id,
       userId,
@@ -360,8 +389,9 @@ export async function saveAllVoiceCharactersForUser(
       voice.createdAt,
       voice.updatedAt,
     ]);
-    
-    // Add project associations
+
+    // Replace project associations (small junction table, always sent in full)
+    await query('DELETE FROM voice_character_projects WHERE voice_character_id = $1', [voice.id]);
     for (const projectId of voice.projectIds || []) {
       await query(`
         INSERT INTO voice_character_projects (voice_character_id, project_id)
@@ -370,4 +400,13 @@ export async function saveAllVoiceCharactersForUser(
       `, [voice.id, projectId]);
     }
   }
+
+  // Delete voices that were removed by the user
+  if (incomingVoiceIds.length > 0) {
+    await query(
+      'DELETE FROM voice_characters WHERE user_id = $1 AND id != ALL($2)',
+      [userId, incomingVoiceIds]
+    );
+  }
+  // If voices.length === 0, the guard above already returned early
 }
