@@ -55,6 +55,7 @@ export interface Episode {
   script: string;
   scriptSections?: ScriptSection[];
   characters?: EpisodeCharacter[];
+  audioData?: string;
   audioUrl?: string;  // Signed URL (generated on demand)
   audioFileId?: string;
   duration?: number;
@@ -664,8 +665,8 @@ async function _upsertProjectInTx(
     incomingEpisodeIds.push(episode.id);
 
     // Determine audio_file_id: keep existing value unless we're uploading new audio
-    let audioFileId: string | null = (episode as Record<string, unknown>).audioFileId as string | null ?? null;
-    const audioData = (episode as Record<string, unknown>).audioData as string | undefined;
+    let audioFileId: string | null = episode.audioFileId ?? null;
+    const audioData = episode.audioData;
 
     if (audioData && audioData.startsWith('data:') && !audioFileId) {
       // Check if the episode already has a stored audio file
