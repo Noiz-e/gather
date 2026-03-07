@@ -20,6 +20,17 @@ const STORAGE_KEYS = {
 let _pendingSave: Project[] | null = null;
 let _saveInFlight = false;
 
+function stripAudioFromProjects(projects: Project[]): Project[] {
+  return projects.map(p => ({
+    ...p,
+    episodes: p.episodes.map(ep => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { audioData, audioMimeType, audioDurationMs, ...rest } = ep;
+      return rest;
+    }),
+  }));
+}
+
 async function drainSaveQueue(): Promise<void> {
   if (_saveInFlight) return; // another call is already draining
 
@@ -28,7 +39,7 @@ async function drainSaveQueue(): Promise<void> {
     _pendingSave = null;
     _saveInFlight = true;
     try {
-      await saveProjectsToCloud(projects as unknown as { id: string; [key: string]: unknown }[]);
+      await saveProjectsToCloud(stripAudioFromProjects(projects) as unknown as { id: string; [key: string]: unknown }[]);
       console.log(`Cloud sync: saved ${projects.length} projects`);
     } catch (error) {
       console.error('Cloud sync failed:', error);
@@ -56,10 +67,9 @@ function flushPendingSave(): void {
   const projects = _pendingSave;
   _pendingSave = null;
   try {
-    // Use sendBeacon for reliability during page unload
     const url = `${import.meta.env.VITE_API_BASE || '/api'}/storage/projects`;
     const blob = new Blob(
-      [JSON.stringify({ projects })],
+      [JSON.stringify({ projects: stripAudioFromProjects(projects) })],
       { type: 'application/json' }
     );
     navigator.sendBeacon(url, blob);
@@ -82,9 +92,20 @@ export const storage = {
    * Upsert a single project to cloud storage.
    * Primary write path — call this on every create / update / episode change.
    * Fire-and-forget: errors are logged but not re-thrown.
+   *
+   * Large binary fields (audioData) are stripped from episodes to keep
+   * the payload small and prevent oversized requests from failing silently.
    */
   upsertProject(project: Project): void {
-    upsertProjectToCloud(project as unknown as { id: string; [key: string]: unknown })
+    const lightweight = {
+      ...project,
+      episodes: project.episodes.map(ep => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { audioData, audioMimeType, audioDurationMs, ...rest } = ep;
+        return rest;
+      }),
+    };
+    upsertProjectToCloud(lightweight as unknown as { id: string; [key: string]: unknown })
       .catch(err => console.error('Failed to upsert project:', err));
   },
 

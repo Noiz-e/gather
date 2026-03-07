@@ -168,38 +168,60 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       updatedAt: now,
     };
 
-    const project = projects.find((p) => p.id === projectId);
-    if (project) {
+    setProjects((prev) => {
+      const project = prev.find((p) => p.id === projectId);
+      if (!project) return prev;
       const updatedProject = {
         ...project,
         episodes: [...project.episodes, newEpisode],
         updatedAt: now,
       };
-      // updateProject handles both state update and single-project persist
-      updateProject(updatedProject);
-    }
+      storage.upsertProject(updatedProject);
+      if (currentProject?.id === projectId) {
+        setCurrentProject(updatedProject);
+      }
+      return prev.map((p) => (p.id === projectId ? updatedProject : p));
+    });
 
     return newEpisode;
   };
 
   const updateEpisode = (projectId: string, updatedEpisode: Episode) => {
-    const project = projects.find((p) => p.id === projectId);
-    if (project) {
-      const updatedEpisodes = project.episodes.map((e) =>
-        e.id === updatedEpisode.id
-          ? { ...updatedEpisode, updatedAt: new Date().toISOString() }
-          : e
-      );
-      updateProject({ ...project, episodes: updatedEpisodes });
-    }
+    setProjects((prev) => {
+      const project = prev.find((p) => p.id === projectId);
+      if (!project) return prev;
+      const updatedProject = {
+        ...project,
+        episodes: project.episodes.map((e) =>
+          e.id === updatedEpisode.id
+            ? { ...updatedEpisode, updatedAt: new Date().toISOString() }
+            : e
+        ),
+        updatedAt: new Date().toISOString(),
+      };
+      storage.upsertProject(updatedProject);
+      if (currentProject?.id === projectId) {
+        setCurrentProject(updatedProject);
+      }
+      return prev.map((p) => (p.id === projectId ? updatedProject : p));
+    });
   };
 
   const deleteEpisode = (projectId: string, episodeId: string) => {
-    const project = projects.find((p) => p.id === projectId);
-    if (project) {
-      const updatedEpisodes = project.episodes.filter((e) => e.id !== episodeId);
-      updateProject({ ...project, episodes: updatedEpisodes });
-    }
+    setProjects((prev) => {
+      const project = prev.find((p) => p.id === projectId);
+      if (!project) return prev;
+      const updatedProject = {
+        ...project,
+        episodes: project.episodes.filter((e) => e.id !== episodeId),
+        updatedAt: new Date().toISOString(),
+      };
+      storage.upsertProject(updatedProject);
+      if (currentProject?.id === projectId) {
+        setCurrentProject(updatedProject);
+      }
+      return prev.map((p) => (p.id === projectId ? updatedProject : p));
+    });
   };
 
   const getProjectsByReligion = (religion: Religion): Project[] => {

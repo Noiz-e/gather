@@ -421,6 +421,25 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
         </div>
       </main>
 
+      {/* Deploy time watermark (production only) */}
+      {import.meta.env.VITE_BUILD_TIME && (
+        <div
+          className="fixed bottom-14 right-2 md:bottom-3 md:right-3 z-20 pointer-events-none select-none"
+          style={{ opacity: 0.35 }}
+        >
+          <span className="text-[10px] md:text-xs text-t-text3 font-mono tracking-tight">
+            {new Date(import.meta.env.VITE_BUILD_TIME).toLocaleString('zh-CN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: false,
+            })}
+          </span>
+        </div>
+      )}
+
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-t-border backdrop-blur-xl" style={{ background: 'var(--t-bg-base)' }}>
         <div className="flex items-center justify-around py-2 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">

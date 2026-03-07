@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ProjectProvider, useProjects } from './contexts/ProjectContext';
 import './i18n'; // Initialize i18next
@@ -36,6 +36,18 @@ function AppContent({ initialLandingData, onClearLandingData }: AppContentProps)
   const [showEpisodeCreator, setShowEpisodeCreator] = useState(false);
   const [editingEpisode, setEditingEpisode] = useState<Episode | null>(null);
   const [showEpisodeEditor, setShowEpisodeEditor] = useState(false);
+  const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
+
+  // Navigate to project detail once the projects state has the newly created project
+  useEffect(() => {
+    if (!pendingProjectId) return;
+    const project = projects.find(p => p.id === pendingProjectId);
+    if (project) {
+      setCurrentProject(project);
+      setCurrentPage('project-detail');
+      setPendingProjectId(null);
+    }
+  }, [pendingProjectId, projects, setCurrentProject]);
 
   const handleNavigate = (page: string) => {
     setCurrentPage(page as Page);
@@ -123,14 +135,8 @@ function AppContent({ initialLandingData, onClearLandingData }: AppContentProps)
           onSuccess={(projectId?: string) => { 
             setShowProjectCreator(false); 
             onClearLandingData(); 
-            // Navigate to project detail if projectId is provided
             if (projectId) {
-              const project = projects.find(p => p.id === projectId);
-              if (project) {
-                setCurrentProject(project);
-                setCurrentPage('project-detail');
-                return;
-              }
+              setPendingProjectId(projectId);
             }
             setCurrentPage('projects'); 
           }}
@@ -144,9 +150,6 @@ function AppContent({ initialLandingData, onClearLandingData }: AppContentProps)
           onClose={() => setShowEpisodeCreator(false)}
           onSuccess={() => { 
             setShowEpisodeCreator(false);
-            // Refresh the project to show new episode
-            const updatedProject = projects.find(p => p.id === currentProject.id);
-            if (updatedProject) setCurrentProject(updatedProject);
           }}
         />
       )}

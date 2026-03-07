@@ -73,7 +73,9 @@ echo ""
 echo "📝 Updating $ENV_FILE..."
 echo "# Production API endpoint (Cloud Run via custom domain)" > "$ENV_FILE"
 echo "VITE_API_BASE=$API_BASE" >> "$ENV_FILE"
+echo "VITE_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$ENV_FILE"
 echo "   VITE_API_BASE=$API_BASE"
+echo "   VITE_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # Build frontend
 echo ""

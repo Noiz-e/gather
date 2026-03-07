@@ -4,7 +4,7 @@
  */
 
 import { query, transaction } from '../index.js';
-import { generateUrlsForFileIds, getFileByIdWithUrl, type FileWithUrl } from './files.js';
+import { generateUrlsForFileIds, getFileByIdWithUrl, uploadAndCreateFile, type FileWithUrl } from './files.js';
 import type pg from 'pg';
 
 // ============================================
@@ -663,21 +663,52 @@ async function _upsertProjectInTx(
   for (const episode of project.episodes || []) {
     incomingEpisodeIds.push(episode.id);
 
+    // Determine audio_file_id: keep existing value unless we're uploading new audio
+    let audioFileId: string | null = (episode as Record<string, unknown>).audioFileId as string | null ?? null;
+    const audioData = (episode as Record<string, unknown>).audioData as string | undefined;
+
+    if (audioData && audioData.startsWith('data:') && !audioFileId) {
+      // Check if the episode already has a stored audio file
+      const existingEp = await client.query<{ audio_file_id: string | null }>(
+        'SELECT audio_file_id FROM episodes WHERE id = $1', [episode.id]
+      );
+      const existingFileId = existingEp.rows[0]?.audio_file_id;
+
+      if (!existingFileId) {
+        try {
+          const ext = audioData.startsWith('data:audio/wav') ? 'wav' : 'mp3';
+          const gcsPath = `killagent/episode-audio/${episode.id}.${ext}`;
+          const file = await uploadAndCreateFile(userId, audioData, gcsPath, {
+            originalFilename: `${episode.title || 'episode'}.${ext}`,
+            isPublic: false,
+          });
+          audioFileId = file.id;
+          console.log(`Uploaded episode audio for ${episode.id} → file ${file.id}`);
+        } catch (err) {
+          console.error(`Failed to upload episode audio for ${episode.id}:`, err);
+        }
+      } else {
+        audioFileId = existingFileId;
+      }
+    }
+
     await client.query(`
-      INSERT INTO episodes (id, project_id, title, subtitle, description, script, duration, stage, notes, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO episodes (id, project_id, title, subtitle, description, script, audio_file_id, duration, stage, notes, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       ON CONFLICT (id) DO UPDATE SET
-        title       = EXCLUDED.title,
-        subtitle    = EXCLUDED.subtitle,
-        description = EXCLUDED.description,
-        script      = EXCLUDED.script,
-        duration    = EXCLUDED.duration,
-        stage       = EXCLUDED.stage,
-        notes       = EXCLUDED.notes,
-        updated_at  = EXCLUDED.updated_at
+        title          = EXCLUDED.title,
+        subtitle       = EXCLUDED.subtitle,
+        description    = EXCLUDED.description,
+        script         = EXCLUDED.script,
+        audio_file_id  = COALESCE(EXCLUDED.audio_file_id, episodes.audio_file_id),
+        duration       = EXCLUDED.duration,
+        stage          = EXCLUDED.stage,
+        notes          = EXCLUDED.notes,
+        updated_at     = EXCLUDED.updated_at
     `, [
       episode.id, project.id,
       episode.title, episode.subtitle || null, episode.description, episode.script,
+      audioFileId,
       episode.duration || null, episode.stage, episode.notes,
       episode.createdAt, episode.updatedAt,
     ]);
