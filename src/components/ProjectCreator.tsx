@@ -92,6 +92,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   // Local UI state
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showSubtitle, setShowSubtitle] = useState(false);
+  const [showOptionalSpecFields, setShowOptionalSpecFields] = useState(false);
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [streamingText, setStreamingText] = useState<string>('');
@@ -301,9 +302,15 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     setIsAnalyzing(true);
     
     try {
-      // Collect content from text input and files (with attachments for native Gemini parsing)
+      const hasFiles = contentInput.uploadedFiles.length > 0;
+      const hasText = contentInput.textContent.trim().length > 0;
+
+      // When both files and text exist, text is treated as user instructions (e.g. "preserve number reading")
+      const userInstructions = (hasFiles && hasText) ? contentInput.textContent : undefined;
+      const textForCollection = (hasFiles && hasText) ? '' : contentInput.textContent;
+
       const { text: content, attachments } = await collectAnalysisContent(
-        contentInput.textContent, contentInput.uploadedFiles, { returnAttachments: true }
+        textForCollection, contentInput.uploadedFiles, { returnAttachments: true }
       );
 
       if (!content.trim() && attachments.length === 0) {
@@ -322,7 +329,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
         toneAndExpression: specData.toneAndExpression || undefined,
       };
 
-      const prompt = buildSpecAnalysisPrompt(content, specContext);
+      const prompt = buildSpecAnalysisPrompt(content, specContext, userInstructions);
       
       // Use backend API for text generation (with file attachments for multimodal)
       const responseText = await api.generateText(prompt, { attachments });
@@ -359,9 +366,15 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     setStreamingText(''); // Reset streaming text
 
     try {
-      // Collect content without labels for script generation (with attachments for native Gemini parsing)
+      const hasFiles = contentInput.uploadedFiles.length > 0;
+      const hasText = contentInput.textContent.trim().length > 0;
+
+      // When both files and text exist, text is treated as user instructions
+      const userInstructions = (hasFiles && hasText) ? contentInput.textContent : undefined;
+      const textForCollection = (hasFiles && hasText) ? '' : contentInput.textContent;
+
       const { text: content, attachments } = await collectAnalysisContent(
-        contentInput.textContent, contentInput.uploadedFiles, { includeLabels: false, returnAttachments: true }
+        textForCollection, contentInput.uploadedFiles, { includeLabels: false, returnAttachments: true }
       );
 
       // Include template hints in prompt if available (based on voice count selection)
@@ -381,7 +394,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
           structureHint: templateHints.structure,
           voiceDirectionHint: templateHints.voiceDirection,
         }),
-      });
+      }, userInstructions);
 
       // Use backend streaming API for progressive generation (with file attachments)
       const finalText = await api.generateTextStream(
@@ -1267,235 +1280,276 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
   };
 
   // Render Step 2: Spec Confirmation (simplified - no file upload)
-  const renderSpecStep = () => (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Spec Form */}
-      <div className="rounded-xl border border-t-border overflow-hidden" style={{ background: 'var(--t-bg-card)' }}>
-        <div className="px-5 py-4 border-b border-t-border flex items-center justify-between">
-          <h4 className="text-base font-medium text-t-text1">
-            {language === 'zh' ? '项目规格' : 'Project Specification'}
-          </h4>
-          {/* Compact Template Badge */}
-          <div className="flex items-center gap-2">
-            {selectedTemplate ? (
-              <>
-                <div 
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
-                  style={{ background: `${theme.primary}15` }}
-                >
+  const renderSpecStep = () => {
+    const isStoryTitleEmpty = specData.storyTitle.trim().length === 0;
+    const optionalFilledCount = [
+      specData.subtitle,
+      specData.targetAudience,
+      specData.formatAndDuration,
+      specData.toneAndExpression,
+    ].filter((value) => value.trim().length > 0).length;
+
+    return (
+      <div className="space-y-4 sm:space-y-6">
+        {/* Spec Form */}
+        <div className="rounded-xl border border-t-border overflow-hidden" style={{ background: 'var(--t-bg-card)' }}>
+          <div className="px-5 py-4 border-b border-t-border flex items-center justify-between">
+            <h4 className="text-base font-medium text-t-text1">
+              {language === 'zh' ? '项目规格' : 'Project Specification'}
+            </h4>
+            {/* Compact Template Badge */}
+            <div className="flex items-center gap-2">
+              {selectedTemplate ? (
+                <>
                   <div 
-                    className="w-5 h-5 rounded flex items-center justify-center"
-                    style={{ background: `${theme.primary}30` }}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                    style={{ background: `${theme.primary}15` }}
                   >
-                    {(() => {
-                      const IconComponent = TemplateIconMap[selectedTemplate.icon] || FileText;
-                      return <IconComponent size={12} style={{ color: theme.primaryLight }} />;
-                    })()}
+                    <div 
+                      className="w-5 h-5 rounded flex items-center justify-center"
+                      style={{ background: `${theme.primary}30` }}
+                    >
+                      {(() => {
+                        const IconComponent = TemplateIconMap[selectedTemplate.icon] || FileText;
+                        return <IconComponent size={12} style={{ color: theme.primaryLight }} />;
+                      })()}
+                    </div>
+                    <span className="text-sm text-t-text2">
+                      {language === 'zh' ? selectedTemplate.nameZh : selectedTemplate.name}
+                    </span>
                   </div>
-                  <span className="text-sm text-t-text2">
-                    {language === 'zh' ? selectedTemplate.nameZh : selectedTemplate.name}
-                  </span>
-                </div>
-                <button
-                  onClick={() => setCurrentStep(1)}
-                  className="text-xs text-t-text3 hover:text-t-text2 px-2 py-1 rounded hover:bg-t-card-hover transition-all"
-                >
-                  {language === 'zh' ? '更换模板' : 'Change template'}
-                </button>
-              </>
-            ) : (
-              <>
-                <div 
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
-                  style={{ background: `${theme.primary}15` }}
-                >
-                  <Sparkles size={12} style={{ color: theme.primaryLight }} />
-                  <span className="text-sm text-t-text2">
-                    {language === 'zh' ? '自定义' : 'Custom'}
-                  </span>
-                </div>
-                <button
-                  onClick={() => setCurrentStep(1)}
-                  className="text-xs text-t-text3 hover:text-t-text2 px-2 py-1 rounded hover:bg-t-card-hover transition-all"
-                >
-                  {language === 'zh' ? '更换模板' : 'Change template'}
-                </button>
-              </>
-            )}
+                  <button
+                    onClick={() => setCurrentStep(1)}
+                    className="text-xs text-t-text3 hover:text-t-text2 px-2 py-1 rounded hover:bg-t-card-hover transition-all"
+                  >
+                    {language === 'zh' ? '更换模板' : 'Change template'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div 
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                    style={{ background: `${theme.primary}15` }}
+                  >
+                    <Sparkles size={12} style={{ color: theme.primaryLight }} />
+                    <span className="text-sm text-t-text2">
+                      {language === 'zh' ? '自定义' : 'Custom'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setCurrentStep(1)}
+                    className="text-xs text-t-text3 hover:text-t-text2 px-2 py-1 rounded hover:bg-t-card-hover transition-all"
+                  >
+                    {language === 'zh' ? '更换模板' : 'Change template'}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-        <div className="p-5 space-y-5">
-          {/* Story Title */}
-          <div>
-            <label className="block text-sm text-t-text3 mb-2">
-              {language === 'zh' ? '项目标题' : 'Project title'}
-            </label>
-            <input
-              type="text"
-              value={specData.storyTitle}
-              onChange={(e) => updateSpecField('storyTitle', e.target.value)}
-              placeholder={language === 'zh' ? '为您的项目起一个标题，例如书名或系列名称。' : 'Give your project a title. For example a book name or series title.'}
-              className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
-            />
-          </div>
-          {/* Voice Count & Media Options */}
-          <div className="flex flex-wrap items-start gap-6">
-            {/* Voice Count Toggle */}
+          <div className="p-5 space-y-5">
+            {/* Required: Story Title */}
             <div>
-              <label className="block text-sm text-t-text3 mb-2">
-                {language === 'zh' ? '声音' : 'Voice'}
+              <label className="flex items-center gap-2 text-sm text-t-text3 mb-2">
+                <span>{language === 'zh' ? '项目标题' : 'Project title'}</span>
+                <span className="text-xs font-medium" style={{ color: theme.primaryLight }}>
+                  * {language === 'zh' ? '必填' : 'Required'}
+                </span>
               </label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setTemplateConfig(prev => ({ ...prev, voiceCount: 'single' }))}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                    templateConfig.voiceCount === 'single'
-                      ? 'text-t-text1'
-                      : 'text-t-text3 border border-t-border hover:border-t-border'
-                  }`}
-                  style={templateConfig.voiceCount === 'single' ? { background: theme.primary } : {}}
-                >
-                  <User size={14} className="inline mr-1.5" />
-                  {language === 'zh' ? '单人' : 'Single'}
-                </button>
-                <button
-                  onClick={() => setTemplateConfig(prev => ({ ...prev, voiceCount: 'multiple' }))}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                    templateConfig.voiceCount === 'multiple'
-                      ? 'text-t-text1'
-                      : 'text-t-text3 border border-t-border hover:border-t-border'
-                  }`}
-                  style={templateConfig.voiceCount === 'multiple' ? { background: theme.primary } : {}}
-                >
-                  <User size={14} className="inline mr-1" />
-                  <User size={14} className="inline -ml-2 mr-1" />
-                  {language === 'zh' ? '多人' : 'Multi'}
-                </button>
+              <input
+                type="text"
+                value={specData.storyTitle}
+                onChange={(e) => updateSpecField('storyTitle', e.target.value)}
+                placeholder={language === 'zh' ? '为您的项目起一个标题，例如书名或系列名称。' : 'Give your project a title. For example a book name or series title.'}
+                className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none"
+                style={isStoryTitleEmpty ? { borderColor: theme.primaryLight, boxShadow: `0 0 0 1px ${theme.primaryLight}40` } : {}}
+              />
+            </div>
+
+            {/* Always visible: Voice Count & Media Options */}
+            <div className="flex flex-wrap items-start gap-6">
+              {/* Voice Count Toggle */}
+              <div>
+                <label className="block text-sm text-t-text3 mb-2">
+                  {language === 'zh' ? '声音' : 'Voice'}
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setTemplateConfig(prev => ({ ...prev, voiceCount: 'single' }))}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      templateConfig.voiceCount === 'single'
+                        ? 'text-t-text1'
+                        : 'text-t-text3 border border-t-border hover:border-t-border'
+                    }`}
+                    style={templateConfig.voiceCount === 'single' ? { background: theme.primary } : {}}
+                  >
+                    <User size={14} className="inline mr-1.5" />
+                    {language === 'zh' ? '单人' : 'Single'}
+                  </button>
+                  <button
+                    onClick={() => setTemplateConfig(prev => ({ ...prev, voiceCount: 'multiple' }))}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      templateConfig.voiceCount === 'multiple'
+                        ? 'text-t-text1'
+                        : 'text-t-text3 border border-t-border hover:border-t-border'
+                    }`}
+                    style={templateConfig.voiceCount === 'multiple' ? { background: theme.primary } : {}}
+                  >
+                    <User size={14} className="inline mr-1" />
+                    <User size={14} className="inline -ml-2 mr-1" />
+                    {language === 'zh' ? '多人' : 'Multi'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Media Options */}
+              <div>
+                <label className="block text-sm text-t-text3 mb-2">
+                  {language === 'zh' ? '媒体' : 'Media'}
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => updateSpecField('addBgm', !specData.addBgm)}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                      specData.addBgm
+                        ? 'text-t-text1'
+                        : 'text-t-text3 border border-t-border hover:border-t-border'
+                    }`}
+                    style={specData.addBgm ? { background: theme.primary } : {}}
+                  >
+                    <Music size={14} />
+                    BGM
+                  </button>
+                  <button
+                    onClick={() => updateSpecField('addSoundEffects', !specData.addSoundEffects)}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                      specData.addSoundEffects
+                        ? 'text-t-text1'
+                        : 'text-t-text3 border border-t-border hover:border-t-border'
+                    }`}
+                    style={specData.addSoundEffects ? { background: theme.primary } : {}}
+                  >
+                    <Volume2 size={14} />
+                    SFX
+                  </button>
+                  <button
+                    onClick={() => updateSpecField('hasVisualContent', !specData.hasVisualContent)}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                      specData.hasVisualContent
+                        ? 'text-t-text1'
+                        : 'text-t-text3 border border-t-border hover:border-t-border'
+                    }`}
+                    style={specData.hasVisualContent ? { background: theme.primary } : {}}
+                  >
+                    <Image size={14} />
+                    {language === 'zh' ? '图片' : 'Images'}
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Media Options */}
-            <div>
-              <label className="block text-sm text-t-text3 mb-2">
-                {language === 'zh' ? '媒体' : 'Media'}
-              </label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => updateSpecField('addBgm', !specData.addBgm)}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
-                    specData.addBgm
-                      ? 'text-t-text1'
-                      : 'text-t-text3 border border-t-border hover:border-t-border'
-                  }`}
-                  style={specData.addBgm ? { background: theme.primary } : {}}
-                >
-                  <Music size={14} />
-                  BGM
-                </button>
-                <button
-                  onClick={() => updateSpecField('addSoundEffects', !specData.addSoundEffects)}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
-                    specData.addSoundEffects
-                      ? 'text-t-text1'
-                      : 'text-t-text3 border border-t-border hover:border-t-border'
-                  }`}
-                  style={specData.addSoundEffects ? { background: theme.primary } : {}}
-                >
-                  <Volume2 size={14} />
-                  SFX
-                </button>
-                <button
-                  onClick={() => updateSpecField('hasVisualContent', !specData.hasVisualContent)}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
-                    specData.hasVisualContent
-                      ? 'text-t-text1'
-                      : 'text-t-text3 border border-t-border hover:border-t-border'
-                  }`}
-                  style={specData.hasVisualContent ? { background: theme.primary } : {}}
-                >
-                  <Image size={14} />
-                  {language === 'zh' ? '图片' : 'Images'}
-                </button>
-              </div>
+            {/* Optional fields are folded by default to reduce cognitive load */}
+            <div className="rounded-lg border border-t-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowOptionalSpecFields(prev => !prev)}
+                className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-t-card-hover transition-all"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-t-text2">
+                    {language === 'zh' ? '可选项' : 'Optional details'}
+                  </span>
+                  {optionalFilledCount > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full text-t-text2 bg-t-card-hover">
+                      {language === 'zh' ? `已填写 ${optionalFilledCount}` : `${optionalFilledCount} filled`}
+                    </span>
+                  )}
+                </div>
+                {showOptionalSpecFields ? <ChevronDown size={16} className="text-t-text3" /> : <ChevronRight size={16} className="text-t-text3" />}
+              </button>
+
+              {showOptionalSpecFields && (
+                <div className="p-4 border-t border-t-border space-y-5">
+                  {/* Subtitle - Toggle Option */}
+                  {showSubtitle ? (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm text-t-text3">
+                          {language === 'zh' ? '项目描述' : 'Project description'}
+                        </label>
+                        <button
+                          onClick={() => {
+                            setShowSubtitle(false);
+                            updateSpecField('subtitle', '');
+                          }}
+                          className="text-sm text-t-text3 hover:text-t-text2 transition-all"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={specData.subtitle}
+                        onChange={(e) => updateSpecField('subtitle', e.target.value)}
+                        placeholder={language === 'zh' ? '简要描述您的项目以及它的用途。' : 'Briefly describe your project and how it will be used.'}
+                        className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowSubtitle(true)}
+                      className="flex items-center gap-2 text-sm text-t-text3 hover:text-t-text2 transition-all"
+                    >
+                      <Plus size={14} />
+                      {language === 'zh' ? '添加项目描述' : 'Add a short description'}
+                    </button>
+                  )}
+                  {/* Target Audience */}
+                  <div>
+                    <label className="block text-sm text-t-text3 mb-2">
+                      {language === 'zh' ? '这个音频是为谁制作的？' : 'Who is this audio for?'}
+                    </label>
+                    <input
+                      type="text"
+                      value={specData.targetAudience}
+                      onChange={(e) => updateSpecField('targetAudience', e.target.value)}
+                      placeholder={language === 'zh' ? '描述您的目标听众。例如年龄范围、收听原因或方式。' : 'Describe your intended listeners. For example, age range, why or how they will listen.'}
+                      className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
+                    />
+                  </div>
+                  {/* Format and Duration */}
+                  <div>
+                    <label className="block text-sm text-t-text3 mb-2">
+                      {language === 'zh' ? '结构和长度' : 'Structure and length'}
+                    </label>
+                    <input
+                      type="text"
+                      value={specData.formatAndDuration}
+                      onChange={(e) => updateSpecField('formatAndDuration', e.target.value)}
+                      placeholder={language === 'zh' ? '描述项目的结构。例如短小章节、长篇章节或单段连续内容。' : 'Describe how your project is structured. For example short sections, chapters, or a single continuous piece.'}
+                      className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
+                    />
+                  </div>
+                  {/* Tone and Expression */}
+                  <div>
+                    <label className="block text-sm text-t-text3 mb-2">
+                      {language === 'zh' ? '语气和表达风格' : 'Tone and delivery style'}
+                    </label>
+                    <input
+                      type="text"
+                      value={specData.toneAndExpression}
+                      onChange={(e) => updateSpecField('toneAndExpression', e.target.value)}
+                      placeholder={language === 'zh' ? '描述声音应给听众的感受。例如平静、温暖、教学性、对话式、严肃或富有表现力。' : 'Describe how the voice(s) should sound to the listener. For example calm, warm, instructional, conversational, serious, or expressive.'}
+                      className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-          {/* Subtitle - Toggle Option */}
-          {showSubtitle ? (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm text-t-text3">
-                  {language === 'zh' ? '项目描述' : 'Project description'}
-                </label>
-                <button
-                  onClick={() => {
-                    setShowSubtitle(false);
-                    updateSpecField('subtitle', '');
-                  }}
-                  className="text-sm text-t-text3 hover:text-t-text2 transition-all"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-              <input
-                type="text"
-                value={specData.subtitle}
-                onChange={(e) => updateSpecField('subtitle', e.target.value)}
-                placeholder={language === 'zh' ? '简要描述您的项目以及它的用途。' : 'Briefly describe your project and how it will be used.'}
-                className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
-              />
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowSubtitle(true)}
-              className="flex items-center gap-2 text-sm text-t-text3 hover:text-t-text2 transition-all"
-            >
-              <Plus size={14} />
-              {language === 'zh' ? '添加项目描述' : 'Add a short description'}
-            </button>
-          )}
-          {/* Target Audience */}
-          <div>
-            <label className="block text-sm text-t-text3 mb-2">
-              {language === 'zh' ? '这个音频是为谁制作的？' : 'Who is this audio for?'}
-            </label>
-            <input
-              type="text"
-              value={specData.targetAudience}
-              onChange={(e) => updateSpecField('targetAudience', e.target.value)}
-              placeholder={language === 'zh' ? '描述您的目标听众。例如年龄范围、收听原因或方式。' : 'Describe your intended listeners. For example, age range, why or how they will listen.'}
-              className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
-            />
-          </div>
-          {/* Format and Duration */}
-          <div>
-            <label className="block text-sm text-t-text3 mb-2">
-              {language === 'zh' ? '结构和长度' : 'Structure and length'}
-            </label>
-            <input
-              type="text"
-              value={specData.formatAndDuration}
-              onChange={(e) => updateSpecField('formatAndDuration', e.target.value)}
-              placeholder={language === 'zh' ? '描述项目的结构。例如短小章节、长篇章节或单段连续内容。' : 'Describe how your project is structured. For example short sections, chapters, or a single continuous piece.'}
-              className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
-            />
-          </div>
-          {/* Tone and Expression */}
-          <div>
-            <label className="block text-sm text-t-text3 mb-2">
-              {language === 'zh' ? '语气和表达风格' : 'Tone and delivery style'}
-            </label>
-            <input
-              type="text"
-              value={specData.toneAndExpression}
-              onChange={(e) => updateSpecField('toneAndExpression', e.target.value)}
-              placeholder={language === 'zh' ? '描述声音应给听众的感受。例如平静、温暖、教学性、对话式、严肃或富有表现力。' : 'Describe how the voice(s) should sound to the listener. For example calm, warm, instructional, conversational, serious, or expressive.'}
-              className="w-full px-4 py-3 rounded-lg border border-t-border bg-t-card text-base text-t-text1 focus:outline-none focus:border-t-border"
-            />
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Render Step 3: Content Input (NEW - moved from old Step 1)
   const renderContentInputStep = () => (
@@ -1543,9 +1597,13 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
             value={contentInput.textContent}
             onChange={(e) => handleTextContentChange(e.target.value)}
             onKeyDown={handleTextareaKeyDown}
-            placeholder={language === 'zh' 
-              ? '粘贴或输入您的内容...\n\n例如：书籍章节、故事文本、播客脚本等' 
-              : 'Paste or enter your content...\n\nExample: Book chapter, story text, podcast script, etc.'}
+            placeholder={contentInput.uploadedFiles.length > 0
+              ? (language === 'zh'
+                ? '输入处理指令（可选）...\n\n例如：保留数字的朗读方式、用轻松的语气改写、只提取对话部分等'
+                : 'Enter processing instructions (optional)...\n\nExample: Preserve number reading, rewrite in a casual tone, extract dialogue only, etc.')
+              : (language === 'zh' 
+                ? '粘贴或输入您的内容...\n\n例如：书籍章节、故事文本、播客脚本等' 
+                : 'Paste or enter your content...\n\nExample: Book chapter, story text, podcast script, etc.')}
             rows={8}
             className="w-full px-5 pt-4 pb-3 bg-transparent text-base text-t-text1 placeholder-t-text3 focus:outline-none resize-none"
           />

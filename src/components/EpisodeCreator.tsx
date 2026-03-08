@@ -274,8 +274,15 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
     setIsGeneratingScript(true);
     setStreamingText('');
     try {
+      const hasFiles = uploadedFiles.length > 0;
+      const hasText = textContent.trim().length > 0;
+
+      // When both files and text exist, text is treated as user instructions
+      const userInstructions = (hasFiles && hasText) ? textContent : undefined;
+      const textForCollection = (hasFiles && hasText) ? '' : textContent;
+
       const { text: content, attachments } = await collectAnalysisContent(
-        textContent, uploadedFiles, { includeLabels: false, returnAttachments: true }
+        textForCollection, uploadedFiles, { includeLabels: false, returnAttachments: true }
       );
       if (!content.trim() && attachments.length === 0) {
         alert(t.projectCreator?.errors?.inputOrUpload || 'Please input or upload content');
@@ -290,7 +297,7 @@ export function EpisodeCreator({ project, onClose, onSuccess }: EpisodeCreatorPr
         addBgm: spec?.addBgm || false,
         addSoundEffects: spec?.addSoundEffects || false,
         hasVisualContent: spec?.hasVisualContent || false,
-      });
+      }, userInstructions);
       const finalText = await api.generateTextStream(prompt, (chunk) => { setStreamingText(chunk.accumulated); }, { attachments });
       const { sections, bgmRecommendation: bgmRec } = parseScriptGenerationResponse(finalText);
       const typedSections = sections as ScriptSection[];

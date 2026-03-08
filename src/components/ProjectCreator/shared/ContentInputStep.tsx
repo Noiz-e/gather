@@ -71,9 +71,15 @@ export function ContentInputStep({
     }
   };
 
-  const defaultPlaceholder = language === 'zh'
-    ? '粘贴或输入您的内容...\n\n例如：书籍章节、故事文本、播客脚本等'
-    : 'Paste or enter your content...\n\nExample: Book chapter, story text, podcast script, etc.';
+  const hasFiles = uploadedFiles.length > 0;
+
+  const defaultPlaceholder = hasFiles
+    ? (language === 'zh'
+      ? '输入处理指令（可选）...\n\n例如：保留数字的朗读方式、用轻松的语气改写、只提取对话部分等'
+      : 'Enter processing instructions (optional)...\n\nExample: Preserve number reading, rewrite in a casual tone, extract dialogue only, etc.')
+    : (language === 'zh'
+      ? '粘贴或输入您的内容...\n\n例如：书籍章节、故事文本、播客脚本等'
+      : 'Paste or enter your content...\n\nExample: Book chapter, story text, podcast script, etc.');
 
   return (
     <div className="space-y-6">

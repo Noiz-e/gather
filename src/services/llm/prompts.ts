@@ -40,7 +40,7 @@ export interface SpecAnalysisConfig {
   toneAndExpression?: string;
 }
 
-export function buildSpecAnalysisPrompt(content: string, config?: SpecAnalysisConfig): string {
+export function buildSpecAnalysisPrompt(content: string, config?: SpecAnalysisConfig, userInstructions?: string): string {
   const contextSection = config && (config.templateName || config.targetAudience) 
     ? `
 Project Context (use this to better understand what the user wants):
@@ -49,6 +49,10 @@ ${config.targetAudience ? `- Target Audience: ${config.targetAudience}` : ''}
 ${config.formatAndDuration ? `- Format: ${config.formatAndDuration}` : ''}
 ${config.toneAndExpression ? `- Tone/Style: ${config.toneAndExpression}` : ''}
 `
+    : '';
+
+  const instructionsSection = userInstructions?.trim()
+    ? `\nUser Instructions (follow these when analyzing and processing the content):\n${userInstructions.trim()}\n`
     : '';
 
   return `Analyze the following content and extract podcast/audio production specifications. Return a JSON object with these fields:
@@ -60,14 +64,14 @@ ${config.toneAndExpression ? `- Tone/Style: ${config.toneAndExpression}` : ''}
 - addBgm: boolean - whether background music is recommended
 - addSoundEffects: boolean - whether sound effects are recommended
 - hasVisualContent: boolean - whether visual content is requested
-${contextSection}
+${contextSection}${instructionsSection}
 Content to analyze:
 ${content}
 
 Return ONLY the JSON object, no other text.`;
 }
 
-export function buildScriptGenerationPrompt(content: string, config: ScriptGenerationConfig): string {
+export function buildScriptGenerationPrompt(content: string, config: ScriptGenerationConfig, userInstructions?: string): string {
   const visualInstruction = config.hasVisualContent 
     ? '\n  - coverImageDescription: visual description for this section'
     : '';
@@ -84,6 +88,10 @@ Also include a top-level "bgmRecommendation" with:
 - presetId: one of [piano, tragic, gentle, calm, epic, mystery, cheerful, thinking]`
     : '';
 
+  const userInstructionsSection = userInstructions?.trim()
+    ? `\n5. USER INSTRUCTIONS (follow these additional requirements when processing the content):\n${userInstructions.trim()}\n`
+    : '';
+
   return `Convert this content into a structured podcast script.
 
 RULES:
@@ -91,7 +99,7 @@ RULES:
 2. Preserve original wording exactly. Do NOT rewrite, paraphrase, or expand contractions (keep "don't", "it's", etc.).
 3. Include ALL lines, even repeated ones. Do NOT deduplicate or skip.
 4. Keep continuous speech by the same speaker as ONE line. Only split on pause markers, tone shifts, or speaker changes.
-
+${userInstructionsSection}
 Content: ${content}
 
 Specs: Title: ${config.title} | Audience: ${config.targetAudience} | Format: ${config.formatAndDuration} | Tone: ${config.toneAndExpression} | BGM: ${config.addBgm ? 'Yes' : 'No'} | SFX: ${config.addSoundEffects ? 'Yes' : 'No'} | Visual: ${config.hasVisualContent ? 'Yes' : 'No'}
