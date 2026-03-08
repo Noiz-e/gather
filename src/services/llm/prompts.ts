@@ -148,7 +148,7 @@ Specs: Title: ${config.title} | Audience: ${config.targetAudience} | Format: ${c
 
 Return JSON ${config.addBgm ? '{ "sections": [...], "bgmRecommendation": {...} }' : 'array of sections'}. Each section:
 - id, name (use source headers), description (incorporate tone/stage directions)${visualInstruction}
-- timeline: [{ id, timeStart, timeEnd, lines: [{ speaker, line }]${soundInstruction} }]
+- timeline: [{ id, lines: [{ speaker, line }]${soundInstruction} }]
 ${bgmInstruction}
 Return ONLY valid JSON.`;
 }

@@ -174,26 +174,9 @@ export function ScriptEditorStep({
                     key={item.id}
                     className="rounded-lg border border-t-border p-4 space-y-4 bg-t-card"
                   >
-                    {/* Header: Time + Delete */}
+                    {/* Header: Index + Delete */}
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-t-text3 w-5">{itemIndex + 1}</span>
-                        <input
-                          type="text"
-                          value={item.timeStart}
-                          onChange={(e) => actions.updateTimelineItem(section.id, item.id, 'timeStart', e.target.value)}
-                          placeholder="00:00"
-                          className="w-16 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none"
-                        />
-                        <span className="text-t-text3 text-sm">-</span>
-                        <input
-                          type="text"
-                          value={item.timeEnd}
-                          onChange={(e) => actions.updateTimelineItem(section.id, item.id, 'timeEnd', e.target.value)}
-                          placeholder="00:15"
-                          className="w-16 px-3 py-2 rounded border border-t-border bg-t-card text-t-text1 text-sm focus:outline-none"
-                        />
-                      </div>
+                      <span className="text-xs text-t-text3 w-5">{itemIndex + 1}</span>
                       <button
                         onClick={() => actions.removeTimelineItem(section.id, item.id)}
                         className="p-2 rounded hover:bg-red-500/20 text-t-text3 hover:text-red-400 transition-all"

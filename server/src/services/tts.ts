@@ -28,8 +28,6 @@ export interface CustomTTSOptions {
   refAudioDataUrl?: string;
   /** Reference text (prompt text for the reference audio) */
   refText?: string;
-  /** Target duration in milliseconds (0 = auto) */
-  targetDuration?: number;
   /** Speech speed (0.7 - 1.3, default 1.0) */
   speed?: number;
   /** Speaker ID (-1 = use reference audio) */
@@ -49,7 +47,6 @@ export interface CustomTTSOptions {
 export interface CustomTTSResult {
   audioData: string;  // base64 WAV
   mimeType: string;
-  durationMs?: number;
 }
 
 /**
@@ -199,8 +196,6 @@ export async function generateCustomSpeech(
   if (options.speed && options.speed !== 0) {
     const speed = Math.max(0.7, Math.min(1.3, options.speed));
     formData.append('speech_speed', String(speed));
-  } else if (options.targetDuration && options.targetDuration > 0) {
-    formData.append('duration', String(options.targetDuration / 1000));
   }
   
   if (options.emotionEnh) {
@@ -268,14 +263,12 @@ export interface BatchTTSItem {
   refAudioPath?: string;
   refText?: string;
   speed?: number;
-  targetDuration?: number;
 }
 
 export interface BatchTTSResult {
   id: string;
   audioData?: string;
   mimeType?: string;
-  durationMs?: number;
   error?: string;
 }
 
@@ -298,15 +291,13 @@ export async function generateBatchCustomSpeech(
             refAudioDataUrl: item.refAudioDataUrl || defaultRefAudioDataUrl,
             refAudioPath: item.refAudioPath,
             refText: item.refText || defaultRefText,
-            speed: item.speed,
-            targetDuration: item.targetDuration
+            speed: item.speed
           });
           
           return {
             id: item.id,
             audioData: result.audioData,
-            mimeType: result.mimeType,
-            durationMs: result.durationMs
+            mimeType: result.mimeType
           };
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Unknown error';

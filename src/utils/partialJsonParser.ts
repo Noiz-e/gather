@@ -120,8 +120,6 @@ function isCompleteTimelineItem(obj: unknown): boolean {
   const item = obj as Record<string, unknown>;
   
   if (typeof item.id !== 'string') return false;
-  if (typeof item.timeStart !== 'string') return false;
-  if (typeof item.timeEnd !== 'string') return false;
   if (!Array.isArray(item.lines)) return false;
   // soundMusic is optional — don't require it for completeness
   

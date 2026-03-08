@@ -27,8 +27,6 @@ export interface ScriptLine {
 
 export interface ScriptTimelineItem {
   id: string;
-  timeStart: string;
-  timeEnd: string;
   lines: ScriptLine[];
   soundMusic: string;
 }
@@ -136,8 +134,6 @@ interface ScriptSectionRow {
 interface ScriptTimelineItemRow {
   id: string;
   section_id: string;
-  time_start: string;
-  time_end: string;
   sound_music: string;
   sort_order: number;
   lines: ScriptLine[];
@@ -277,8 +273,6 @@ async function buildProjectsWithUrls(projectRows: ProjectRow[]): Promise<Project
     const items = timelineBySection.get(item.section_id) || [];
     items.push({
       id: item.id,
-      timeStart: item.time_start,
-      timeEnd: item.time_end,
       soundMusic: item.sound_music,
       lines: item.lines || [],
     });
@@ -743,12 +737,11 @@ async function _upsertProjectInTx(
       for (const item of section.timeline || []) {
         incomingTimelineIds.push(item.id);
         await client.query(`
-          INSERT INTO script_timeline_items (id, section_id, time_start, time_end, sound_music, sort_order, lines)
-          VALUES ($1,$2,$3,$4,$5,$6,$7)
+          INSERT INTO script_timeline_items (id, section_id, sound_music, sort_order, lines)
+          VALUES ($1,$2,$3,$4,$5)
           ON CONFLICT (id) DO UPDATE SET
-            time_start = EXCLUDED.time_start, time_end = EXCLUDED.time_end,
             sound_music = EXCLUDED.sound_music, sort_order = EXCLUDED.sort_order, lines = EXCLUDED.lines
-        `, [item.id, section.id, item.timeStart, item.timeEnd, item.soundMusic, timelineOrder++, JSON.stringify(item.lines || [])]);
+        `, [item.id, section.id, item.soundMusic, timelineOrder++, JSON.stringify(item.lines || [])]);
       }
 
       if (incomingTimelineIds.length > 0) {

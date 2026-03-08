@@ -472,8 +472,6 @@ export const projectCreatorReducer = produce((state: ProjectCreatorState, action
         }
         section.timeline.push({
           id: crypto.randomUUID(),
-          timeStart: '',
-          timeEnd: '',
           lines: [{ speaker: lastSpeaker, line: '' }],
           soundMusic: ''
         });

@@ -13,7 +13,7 @@ export type ScriptSetter = React.Dispatch<React.SetStateAction<ScriptSection[]>>
  */
 export interface ScriptEditorActions {
   updateSectionInfo: (sectionId: string, field: 'name' | 'description' | 'coverImageDescription', value: string) => void;
-  updateTimelineItem: (sectionId: string, itemId: string, field: 'timeStart' | 'timeEnd' | 'soundMusic', value: string) => void;
+  updateTimelineItem: (sectionId: string, itemId: string, field: 'soundMusic', value: string) => void;
   updateScriptLine: (sectionId: string, itemId: string, lineIndex: number, field: 'speaker' | 'line', value: string) => void;
   setLinePause: (sectionId: string, itemId: string, lineIndex: number, pauseAfterMs: number | undefined) => void;
   addScriptLine: (sectionId: string, itemId: string) => void;
@@ -43,7 +43,7 @@ export function useScriptEditorWithState(
   );
 
   const updateTimelineItem = useCallback(
-    (sectionId: string, itemId: string, field: 'timeStart' | 'timeEnd' | 'soundMusic', value: string) => {
+    (sectionId: string, itemId: string, field: 'soundMusic', value: string) => {
       setScriptSections(sections =>
         sections.map(section =>
           section.id === sectionId
@@ -207,7 +207,7 @@ export function useScriptEditorWithState(
                 ...section,
                 timeline: [
                   ...section.timeline,
-                  { id: crypto.randomUUID(), timeStart: '', timeEnd: '', lines: [{ speaker: lastSpeaker, line: '' }], soundMusic: '' }
+                  { id: crypto.randomUUID(), lines: [{ speaker: lastSpeaker, line: '' }], soundMusic: '' }
                 ]
               }
             : section

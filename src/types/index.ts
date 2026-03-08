@@ -54,8 +54,6 @@ export function isValidSpeaker(speaker: string | undefined | null): boolean {
 // Script timeline item for episode
 export interface ScriptTimelineItem {
   id: string;
-  timeStart: string;
-  timeEnd: string;
   lines: ScriptLine[]; // Array of speaker-line pairs
   soundMusic: string;
 }

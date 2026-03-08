@@ -713,7 +713,7 @@ export function ProjectCreator({ onClose, onSuccess, initialData, creativeContex
 
   // Memoized action dispatchers to avoid re-creating on each render
   const updateTimelineItem = useCallback(
-    (sectionId: string, itemId: string, field: 'timeStart' | 'timeEnd' | 'soundMusic', value: string) => {
+    (sectionId: string, itemId: string, field: 'soundMusic', value: string) => {
       dispatch(actions.updateTimelineItem(sectionId, itemId, field, value));
     },
     []
