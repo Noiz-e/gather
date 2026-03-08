@@ -563,6 +563,34 @@
       "noTickets": "No se encontraron tickets"
     }
   },
+  "modeSelector": {
+    "welcome": "Bienvenido a Gather",
+    "subtitle": "¿Cómo te gustaría empezar?",
+    "workspaceTitle": "Espacio de Trabajo",
+    "workspaceDesc": "El estudio de producción completo. Sube guiones, gestiona proyectos y produce audio profesional — perfecto si ya tienes contenido listo.",
+    "creativeTitle": "Estudio Creativo",
+    "creativeDesc": "Empieza con una conversación. Haz lluvia de ideas con IA, da forma a tu guión juntos y luego pasa a producción sin interrupciones.",
+    "continueBtn": "Comenzar",
+    "switchLater": "Puedes cambiar entre modos en cualquier momento"
+  },
+  "creativeMode": {
+    "title": "Estudio Creativo",
+    "switchTo": "Modo Creativo",
+    "switchToWorkspace": "Espacio de Trabajo",
+    "greeting": "¡Hola! Soy tu productor creativo. Cuéntame qué tienes en mente — un episodio de podcast, un capítulo de audiolibro, una pista de meditación, lo que sea. Lo daremos forma juntos.",
+    "inputPlaceholder": "Describe tu idea, pega algo de texto, o cuéntame lo que piensas...",
+    "send": "Enviar",
+    "startProduction": "Iniciar Producción",
+    "startProductionHint": "Lleva esta conversación al pipeline completo de producción",
+    "thinking": "Pensando...",
+    "newChat": "Nuevo Chat",
+    "suggestedStarters": [
+      "Quiero convertir un artículo en un episodio de podcast",
+      "Ayúdame a idear una serie de audio de 5 partes",
+      "Tengo un borrador de guión — ayúdame a refinarlo",
+      "Crear un audio de meditación para principiantes"
+    ]
+  },
   "common": {
     "loading": "Cargando...",
     "error": "Error",

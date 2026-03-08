@@ -567,6 +567,34 @@
       "noTickets": "No tickets found"
     }
   },
+  "modeSelector": {
+    "welcome": "Welcome to Gather",
+    "subtitle": "How would you like to get started?",
+    "workspaceTitle": "Workspace",
+    "workspaceDesc": "The full production studio. Upload scripts, manage projects, and produce professional audio — perfect if you already have content ready.",
+    "creativeTitle": "Creative Studio",
+    "creativeDesc": "Start with a conversation. Brainstorm ideas with AI, shape your script together, then seamlessly move into production.",
+    "continueBtn": "Get Started",
+    "switchLater": "You can switch between modes anytime"
+  },
+  "creativeMode": {
+    "title": "Creative Studio",
+    "switchTo": "Creative Mode",
+    "switchToWorkspace": "Workspace",
+    "greeting": "Hey! I'm your creative producer. Tell me what you're imagining — a podcast episode, an audiobook chapter, a meditation track, whatever it is. We'll shape it together.",
+    "inputPlaceholder": "Describe your idea, paste some text, or just tell me what you're thinking...",
+    "send": "Send",
+    "startProduction": "Start Production",
+    "startProductionHint": "Take this conversation into the full production pipeline",
+    "thinking": "Thinking...",
+    "newChat": "New Chat",
+    "suggestedStarters": [
+      "I want to turn a blog post into a podcast episode",
+      "Help me brainstorm a 5-part audio series",
+      "I have a script draft — help me refine it",
+      "Create a meditation audio for beginners"
+    ]
+  },
   "common": {
     "loading": "Loading...",
     "error": "Error",

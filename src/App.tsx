@@ -19,8 +19,11 @@ import { Settings } from './components/Settings';
 import { FeedbackPanel } from './components/FeedbackPanel';
 import { AdminFeedback } from './components/AdminFeedback';
 import { AuthPage } from './components/AuthPage';
+import { CreativeMode } from './components/CreativeMode';
+import { ModeSelector, hasChosenMode, getSavedMode, saveChosenMode } from './components/ModeSelector';
 import { Loader2 } from 'lucide-react';
 
+type AppMode = 'workspace' | 'creative';
 type Page = 'dashboard' | 'projects' | 'voice' | 'media' | 'feedback' | 'admin-feedback' | 'settings' | 'project-detail';
 
 interface AppContentProps {
@@ -28,15 +31,17 @@ interface AppContentProps {
   onClearLandingData: () => void;
 }
 
-function AppContent({ initialLandingData, onClearLandingData }: AppContentProps) {
+function AppContent({ initialLandingData, onClearLandingData, initialMode }: AppContentProps & { initialMode: AppMode }) {
   const { projects, currentProject, setCurrentProject, addEpisode, updateEpisode } = useProjects();
   
+  const [appMode, setAppMode] = useState<AppMode>(initialMode);
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [showProjectCreator, setShowProjectCreator] = useState(!!initialLandingData);
   const [showEpisodeCreator, setShowEpisodeCreator] = useState(false);
   const [editingEpisode, setEditingEpisode] = useState<Episode | null>(null);
   const [showEpisodeEditor, setShowEpisodeEditor] = useState(false);
   const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
+  const [creativeContext, setCreativeContext] = useState<string | null>(null);
 
   // Navigate to project detail once the projects state has the newly created project
   useEffect(() => {
@@ -91,6 +96,22 @@ function AppContent({ initialLandingData, onClearLandingData }: AppContentProps)
     setEditingEpisode(null);
   };
 
+  const handleSwitchToCreative = () => {
+    setAppMode('creative');
+    saveChosenMode('creative');
+  };
+
+  const handleSwitchToWorkspace = () => {
+    setAppMode('workspace');
+    saveChosenMode('workspace');
+  };
+
+  const handleStartProductionFromCreative = (conversationContext: string) => {
+    setCreativeContext(conversationContext);
+    setAppMode('workspace');
+    setShowProjectCreator(true);
+  };
+
   const renderContent = () => {
     if (currentPage === 'project-detail' && currentProject) {
       return (
@@ -123,24 +144,35 @@ function AppContent({ initialLandingData, onClearLandingData }: AppContentProps)
     }
   };
 
+  if (appMode === 'creative') {
+    return (
+      <CreativeMode
+        onSwitchToWorkspace={handleSwitchToWorkspace}
+        onStartProduction={handleStartProductionFromCreative}
+      />
+    );
+  }
+
   return (
     <>
-      <Layout onNavigate={handleNavigate} currentPage={currentPage}>
+      <Layout onNavigate={handleNavigate} currentPage={currentPage} onSwitchToCreative={handleSwitchToCreative}>
         {renderContent()}
       </Layout>
 
       {showProjectCreator && (
         <ProjectCreator
-          onClose={() => { setShowProjectCreator(false); onClearLandingData(); }}
+          onClose={() => { setShowProjectCreator(false); onClearLandingData(); setCreativeContext(null); }}
           onSuccess={(projectId?: string) => { 
             setShowProjectCreator(false); 
             onClearLandingData(); 
+            setCreativeContext(null);
             if (projectId) {
               setPendingProjectId(projectId);
             }
             setCurrentPage('projects'); 
           }}
           initialData={initialLandingData || undefined}
+          creativeContext={creativeContext || undefined}
         />
       )}
 
@@ -183,12 +215,19 @@ function AuthenticatedApp() {
   const { isAuthenticated, isLoading } = useAuth();
   const [showLanding, setShowLanding] = useState(false);
   const [landingData, setLandingData] = useState<LandingData | null>(null);
+  const [showModeSelector, setShowModeSelector] = useState(() => !hasChosenMode());
+  const [initialMode, setInitialMode] = useState<AppMode>(() => getSavedMode() || 'workspace');
 
   const handleEnterWorkspace = (data?: LandingData) => {
     if (data) {
       setLandingData(data);
     }
     setShowLanding(false);
+  };
+
+  const handleModeSelected = (mode: AppMode) => {
+    setInitialMode(mode);
+    setShowModeSelector(false);
   };
 
   // Show loading screen while checking auth
@@ -201,6 +240,11 @@ function AuthenticatedApp() {
     return <AuthPage />;
   }
 
+  // Show mode selector for first-time users
+  if (showModeSelector) {
+    return <ModeSelector onSelect={handleModeSelected} />;
+  }
+
   // Show main app content
   return (
     <>
@@ -208,7 +252,7 @@ function AuthenticatedApp() {
         <Landing onEnterWorkspace={handleEnterWorkspace} />
       ) : (
         <ProjectProvider>
-          <AppContent initialLandingData={landingData} onClearLandingData={() => setLandingData(null)} />
+          <AppContent initialLandingData={landingData} onClearLandingData={() => setLandingData(null)} initialMode={initialMode} />
         </ProjectProvider>
       )}
     </>

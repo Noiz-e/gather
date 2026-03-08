@@ -68,14 +68,15 @@ interface ProjectCreatorProps {
   onClose: () => void;
   onSuccess: (projectId?: string) => void;
   initialData?: LandingData;
+  creativeContext?: string;
 }
 
-export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreatorProps) {
+export function ProjectCreator({ onClose, onSuccess, initialData, creativeContext }: ProjectCreatorProps) {
   const { theme, religion } = useTheme();
   const { createProject } = useProjects();
   const { t, language } = useLanguage();
-  // Start at step 2 if initialData is provided (coming from Landing page)
-  const [currentStep, setCurrentStep] = useState(initialData ? 2 : 1);
+  // Start at step 2 if initialData or creativeContext is provided
+  const [currentStep, setCurrentStep] = useState(initialData || creativeContext ? 2 : 1);
   
   // Unified state management with reducer
   const [state, dispatch] = useReducer(projectCreatorReducer, initialState);
@@ -2948,10 +2949,18 @@ export function ProjectCreator({ onClose, onSuccess, initialData }: ProjectCreat
     }
   }, [initialData]);
 
+  // Initialize from Creative Mode conversation context
+  useEffect(() => {
+    if (creativeContext) {
+      dispatch(actions.setTextContent(creativeContext));
+      setCustomDescription(creativeContext);
+    }
+  }, [creativeContext]);
+
   // --- Draft Persistence: Restore on mount ---
   useEffect(() => {
-    // Skip if initialData is provided (coming from Landing page – fresh flow)
-    if (initialData) return;
+    // Skip if initialData or creativeContext is provided (fresh flow)
+    if (initialData || creativeContext) return;
     
     const draft = loadDraft();
     if (draft) {

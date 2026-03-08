@@ -3,7 +3,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Language, LANGUAGE_OPTIONS } from '../i18n/types';
-import { LayoutDashboard, FolderOpen, Settings, AudioWaveform, Globe, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Menu, X, Image, LogOut, MessageSquare, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, FolderOpen, Settings, AudioWaveform, Globe, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft, Menu, X, Image, LogOut, MessageSquare, ShieldCheck, Sparkles } from 'lucide-react';
 import { ReligionIconMap } from './icons/ReligionIcons';
 import { RoleBadge } from './RoleBadge';
 
@@ -11,9 +11,10 @@ interface LayoutProps {
   children: ReactNode;
   onNavigate: (page: string) => void;
   currentPage: string;
+  onSwitchToCreative?: () => void;
 }
 
-export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
+export function Layout({ children, onNavigate, currentPage, onSwitchToCreative }: LayoutProps) {
   const { religion, theme } = useTheme();
   const { t, language, setLanguage } = useLanguage();
   const { user, logout } = useAuth();
@@ -189,6 +190,25 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
           </div>
         </div>
 
+        {/* Mobile Creative Mode Toggle */}
+        {onSwitchToCreative && (
+          <div className="px-4 pt-4">
+            <button
+              onClick={() => { onSwitchToCreative(); setMobileMenuOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300"
+              style={{
+                background: `linear-gradient(135deg, ${theme.primary}20, ${theme.accent || theme.primary}15)`,
+                border: `1px solid ${theme.primary}30`,
+              }}
+            >
+              <Sparkles size={20} color={theme.primaryLight} />
+              <span className="font-medium tracking-wide text-sm" style={{ color: theme.primaryLight }}>
+                {t.creativeMode.switchTo}
+              </span>
+            </button>
+          </div>
+        )}
+
         {/* Mobile Navigation */}
         <nav className="flex-1 p-4">
           <ul className="space-y-1">
@@ -309,6 +329,28 @@ export function Layout({ children, onNavigate, currentPage }: LayoutProps) {
             )}
           </div>
         </div>
+
+        {/* Creative Mode Toggle */}
+        {onSwitchToCreative && (
+          <div className={`${sidebarCollapsed ? 'px-3 pt-4' : 'px-6 pt-6'} transition-all duration-300`}>
+            <button
+              onClick={onSwitchToCreative}
+              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-xl transition-all duration-300 group hover:scale-[1.02]`}
+              style={{
+                background: `linear-gradient(135deg, ${theme.primary}20, ${theme.accent || theme.primary}15)`,
+                border: `1px solid ${theme.primary}30`,
+              }}
+              title={sidebarCollapsed ? t.creativeMode.switchTo : undefined}
+            >
+              <Sparkles size={20} className="flex-shrink-0" color={theme.primaryLight} />
+              {!sidebarCollapsed && (
+                <span className="font-medium tracking-wide whitespace-nowrap text-sm" style={{ color: theme.primaryLight }}>
+                  {t.creativeMode.switchTo}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Navigation */}
         <nav className={`flex-1 ${sidebarCollapsed ? 'p-3' : 'p-6'} transition-all duration-300`}>

@@ -567,6 +567,34 @@
       "noTickets": "暂无工单"
     }
   },
+  "modeSelector": {
+    "welcome": "欢迎来到 Gather",
+    "subtitle": "你想如何开始？",
+    "workspaceTitle": "工作区",
+    "workspaceDesc": "完整的制作工作室。上传脚本、管理项目、制作专业音频——适合已经有内容素材的你。",
+    "creativeTitle": "创意工作室",
+    "creativeDesc": "从一段对话开始。和 AI 一起头脑风暴、打磨脚本，然后无缝进入制作流程。",
+    "continueBtn": "开始",
+    "switchLater": "你可以随时在两种模式间切换"
+  },
+  "creativeMode": {
+    "title": "创意工作室",
+    "switchTo": "创意模式",
+    "switchToWorkspace": "工作区",
+    "greeting": "嗨！我是你的创意制作人。告诉我你在想什么——播客节目、有声书章节、冥想音频，什么都行。我们一起来打磨它。",
+    "inputPlaceholder": "描述你的想法、粘贴一些文字，或者随便聊聊你的构思...",
+    "send": "发送",
+    "startProduction": "开始制作",
+    "startProductionHint": "将这次对话带入完整的制作流程",
+    "thinking": "思考中...",
+    "newChat": "新对话",
+    "suggestedStarters": [
+      "我想把一篇博客文章变成播客节目",
+      "帮我构思一个5集的音频系列",
+      "我有一份脚本草稿——帮我优化一下",
+      "为初学者创建一段冥想音频"
+    ]
+  },
   "common": {
     "loading": "加载中...",
     "error": "错误",
