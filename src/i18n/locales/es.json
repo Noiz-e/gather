@@ -414,6 +414,8 @@
     "title": "Biblioteca de Medios",
     "subtitle": "Gestiona tus imágenes, música y efectos de sonido",
     "upload": "Subir",
+    "dropToUpload": "Suelta el archivo para subirlo",
+    "dropHint": "Compatible con archivos de imagen y audio",
     "generate": "Generar",
     "generating": "Generando...",
     "searchPlaceholder": "Buscar...",

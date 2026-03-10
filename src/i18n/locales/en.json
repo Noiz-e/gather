@@ -418,6 +418,8 @@
     "title": "Media Library",
     "subtitle": "Manage your images, music, and sound effects",
     "upload": "Upload",
+    "dropToUpload": "Drop file to upload",
+    "dropHint": "Supports image and audio files",
     "generate": "Generate",
     "generating": "Generating...",
     "searchPlaceholder": "Search...",
