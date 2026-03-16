@@ -82,6 +82,14 @@ export function useMixingPipeline(deps: MixingPipelineDeps) {
         };
       }
 
+      if (production.mediaProduction.sfxAudios?.length) {
+        mixRequest.sfxTracks = production.mediaProduction.sfxAudios.map(sfx => ({
+          audioData: sfx.audioData,
+          mimeType: sfx.mimeType,
+          volume: 1,
+        }));
+      }
+
       d.updateProductionPhase('mixing-editing', 'processing', 50);
 
       const result = await api.mixAudioTracks(mixRequest);

@@ -63,11 +63,18 @@ export function MediaLibrary() {
   useEffect(() => {
     const loadFromCloud = async () => {
       setIsLoadingFromCloud(true);
+      // Snapshot cache before cloud load — contains any items pending cloud save
+      const preLoadCache = loadMediaItems();
       try {
         const cloudItems = await loadMediaItemsFromCloudStorage();
-        setItems(cloudItems);
+        // Merge: keep cache-only items (pending save) so they don't vanish
+        const cloudIds = new Set(cloudItems.map(i => i.id));
+        const pendingItems = preLoadCache.filter(i => !cloudIds.has(i.id));
+        setItems(pendingItems.length > 0 ? [...cloudItems, ...pendingItems] : cloudItems);
       } catch (error) {
         console.error('Failed to load media from cloud:', error);
+        // Fall back to whatever was in cache
+        setItems(preLoadCache);
       } finally {
         setIsLoadingFromCloud(false);
       }

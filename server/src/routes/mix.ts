@@ -400,6 +400,62 @@ function concatenateWithGaps(
 }
 
 /**
+ * Mix SFX tracks into a voice audio at evenly-distributed positions.
+ * Each SFX is overlaid at its proportional position across the total duration
+ * (SFX 0 starts at 0%, SFX 1 at 1/N %, etc.) at the configured sfxVolume.
+ */
+function mixWithSfx(
+  voiceData: { audioData: string; mimeType: string; durationMs: number },
+  sfxTracks: ResolvedAudioTrack[],
+  config: AudioMixConfig
+): { audioData: string; mimeType: string; durationMs: number } {
+  const voice = extractPcmData(voiceData.audioData, voiceData.mimeType);
+  const { sampleRate, channels, bitsPerSample } = voice;
+  const bytesPerSample = bitsPerSample / 8;
+  const totalSamples = voice.pcmData.length / bytesPerSample;
+
+  // Start with voice PCM as result
+  const result = Buffer.alloc(voice.pcmData.length);
+  voice.pcmData.copy(result);
+
+  for (let i = 0; i < sfxTracks.length; i++) {
+    const sfx = extractPcmData(sfxTracks[i].audioData, sfxTracks[i].mimeType);
+    const sfxVolScale = (sfxTracks[i].volume ?? 1) * config.sfxVolume;
+    const sfxBytesPerSample = sfx.bitsPerSample / 8;
+    const sfxTotalSamples = sfx.pcmData.length / sfxBytesPerSample;
+
+    // Evenly distribute: SFX i starts at i/N of the total duration
+    const startRatio = sfxTracks.length > 1 ? i / sfxTracks.length : 0;
+    const startSample = Math.floor(startRatio * totalSamples);
+
+    for (let s = 0; s < sfxTotalSamples; s++) {
+      const voiceSampleIdx = startSample + s;
+      if (voiceSampleIdx >= totalSamples) break;
+
+      const voiceByteOffset = voiceSampleIdx * bytesPerSample;
+      const sfxByteOffset = s * sfxBytesPerSample;
+      if (sfxByteOffset + sfxBytesPerSample > sfx.pcmData.length) break;
+
+      const voiceSample = result.readInt16LE(voiceByteOffset);
+      const sfxSample = sfx.pcmData.readInt16LE(sfxByteOffset);
+
+      let mixed = voiceSample + Math.round(sfxSample * sfxVolScale);
+      mixed = Math.max(-32768, Math.min(32767, mixed));
+      result.writeInt16LE(mixed, voiceByteOffset);
+    }
+  }
+
+  const wavHeader = createWavHeader(result.length, sampleRate, channels, bitsPerSample);
+  const wavFile = Buffer.concat([wavHeader, result]);
+
+  return {
+    audioData: wavFile.toString('base64'),
+    mimeType: 'audio/wav',
+    durationMs: voiceData.durationMs,
+  };
+}
+
+/**
  * Mix BGM with voice track
  * BGM is mixed at configured volume with fade in/out and loops if shorter
  */
@@ -563,9 +619,29 @@ mixRouter.post('/', async (req: Request, res: Response) => {
       console.log(`Mixed with BGM: ${result.durationMs}ms`);
     }
     
-    // Step 3: Add sound effects (future enhancement)
-    // TODO: Implement SFX mixing at specific timestamps
-    
+    // Step 3: Mix in sound effects
+    if (sfxTracks && sfxTracks.length > 0) {
+      // Resolve any SFX tracks that only have a URL
+      for (let i = 0; i < sfxTracks.length; i++) {
+        const track = sfxTracks[i];
+        if (!track.audioData && track.audioUrl) {
+          try {
+            const downloaded = await fetchAudioFromUrl(track.audioUrl);
+            track.audioData = downloaded.audioData;
+            if (!track.mimeType) track.mimeType = downloaded.mimeType;
+          } catch (err) {
+            console.warn(`SFX track ${i}: failed to fetch from URL, skipping:`, err);
+          }
+        }
+      }
+      const resolvedSfxTracks = sfxTracks.filter(t => t.audioData) as ResolvedAudioTrack[];
+      if (resolvedSfxTracks.length > 0) {
+        console.log(`Mixing ${resolvedSfxTracks.length} SFX track(s) at sfxVolume=${config.sfxVolume}...`);
+        result = mixWithSfx(result, resolvedSfxTracks, config);
+        console.log(`Mixed with SFX: ${result.durationMs}ms`);
+      }
+    }
+
     const response: MixResult = {
       audioData: result.audioData,
       mimeType: result.mimeType,

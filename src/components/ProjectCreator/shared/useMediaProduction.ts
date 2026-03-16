@@ -6,7 +6,7 @@ import { useCallback, useRef } from 'react';
 import * as api from '../../../services/api';
 import type { ScriptSection } from '../../../types';
 import type { MediaItem } from '../../../types';
-import { loadMediaItems, addMediaItem } from '../../../utils/mediaStorage';
+import { loadMediaItems, addMediaItem, uploadMediaToCloud } from '../../../utils/mediaStorage';
 import type { MediaPickerResult } from '../../MediaPickerModal';
 
 export interface MediaProductionDeps {
@@ -104,12 +104,18 @@ export function useMediaProduction(deps: MediaProductionDeps) {
           const bgmPrompt = bgmSelection?.prompt || spec.toneAndExpression || 'background music';
           const bgmResult = await api.generateBGM(bgmPrompt, undefined, 180);
           d.setBgmAudio({ audioData: bgmResult.audioData, mimeType: bgmResult.mimeType });
+          const bgmTempId = `media-${Date.now()}`;
+          let bgmDataUrl = `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`;
+          try {
+            const cloudUrl = await uploadMediaToCloud(bgmTempId, bgmDataUrl, 'bgm', `${d.title} - BGM`);
+            if (cloudUrl && cloudUrl !== bgmDataUrl) bgmDataUrl = cloudUrl;
+          } catch { /* fall back to base64 */ }
           const bgmItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
             name: `${d.title} - BGM`,
             description: bgmPrompt,
             type: 'bgm',
             mimeType: bgmResult.mimeType,
-            dataUrl: `data:${bgmResult.mimeType};base64,${bgmResult.audioData}`,
+            dataUrl: bgmDataUrl,
             duration: 180,
             tags: ['generated', 'bgm'],
             projectIds: d.projectId ? [d.projectId] : [],
@@ -125,12 +131,18 @@ export function useMediaProduction(deps: MediaProductionDeps) {
                 if (sel?.source === 'generate') {
                   const sfxResult = await api.generateSoundEffect(sel.prompt || item.soundMusic, 5);
                   d.addSfxAudio({ name: `${section.name} - SFX`, prompt: item.soundMusic, audioData: sfxResult.audioData, mimeType: sfxResult.mimeType });
+                  const sfxTempId = `media-${Date.now()}`;
+                  let sfxDataUrl = `data:${sfxResult.mimeType};base64,${sfxResult.audioData}`;
+                  try {
+                    const cloudUrl = await uploadMediaToCloud(sfxTempId, sfxDataUrl, 'sfx', `${section.name} - SFX`);
+                    if (cloudUrl && cloudUrl !== sfxDataUrl) sfxDataUrl = cloudUrl;
+                  } catch { /* fall back to base64 */ }
                   const sfxItem: Omit<MediaItem, 'id' | 'createdAt' | 'updatedAt'> = {
                     name: `${section.name} - SFX`,
                     description: item.soundMusic,
                     type: 'sfx',
                     mimeType: sfxResult.mimeType,
-                    dataUrl: `data:${sfxResult.mimeType};base64,${sfxResult.audioData}`,
+                    dataUrl: sfxDataUrl,
                     duration: 5,
                     tags: ['generated', 'sfx'],
                     projectIds: d.projectId ? [d.projectId] : [],
