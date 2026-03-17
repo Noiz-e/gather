@@ -86,24 +86,47 @@ export function CreativeMode({ onSwitchToWorkspace, onStartProduction }: Creativ
 
   const handleSend = useCallback(async (text?: string) => {
     const content = (text || input).trim();
-    if (!content || isStreaming) return;
+    const hasFiles = uploadedFiles.length > 0;
+    if ((!content && !hasFiles) || isStreaming) return;
+
+    const filesToSend = [...uploadedFiles];
+    let displayContent = content;
+    if (filesToSend.length > 0) {
+      const fileNames = filesToSend.map(f => f.name).join(', ');
+      displayContent = content
+        ? `${content}\n\n📎 ${fileNames}`
+        : `📎 ${fileNames}`;
+    }
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
-      content,
+      content: displayContent,
       timestamp: Date.now(),
     };
 
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
     setInput('');
+    setUploadedFiles([]);
     setIsStreaming(true);
     setStreamingContent('');
     abortRef.current = false;
 
     try {
-      const prompt = buildChatPrompt(updatedMessages);
+      let attachments: api.FileAttachment[] | undefined;
+      let promptText = content;
+
+      if (filesToSend.length > 0) {
+        const collected = await collectAnalysisContent(content, filesToSend, { returnAttachments: true });
+        promptText = collected.text;
+        attachments = collected.attachments.length > 0 ? collected.attachments : undefined;
+      }
+
+      const prompt = buildChatPrompt([
+        ...updatedMessages.slice(0, -1),
+        { ...userMsg, content: promptText },
+      ]);
       let accumulated = '';
 
       await api.generateTextStream(
@@ -113,7 +136,7 @@ export function CreativeMode({ onSwitchToWorkspace, onStartProduction }: Creativ
           accumulated = chunk.accumulated;
           setStreamingContent(accumulated.replace(READY_MARKER, '').trimEnd());
         },
-        { temperature: 0.8, maxTokens: 1024 }
+        { temperature: 0.8, maxTokens: 1024, attachments }
       );
 
       if (!abortRef.current) {
@@ -145,7 +168,7 @@ export function CreativeMode({ onSwitchToWorkspace, onStartProduction }: Creativ
       setIsStreaming(false);
       setStreamingContent('');
     }
-  }, [input, isStreaming, messages, t.common.error]);
+  }, [input, isStreaming, messages, uploadedFiles, t.common.error]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -154,12 +177,25 @@ export function CreativeMode({ onSwitchToWorkspace, onStartProduction }: Creativ
     }
   };
 
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      setUploadedFiles(prev => [...prev, ...Array.from(files)]);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, []);
+
+  const removeFile = useCallback((index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
   const handleNewChat = () => {
     abortRef.current = true;
     setMessages([]);
     setStreamingContent('');
     setIsStreaming(false);
     setInput('');
+    setUploadedFiles([]);
     setReadyForProduction(false);
     inputRef.current?.focus();
   };
@@ -319,10 +355,50 @@ export function CreativeMode({ onSwitchToWorkspace, onStartProduction }: Creativ
 
         {/* Input area */}
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          {/* Attached file tags */}
+          {uploadedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {uploadedFiles.map((file, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border border-t-border-lt"
+                  style={{ background: `${theme.primary}10`, color: theme.primaryLight }}
+                >
+                  <FileText size={12} />
+                  <span className="max-w-[120px] truncate">{file.name}</span>
+                  <button
+                    onClick={() => removeFile(i)}
+                    className="hover:text-red-400 transition-colors ml-0.5"
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
           <div
             className="flex items-end gap-2 rounded-xl border border-t-border-lt px-3 py-2 transition-all focus-within:border-t-border"
             style={{ background: 'var(--t-bg-card)' }}
           >
+            {/* File upload button */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isStreaming}
+              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-t-text3 hover:text-t-text2 hover:bg-t-card-hover transition-all disabled:opacity-30"
+              title="Upload file"
+            >
+              <Paperclip size={16} />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.pdf,.doc,.docx"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
             <textarea
               ref={inputRef}
               value={input}
@@ -336,11 +412,11 @@ export function CreativeMode({ onSwitchToWorkspace, onStartProduction }: Creativ
             />
             <button
               onClick={() => handleSend()}
-              disabled={!input.trim() || isStreaming}
+              disabled={(!input.trim() && uploadedFiles.length === 0) || isStreaming}
               className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-30"
               style={{
-                background: input.trim() ? theme.primary : 'transparent',
-                color: input.trim() ? '#fff' : 'var(--t-text-3)',
+                background: (input.trim() || uploadedFiles.length > 0) ? theme.primary : 'transparent',
+                color: (input.trim() || uploadedFiles.length > 0) ? '#fff' : 'var(--t-text-3)',
               }}
             >
               {isStreaming ? (
