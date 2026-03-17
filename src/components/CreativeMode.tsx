@@ -4,8 +4,10 @@ import { useLanguage } from '../i18n/LanguageContext';
 import {
   Send, Sparkles, ArrowRight,
   LayoutDashboard, Loader2, Plus,
+  Paperclip, FileText, X,
 } from 'lucide-react';
 import * as api from '../services/api';
+import { collectAnalysisContent } from '../utils/fileUtils';
 
 interface ChatMessage {
   id: string;
@@ -64,8 +66,10 @@ export function CreativeMode({ onSwitchToWorkspace, onStartProduction }: Creativ
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [readyForProduction, setReadyForProduction] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef(false);
 
   const scrollToBottom = useCallback(() => {
